@@ -1,0 +1,11 @@
+icat:
+  url: https://127.0.0.1:8181
+  check_cert: False
+  admin_users:
+    - auth: simple
+      username: root
+fts3:
+  endpoint: https://fts3-pilot.cern.ch:8446
+  instrument_data_cache: cephfs://idc
+  user_data_cache: cephfs://udc
+  tape_archive: tape://archive

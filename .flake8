@@ -1,0 +1,17 @@
+# .flake8
+[flake8]
+select = A,B,B9,BLK,C,E,F,I,N,S,W
+ignore = E203,W503,E501,B905
+max-complexity = 12
+max-line-length = 80
+application-import-names = datastore_api
+import-order-style = google
+enable-extensions=G
+per-file-ignores =
+    datastore_api/models/__init__.py:F401
+    datastore_api/models/*:N815
+    tests/*:F401,F811
+# As recommended on https://github.com/tiangolo/fastapi/discussions/7463
+extend-immutable-calls = Depends, fastapi.Depends, Query, fastapi.Query, Body, fastapi.Body, Cookie, fastapi.Cookie, Path, fastapi.Path
+# As recommended on https://github.com/pydantic/pydantic/issues/568
+classmethod-decorators = classmethod, validator, root_validator
