@@ -12,7 +12,7 @@ from datastore_api.icat_client import IcatClient
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
 from datastore_api.models.login import LoginRequest, LoginResponse
 from datastore_api.models.restore import RestoreRequest, RestoreResponse
-from datastore_api.models.status import StatusResponse
+from datastore_api.models.job import CancelResponse, StatusResponse
 from datastore_api.models.version import VersionResponse
 
 
@@ -180,11 +180,39 @@ def restore(
     return RestoreResponse(job_id=fts3.submit(context=fts3_context, job=job))
 
 
+@app.delete(
+    "/job/{job_id}",
+    response_description="The terminal state of the canceled job",
+    summary="Cancel a job previously submitted to FTS",
+    tags=["Job"],
+)
+def cancel(
+    job_id: str,
+    session_id: Annotated[str, Depends(validate_session_id)],
+    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
+    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
+) -> CancelResponse:
+    """Cancel a job previously submitted to FTS.
+    \f
+    Args:
+        job_id (str): FTS id for a submitted job.
+        session_id (str): ICAT sessionId.
+        icat_client (IcatClient): Cached client for calls to ICAT.
+        fts3_context (fts3.Context): Cached context for calls to FTS.
+
+    Returns:
+        CancelResponse: Terminal state of the canceled job.
+    """
+    icat_client.authorise_admin(session_id=session_id)
+    state = fts3.cancel(context=fts3_context, job_id=job_id)
+    return CancelResponse(state=state)
+
+
 @app.get(
-    "/status/{job_id}",
+    "/job/{job_id}",
     response_description="JSON describing the status of the requested job",
     summary="Get details of a job previously submitted to FTS",
-    tags=["Status"],
+    tags=["Job"],
 )
 def status(
     job_id: str,

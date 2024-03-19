@@ -36,6 +36,9 @@ def test_client(mocker: MockerFixture):
     fts_status_mock = mocker.patch("datastore_api.main.fts3.get_job_status")
     fts_status_mock.return_value = {"key": "value"}
 
+    fts_submit_mock = mocker.patch("datastore_api.main.fts3.cancel")
+    fts_submit_mock.return_value = "CANCELED"
+
     return TestClient(app)
 
 
@@ -84,11 +87,19 @@ class TestMain:
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
-        test_response = test_client.get("/status/1", headers=headers)
+        test_response = test_client.get("/job/1", headers=headers)
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert content == {"status": {"key": "value"}}
+
+    def test_cancel(self, test_client: TestClient):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.delete("/job/1", headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"state": "CANCELED"}
 
     def test_version(self, test_client: TestClient):
         test_response = test_client.get("/version")

@@ -31,10 +31,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ hashFiles('.github/ci_requirements.txt') }}
+          key: pip-${{ hashFiles('.github/requirements.txt') }}
 
       - name: Install Poetry & Nox
-        run: pip install -r .github/ci_requirements.txt
+        run: pip install -r .github/requirements.txt
 
       - name: Load Poetry cache
         uses: actions/cache@v4
@@ -76,10 +76,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ hashFiles('.github/ci_requirements.txt') }}
+          key: pip-${{ hashFiles('.github/requirements.txt') }}
 
       - name: Install Poetry & Nox
-        run: pip install -r .github/ci_requirements.txt
+        run: pip install -r .github/requirements.txt
 
       - name: Load Poetry cache for Nox lint session
         uses: actions/cache@v4
@@ -106,9 +106,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ hashFiles('.github/ci_requirements.txt') }}
+          key: pip-${{ hashFiles('.github/requirements.txt') }}
       - name: Install Poetry & Nox
-        run: pip install -r .github/ci_requirements.txt
+        run: pip install -r .github/requirements.txt
 
       - name: Load Poetry cache for Nox black session
         uses: actions/cache@v4
@@ -135,9 +135,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/pip
-          key: pip-${{ hashFiles('.github/ci_requirements.txt') }}
+          key: pip-${{ hashFiles('.github/requirements.txt') }}
       - name: Install Poetry & Nox
-        run: pip install -r .github/ci_requirements.txt
+        run: pip install -r .github/requirements.txt
 
       - name: Load Poetry cache for Nox safety session
         uses: actions/cache@v4
