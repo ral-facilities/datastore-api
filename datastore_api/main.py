@@ -10,9 +10,9 @@ from datastore_api.auth import validate_session_id
 from datastore_api.config import Settings
 from datastore_api.icat_client import IcatClient
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
+from datastore_api.models.job import CancelResponse, StatusResponse
 from datastore_api.models.login import LoginRequest, LoginResponse
 from datastore_api.models.restore import RestoreRequest, RestoreResponse
-from datastore_api.models.job import CancelResponse, StatusResponse
 from datastore_api.models.version import VersionResponse
 
 

@@ -1,15 +1,12 @@
-from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, BaseSettings
-import yaml
+
+from datastore_api.utils import load_yaml
 
 
 def yaml_config_settings_source(settings: BaseSettings) -> dict[str, Any]:
-    with open(Path("config.yaml"), encoding=settings.__config__.env_file_encoding) as f:
-        yaml_config = yaml.safe_load(f)
-
-    return yaml_config
+    return load_yaml("config.yaml", settings.__config__.env_file_encoding)
 
 
 class IcatUser(BaseModel):
