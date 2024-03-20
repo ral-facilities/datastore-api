@@ -7,7 +7,7 @@ import fts3.rest.client.easy as fts3
 from typing_extensions import Annotated
 
 from datastore_api.auth import validate_session_id
-from datastore_api.config import Settings
+from datastore_api.config import get_settings, Settings
 from datastore_api.icat_client import IcatClient
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
 from datastore_api.models.job import CancelResponse, StatusResponse
@@ -31,16 +31,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@lru_cache
-def get_settings() -> Settings:
-    """Get and cache the API settings to prevent overhead from reading from file.
-
-    Returns:
-        Settings: The configurations settings for the API.
-    """
-    return Settings()
 
 
 @lru_cache
@@ -120,6 +110,7 @@ def archive(
     Returns:
         ArchiveResponse: FTS job_id for archive transfer.
     """
+    icat_client.authorise_admin(session_id=session_id)
     paths = icat_client.create_investigations(
         session_id=session_id,
         investigations=archive_request.investigations,

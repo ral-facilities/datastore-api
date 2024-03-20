@@ -5,7 +5,7 @@ icat:
     - auth: simple
       username: root
 fts3:
-  endpoint: https://fts3-pilot.cern.ch:8446
-  instrument_data_cache: cephfs://idc
-  user_data_cache: cephfs://udc
+  endpoint: https://127.0.0.1:8446
+  instrument_data_cache: cephfs://clf/epac
+  user_data_cache: cephfs://epac_from_archive
   tape_archive: tape://archive

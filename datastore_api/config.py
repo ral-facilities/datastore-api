@@ -1,3 +1,4 @@
+from functools import lru_cache
 from typing import Any
 
 from pydantic import BaseModel, BaseSettings
@@ -18,6 +19,7 @@ class IcatSettings(BaseModel):
     url: str
     check_cert: bool = True
     admin_users: list[IcatUser] = []
+    embargo_period_years: int = 2
 
 
 class Fts3Settings(BaseModel):
@@ -42,3 +44,13 @@ class Settings(BaseSettings):
                 yaml_config_settings_source,
                 file_secret_settings,
             )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Get and cache the API settings to prevent overhead from reading from file.
+
+    Returns:
+        Settings: The configurations settings for the API.
+    """
+    return Settings()

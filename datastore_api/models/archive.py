@@ -2,7 +2,9 @@ from datetime import datetime
 from typing import Annotated
 
 from annotated_types import Len
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
+
+from datastore_api.config import get_settings
 
 
 class Facility(BaseModel):
@@ -37,6 +39,24 @@ class Investigation(BaseModel):
     instrument: Instrument
     cycle: FacilityCycle
     # TODO expand metadata
+
+    @validator("releaseDate")
+    def define_release_date(cls, v, values, **kwargs) -> datetime:
+        if v is not None:
+            return v
+
+        if "endDate" in values and values["endDate"] is not None:
+            date = values["endDate"]
+        elif "startDate" in values and values["startDate"] is not None:
+            date = values["startDate"]
+        else:
+            date = datetime.today()
+        return datetime(
+            year=date.year + get_settings().icat.embargo_period_years,
+            month=date.month,
+            day=date.day,
+            tzinfo=date.tzinfo,
+        )
 
 
 class ArchiveRequest(BaseModel):
