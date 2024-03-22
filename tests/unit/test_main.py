@@ -26,7 +26,7 @@ def test_client(mocker: MockerFixture):
     icat_client = icat_client_mock.return_value
     icat_client.login.return_value = SESSION_ID
     icat_client.create_investigations.return_value = ["path/to/data"]
-    icat_client.get_investigation_paths.return_value = ["path/to/data"]
+    icat_client.get_paths.return_value = ["path/to/data"]
 
     mocker.patch("datastore_api.main.fts3.Context")
 

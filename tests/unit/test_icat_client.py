@@ -44,7 +44,7 @@ def icat_client(mocker: MockerFixture):
 
 class TestIcatClient:
     def test_build_path(self):
-        assert IcatClient.build_path("a", "b", "c", "d") == "/a/b/c-d"
+        assert IcatClient.build_investigation_path("a", "b", "c", "d") == "/a/b/c-d"
 
     def test_validate_entities(self):
         with pytest.raises(HTTPException) as e:
@@ -99,11 +99,13 @@ class TestIcatClient:
         assert icat_client.client.sessionId is None
 
     def test_get_investigation_paths(self, icat_client: IcatClient):
-        paths = icat_client.get_investigation_paths(
+        paths = icat_client.get_paths(
             session_id=SESSION_ID,
             investigation_ids=[1],
+            dataset_ids=[2],
+            datafile_ids=[3],
         )
 
         # Don't assert the path as the Mocked object does not have meaningful attributes
-        assert len(paths) == 1
+        assert len(paths) == 3
         assert icat_client.client.sessionId is None

@@ -3,7 +3,7 @@ from typing import Any, Callable
 
 from fastapi import HTTPException
 from icat import Client, ICATSessionError
-from icat.entity import EntityList
+from icat.entity import Entity, EntityList
 from icat.query import Query
 
 from datastore_api.config import IcatSettings, IcatUser
@@ -56,13 +56,32 @@ class IcatClient:
         self.client = Client(icat_settings.url, checkCert=icat_settings.check_cert)
 
     @staticmethod
-    def build_path(
+    def build_investigation_entity_path(investigation: Entity) -> str:
+        """Creates a deterministic path from Investigation entity.
+
+        Args:
+            investigation (Entity): ICAT Investigation.
+
+        Returns:
+            str: Path for FTS.
+        """
+        investigation_instrument = investigation.investigationInstruments[0]
+        investigation_facility_cycle = investigation.investigationFacilityCycle[0]
+        return IcatClient.build_investigation_path(
+            instrument_name=investigation_instrument.instrument.name,
+            cycle_name=investigation_facility_cycle.facilityCycle.name,
+            investigation_name=investigation.name,
+            visit_id=investigation.visitId,
+        )
+
+    @staticmethod
+    def build_investigation_path(
         instrument_name: str,
         cycle_name: str,
         investigation_name: str,
         visit_id: str,
     ) -> str:
-        """Creates a deterministic path from ICAT Investigation metadata.
+        """Creates a deterministic path from Investigation metadata.
 
         Args:
             instrument_name (str): ICAT Instrument name.
@@ -136,7 +155,7 @@ class IcatClient:
             entity = self.client.new("Investigation", **investigation_dict)
             beans.append(entity)
 
-            path = IcatClient.build_path(
+            path = IcatClient.build_investigation_path(
                 instrument_name=investigation.instrument.name,
                 cycle_name=investigation.cycle.name,
                 investigation_name=investigation.name,
@@ -148,15 +167,37 @@ class IcatClient:
         return paths
 
     @handle_icat_session
-    def get_investigation_paths(self, investigation_ids: list[str]) -> list[str]:
-        """Checks READ permissions for all the `investigation_ids` and builds paths to
-        pass to FTS based on their fields in ICAT.
+    def get_paths(
+        self,
+        investigation_ids: list[str],
+        dataset_ids: list[str],
+        datafile_ids: list[str],
+    ) -> list[str]:
+        """Checks READ permissions for all the ids and builds paths to pass to FTS based
+        on their fields in ICAT.
+
+        Args:
+            investigation_ids (list[str]): ICAT Investigation ids to generate paths for.
+            dataset_ids (list[str]): ICAT Dataset ids to generate paths for.
+            datafile_ids (list[str]): ICAT Datafile ids to generate paths for.
+
+        Returns:
+            list[str]: Paths to the data in FTS.
+        """
+        investigation_paths = self._get_investigation_paths(investigation_ids)
+        dataset_paths = self._get_dataset_paths(dataset_ids)
+        datafile_paths = self._get_datafile_paths(datafile_ids)
+        return investigation_paths + dataset_paths + datafile_paths
+
+    def _get_investigation_paths(self, investigation_ids: list[str]) -> list[str]:
+        """Checks READ permissions for all the ids and builds paths to pass to FTS based
+        on their fields in ICAT.
 
         Args:
             investigation_ids (list[str]): ICAT Investigation ids to generate paths for.
 
         Returns:
-            list[str]: Paths to the Investigations in FTS.
+            list[str]: Paths to the data in FTS.
         """
         query = Query(
             self.client,
@@ -177,13 +218,74 @@ class IcatClient:
 
         paths = []
         for investigation in investigations:
-            investigation_instrument = investigation.investigationInstruments[0]
-            investigation_facility_cycle = investigation.investigationFacilityCycle[0]
-            path = IcatClient.build_path(
-                instrument_name=investigation_instrument.instrument.name,
-                cycle_name=investigation_facility_cycle.facilityCycle.name,
-                investigation_name=investigation.name,
-                visit_id=investigation.visitId,
-            )
+            path = IcatClient.build_investigation_entity_path(investigation)
             paths.append(path)
+
+        return paths
+
+    def _get_dataset_paths(self, dataset_ids: list[str]) -> list[str]:
+        """Checks READ permissions for all the ids and builds paths to pass to FTS based
+        on their fields in ICAT.
+
+        Args:
+            dataset_ids (list[str]): ICAT Dataset ids to generate paths for.
+
+        Returns:
+            list[str]: Paths to the data in FTS.
+        """
+        query = Query(
+            self.client,
+            "Dataset",
+            conditions={"id": f" IN {dataset_ids}"},
+            includes=[
+                "Investigation",
+                "InvestigationInstrument",
+                "Instrument",
+                "InvestigationFacilityCycle",
+                "FacilityCycle",
+            ],
+        )
+        datasets = self.client.search(query=query)
+        IcatClient.validate_entities(entities=datasets, expected_ids=dataset_ids)
+
+        paths = []
+        for dataset in datasets:
+            path = IcatClient.build_investigation_entity_path(dataset.investigation)
+            paths.append(f"{path}/{dataset.type.name}/{dataset.name}")
+
+        return paths
+
+    def _get_datafile_paths(self, datafile_ids: list[str]) -> list[str]:
+        """Checks READ permissions for all the ids and builds paths to pass to FTS based
+        on their fields in ICAT.
+
+        Args:
+            datafile_ids (list[str]): ICAT Datafile ids to generate paths for.
+
+        Returns:
+            list[str]: Paths to the data in FTS.
+        """
+        query = Query(
+            self.client,
+            "Datafile",
+            conditions={"id": f" IN {datafile_ids}"},
+            includes=[
+                "Dataset",
+                "DatasetType",
+                "Investigation",
+                "InvestigationInstrument",
+                "Instrument",
+                "InvestigationFacilityCycle",
+                "FacilityCycle",
+            ],
+        )
+        datafiles = self.client.search(query=query)
+        IcatClient.validate_entities(entities=datafiles, expected_ids=datafile_ids)
+
+        paths = []
+        for datafile in datafiles:
+            dataset = datafile.dataset
+            path = IcatClient.build_investigation_entity_path(dataset.investigation)
+            paths.append(f"{path}/{dataset.type.name}/{dataset.name}/{datafile.name}")
+
         return paths

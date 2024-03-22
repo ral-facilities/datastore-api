@@ -41,7 +41,7 @@ class Investigation(BaseModel):
     # TODO expand metadata
 
     @validator("releaseDate")
-    def define_release_date(cls, v, values, **kwargs) -> datetime:
+    def define_release_date(cls, v: datetime | None, values: dict) -> datetime:
         if v is not None:
             return v
 

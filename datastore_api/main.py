@@ -152,9 +152,11 @@ def restore(
     Returns:
         RestoreResponse: FTS job_id for restore transfer.
     """
-    paths = icat_client.get_investigation_paths(
+    paths = icat_client.get_paths(
         session_id=session_id,
         investigation_ids=restore_request.investigation_ids,
+        dataset_ids=restore_request.dataset_ids,
+        datafile_ids=restore_request.datafile_ids,
     )
     transfers = []
     for path in paths:
