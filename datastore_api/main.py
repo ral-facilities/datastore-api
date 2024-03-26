@@ -41,7 +41,7 @@ def get_icat_client() -> IcatClient:
         IcatClient: Wrapper for calls to ICAT.
     """
     settings = get_settings()
-    return IcatClient(settings)
+    return IcatClient(settings.icat)
 
 
 @lru_cache

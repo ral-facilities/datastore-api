@@ -64,7 +64,7 @@ class TestMain:
             facility=Facility(name="facility"),
             investigationType=InvestigationType(name="type"),
             instrument=Instrument(name="instrument"),
-            cycle=FacilityCycle(name="20XX"),
+            facilityCycle=FacilityCycle(name="20XX"),
         )
         archive_request = ArchiveRequest(investigations=[investigation])
         json_body = json.loads(archive_request.json())

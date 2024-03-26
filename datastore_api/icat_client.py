@@ -3,7 +3,7 @@ from typing import Any, Callable
 
 from fastapi import HTTPException
 from icat import Client, ICATSessionError
-from icat.entity import EntityList
+from icat.entity import Entity, EntityList
 from icat.query import Query
 
 from datastore_api.config import IcatSettings, IcatUser
@@ -131,14 +131,51 @@ class IcatClient:
         beans = []
         paths = []
         for investigation in investigations:
-            exclude = {"facility", "type", "instrument", "cycle"}
+            exclude = {"facility", "investigationType", "instrument", "facilityCycle"}
             investigation_dict = investigation.dict(exclude=exclude, exclude_none=True)
-            entity = self.client.new("Investigation", **investigation_dict)
+
+            facility = self.get_single_entity(
+                entity="Facility",
+                name=investigation.facility.name,
+            )
+            investigation_type = self.get_single_entity(
+                entity="InvestigationType",
+                name=investigation.investigationType.name,
+                facility_name=investigation.facility.name,
+            )
+            facility_cycle = self.get_single_entity(
+                entity="FacilityCycle",
+                name=investigation.facilityCycle.name,
+                facility_name=investigation.facility.name,
+            )
+            instrument = self.get_single_entity(
+                entity="Instrument",
+                name=investigation.instrument.name,
+                facility_name=investigation.facility.name,
+            )
+
+            investigation_facility_cycle = self.client.new(
+                obj="InvestigationFacilityCycle",
+                facilityCycle=facility_cycle,
+            )
+            investigation_instrument = self.client.new(
+                obj="InvestigationInstrument",
+                instrument=instrument,
+            )
+
+            entity = self.client.new(
+                "Investigation",
+                facility=facility,
+                type=investigation_type,
+                investigationFacilityCycles=[investigation_facility_cycle],
+                investigationInstruments=[investigation_instrument],
+                **investigation_dict,
+            )
             beans.append(entity)
 
             path = IcatClient.build_path(
                 instrument_name=investigation.instrument.name,
-                cycle_name=investigation.cycle.name,
+                cycle_name=investigation.facilityCycle.name,
                 investigation_name=investigation.name,
                 visit_id=investigation.visitId,
             )
@@ -146,6 +183,40 @@ class IcatClient:
 
         self.client.createMany(beans=beans)
         return paths
+
+    def get_single_entity(
+        self,
+        entity: str,
+        name: str,
+        facility_name: str = None,
+    ) -> Entity:
+        """Returns the single ICAT Entity of type `entity` that matches the criteria.
+
+        Args:
+            entity (str): Type of entity to get, for example "Investigation".
+            name (str): The value of the name field on the desired result.
+            facility_name (str, optional):
+                The name of the Facility. If unset, this will not form part of the
+                query. Defaults to None.
+
+        Raises:
+            HTTPException: If no matching entities are found.
+
+        Returns:
+            Entity: The Entity matching the query.
+        """
+        conditions = {"name": f"={name!r}"}
+        if facility_name is not None:
+            conditions["facility.name"] = f"={facility_name!r}"
+
+        query = Query(client=self.client, entity=entity, conditions=conditions)
+        entities = self.client.search(query=query)
+
+        if len(entities) == 0:
+            detail = f"No {entity} with name {name}"
+            raise HTTPException(status_code=400, detail=detail)
+        else:
+            return entities[0]
 
     @handle_icat_session
     def get_investigation_paths(self, investigation_ids: list[str]) -> list[str]:

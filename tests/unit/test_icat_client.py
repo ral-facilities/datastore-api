@@ -42,6 +42,18 @@ def icat_client(mocker: MockerFixture):
     return IcatClient(icat_settings=IcatSettings(url=""))
 
 
+@pytest.fixture(scope="function")
+def icat_client_empty_search(mocker: MockerFixture):
+    client = mocker.patch("datastore_api.icat_client.Client")
+    client.return_value.login.side_effect = login_side_effect
+    client.return_value.getUserName.return_value = "simple/root"
+    client.return_value.search.return_value = []
+
+    mocker.patch("datastore_api.icat_client.Query")
+
+    return IcatClient(icat_settings=IcatSettings(url=""))
+
+
 class TestIcatClient:
     def test_build_path(self):
         assert IcatClient.build_path("a", "b", "c", "d") == "/a/b/c-d"
@@ -88,7 +100,7 @@ class TestIcatClient:
             facility=Facility(name="facility"),
             investigationType=InvestigationType(name="type"),
             instrument=Instrument(name="instrument"),
-            cycle=FacilityCycle(name="20XX"),
+            facilityCycle=FacilityCycle(name="20XX"),
         )
 
         paths = icat_client.create_investigations(
@@ -107,3 +119,10 @@ class TestIcatClient:
         # Don't assert the path as the Mocked object does not have meaningful attributes
         assert len(paths) == 1
         assert icat_client.client.sessionId is None
+
+    def test_get_single_entity_failure(self, icat_client_empty_search: IcatClient):
+        with pytest.raises(HTTPException) as e:
+            icat_client_empty_search.get_single_entity("Facility", "facility")
+
+        err = "fastapi.exceptions.HTTPException: 400: No Facility with name facility"
+        assert e.exconly() == err

@@ -51,8 +51,17 @@ jobs:
           path: /home/runner/work/datastore-api/datastore-api/.nox/tests*
           key: nox-tests-${{ hashFiles('poetry.lock') }}
 
-      - name: Run Nox tests session
+      - name: Run Nox unit_tests
         run: nox -s unit_tests -- --cov --cov-report=xml
+
+      - name: Docker compose up
+        run: docker-compose -f tests/docker-compose.yaml up -d
+
+      - name: Run Nox integration_tests
+        run: nox -s integration_tests
+
+      - name: Docker compose down
+        run: docker-compose -f tests/docker-compose.yaml down
 
       - name: Upload code coverage report
         uses: codecov/codecov-action@v4

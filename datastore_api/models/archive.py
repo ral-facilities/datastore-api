@@ -37,7 +37,7 @@ class Investigation(BaseModel):
     facility: Facility
     investigationType: InvestigationType
     instrument: Instrument
-    cycle: FacilityCycle
+    facilityCycle: FacilityCycle
     # TODO expand metadata
 
     @validator("releaseDate")
