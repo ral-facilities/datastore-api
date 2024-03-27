@@ -38,6 +38,7 @@ services:
     ports:
       - "14747:4848" # payara port
       - "18181:8181" # https port
+      - "18080:8080" # http port
     volumes:
       - type: bind
         source: ./post-boot-commands.asadmin

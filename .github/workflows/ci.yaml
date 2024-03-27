@@ -57,12 +57,20 @@ jobs:
       - name: Docker compose up
         run: docker-compose -f tests/docker-compose.yaml up -d
 
+      - name: Log container status
+        run: |
+          docker ps
+
       - name: Wait for container to start
         run: |
           while docker ps --filter "name=icat_payara_container" --format "{{.Status}}" | grep -q "(healthy)"; do
             sleep 1
           done
         timeout-minutes: 5
+
+      - name: Log container status
+        run: |
+          docker ps
 
       - name: Run Nox integration_tests
         run: nox -s integration_tests
