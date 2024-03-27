@@ -7,7 +7,7 @@ from icat.entity import Entity, EntityList
 from icat.query import Query
 
 from datastore_api.config import IcatSettings, IcatUser
-from datastore_api.models.archive import Investigation
+from datastore_api.models.archive import Datafile, Dataset, Investigation
 from datastore_api.models.login import LoginRequest
 
 
@@ -115,11 +115,12 @@ class IcatClient:
             raise HTTPException(status_code=403, detail="insufficient permissions")
 
     @handle_icat_session
-    def create_investigations(
+    def create_entities(
         self,
         investigations: list[Investigation],
     ) -> list[str]:
-        """Creates Investigations in ICAT and returns their paths for use with FTS.
+        """Creates Investigations and child Datasets/Datafiles in ICAT and returns their
+        paths for use with FTS.
 
         Args:
             investigations (list[Investigation]):
@@ -131,47 +132,8 @@ class IcatClient:
         beans = []
         paths = []
         for investigation in investigations:
-            exclude = {"facility", "investigationType", "instrument", "facilityCycle"}
-            investigation_dict = investigation.dict(exclude=exclude, exclude_none=True)
-
-            facility = self.get_single_entity(
-                entity="Facility",
-                name=investigation.facility.name,
-            )
-            investigation_type = self.get_single_entity(
-                entity="InvestigationType",
-                name=investigation.investigationType.name,
-                facility_name=investigation.facility.name,
-            )
-            facility_cycle = self.get_single_entity(
-                entity="FacilityCycle",
-                name=investigation.facilityCycle.name,
-                facility_name=investigation.facility.name,
-            )
-            instrument = self.get_single_entity(
-                entity="Instrument",
-                name=investigation.instrument.name,
-                facility_name=investigation.facility.name,
-            )
-
-            investigation_facility_cycle = self.client.new(
-                obj="InvestigationFacilityCycle",
-                facilityCycle=facility_cycle,
-            )
-            investigation_instrument = self.client.new(
-                obj="InvestigationInstrument",
-                instrument=instrument,
-            )
-
-            entity = self.client.new(
-                "Investigation",
-                facility=facility,
-                type=investigation_type,
-                investigationFacilityCycles=[investigation_facility_cycle],
-                investigationInstruments=[investigation_instrument],
-                **investigation_dict,
-            )
-            beans.append(entity)
+            investigation_entity = self.new_investigation(investigation)
+            beans.append(investigation_entity)
 
             path = IcatClient.build_path(
                 instrument_name=investigation.instrument.name,
@@ -183,6 +145,103 @@ class IcatClient:
 
         self.client.createMany(beans=beans)
         return paths
+
+    def new_investigation(self, investigation: Investigation) -> Entity:
+        """Create a new ICAT Investigation Entity and child Dataset/Datafiles.
+
+        Args:
+            investigation (Investigation): Metadata for the Investigation to be created.
+
+        Returns:
+            Entity: The new ICAT Investigation Entity.
+        """
+        investigation_dict = investigation.excluded_dict()
+
+        # Get existing high level metadata
+        facility = self.get_single_entity(
+            entity="Facility",
+            name=investigation.facility.name,
+        )
+        investigation_type = self.get_single_entity(
+            entity="InvestigationType",
+            name=investigation.investigationType.name,
+            facility_name=investigation.facility.name,
+        )
+        facility_cycle = self.get_single_entity(
+            entity="FacilityCycle",
+            name=investigation.facilityCycle.name,
+            facility_name=investigation.facility.name,
+        )
+        instrument = self.get_single_entity(
+            entity="Instrument",
+            name=investigation.instrument.name,
+            facility_name=investigation.facility.name,
+        )
+
+        # Create many to many relationships
+        investigation_facility_cycle = self.client.new(
+            obj="InvestigationFacilityCycle",
+            facilityCycle=facility_cycle,
+        )
+        investigation_instrument = self.client.new(
+            obj="InvestigationInstrument",
+            instrument=instrument,
+        )
+
+        dataset_entities = []
+        for dataset in investigation.datasets:
+            dataset_entity = self.new_dataset(dataset, investigation.facility.name)
+            dataset_entities.append(dataset_entity)
+
+        return self.client.new(
+            "Investigation",
+            facility=facility,
+            type=investigation_type,
+            investigationFacilityCycles=[investigation_facility_cycle],
+            investigationInstruments=[investigation_instrument],
+            datasets=dataset_entities,
+            **investigation_dict,
+        )
+
+    def new_dataset(self, dataset: Dataset, facility_name: str) -> Entity:
+        """Create a new ICAT Dataset Entity and child Datafiles.
+
+        Args:
+            dataset (Dataset): Metadata for the Dataset to be created.
+            facility_name (str): Name field of the ICAT Facility Entity.
+
+        Returns:
+            Entity: The new ICAT Dataset Entity.
+        """
+        dataset_dict = dataset.excluded_dict()
+        dataset_type = self.get_single_entity(
+            entity="DatasetType",
+            name=dataset.datasetType.name,
+            facility_name=facility_name,
+        )
+        datafile_entities = []
+        for datafile in dataset.datafiles:
+            datafile_entity = self.new_datafile(datafile)
+            datafile_entities.append(datafile_entity)
+
+        return self.client.new(
+            obj="Dataset",
+            type=dataset_type,
+            datafiles=datafile_entities,
+            **dataset_dict,
+        )
+
+    def new_datafile(self, datafile: Datafile) -> Entity:
+        """Creates a new ICAT Datafile Entity.
+
+        Args:
+            datafile (Datafile): Metadata for the Datafile to be created.
+
+        Returns:
+            Entity: The new ICAT Datafile Entity.
+        """
+        datafile_dict = datafile.excluded_dict()
+        return self.client.new(obj="Datafile", **datafile_dict)
 
     def get_single_entity(
         self,

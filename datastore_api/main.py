@@ -111,7 +111,7 @@ def archive(
         ArchiveResponse: FTS job_id for archive transfer.
     """
     icat_client.authorise_admin(session_id=session_id)
-    paths = icat_client.create_investigations(
+    paths = icat_client.create_entities(
         session_id=session_id,
         investigations=archive_request.investigations,
     )

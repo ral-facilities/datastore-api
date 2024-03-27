@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from annotated_types import Len
 from pydantic import BaseModel, Field, validator
@@ -11,16 +11,64 @@ class Facility(BaseModel):
     name: str = Field(example="facility")
 
 
-class InvestigationType(BaseModel):
-    name: str = Field(example="type")
-
-
 class Instrument(BaseModel):
     name: str = Field(example="instrument")
 
 
 class FacilityCycle(BaseModel):
     name: str = Field(example="20XX")
+
+
+class DatasetType(BaseModel):
+    name: str = Field(example="type")
+
+
+class InvestigationType(BaseModel):
+    name: str = Field(example="type")
+
+
+class Datafile(BaseModel):
+    name: str
+    description: str = Field(default=None, example="Description")
+    doi: str = Field(default=None, example="10.00000/00000")
+    location: str = None
+    fileSize: int = None
+    checksum: str = None
+    datafileCreateTime: datetime = None
+    datafileModTime: datetime = None
+
+    def excluded_dict(self) -> dict[str, Any]:
+        """Utility function for excluding fields which should not be passed to ICAT for
+        entity creation as kwargs.
+
+        Returns:
+            dict[str, Any]: Dictionary of fields, excluding None values.
+        """
+        return self.dict(exclude_none=True)
+
+
+class Dataset(BaseModel):
+    name: str
+    complete: bool = True
+    description: str = Field(default=None, example="Description")
+    doi: str = Field(default=None, example="10.00000/00000")
+    location: str = None
+    startDate: datetime = None
+    endDate: datetime = None
+
+    # Relationships
+    datasetType: DatasetType
+    datafiles: list[Datafile]
+
+    def excluded_dict(self) -> dict[str, Any]:
+        """Utility function for excluding fields which should not be passed to ICAT for
+        entity creation as kwargs.
+
+        Returns:
+            dict[str, Any]:
+                Dictionary of fields, excluding None values and related Entities.
+        """
+        return self.dict(exclude={"datasetType", "datafiles"}, exclude_none=True)
 
 
 class Investigation(BaseModel):
@@ -38,7 +86,7 @@ class Investigation(BaseModel):
     investigationType: InvestigationType
     instrument: Instrument
     facilityCycle: FacilityCycle
-    # TODO expand metadata
+    datasets: list[Dataset]
 
     @validator("releaseDate")
     def define_release_date(cls, v, values, **kwargs) -> datetime:
@@ -57,6 +105,23 @@ class Investigation(BaseModel):
             day=date.day,
             tzinfo=date.tzinfo,
         )
+
+    def excluded_dict(self) -> dict[str, Any]:
+        """Utility function for excluding fields which should not be passed to ICAT for
+        entity creation as kwargs.
+
+        Returns:
+            dict[str, Any]:
+                Dictionary of fields, excluding None values and related Entities.
+        """
+        exclude = {
+            "facility",
+            "investigationType",
+            "instrument",
+            "facilityCycle",
+            "datasets",
+        }
+        return self.dict(exclude=exclude, exclude_none=True)
 
 
 class ArchiveRequest(BaseModel):

@@ -15,6 +15,9 @@ from datastore_api.icat_client import IcatClient
 from datastore_api.main import app, get_icat_client
 from datastore_api.models.archive import (
     ArchiveRequest,
+    Datafile,
+    Dataset,
+    DatasetType,
     Facility,
     FacilityCycle,
     Instrument,
@@ -64,13 +67,29 @@ def session_id(test_client: TestClient) -> Generator[str, None, None]:
     try:
         icat_client = get_icat_client()
         icat_client.client.sessionId = session_id
+
         query = Query(
             client=icat_client.client,
             entity="Investigation",
             conditions={"name": " = 'name'"},
         )
         investigations = icat_client.client.search(query)
-        icat_client.client.deleteMany(investigations)
+
+        query = Query(
+            client=icat_client.client,
+            entity="Dataset",
+            conditions={"name": " = 'dataset'"},
+        )
+        datasets = icat_client.client.search(query)
+
+        query = Query(
+            client=icat_client.client,
+            entity="Datafile",
+            conditions={"name": " = 'datafile'"},
+        )
+        datafiles = icat_client.client.search(query)
+
+        icat_client.client.deleteMany(investigations + datasets + datafiles)
     finally:
         icat_client.client.sessionId = None
 
@@ -82,6 +101,23 @@ def facility(session_id: str) -> Generator[Entity, None, None]:
     yield facility
 
     delete(session_id=session_id, entity=facility)
+
+
+@pytest.fixture(scope="function")
+def dataset_type(
+    session_id: str,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    dataset_type = create(
+        session_id=session_id,
+        entity="DatasetType",
+        name="type",
+        facility=facility,
+    )
+
+    yield dataset_type
+
+    delete(session_id=session_id, entity=dataset_type)
 
 
 @pytest.fixture(scope="function")
@@ -294,9 +330,15 @@ class TestMainIntegration:
         session_id: str,
         facility: Entity,
         investigation_type: Entity,
+        dataset_type: Entity,
         facility_cycle: Entity,
         instrument: Entity,
     ):
+        dataset = Dataset(
+            name="dataset",
+            datasetType=DatasetType(name="type"),
+            datafiles=[Datafile(name="datafile")],
+        )
         investigation = Investigation(
             name="name",
             visitId="visitId",
@@ -310,6 +352,7 @@ class TestMainIntegration:
             investigationType=InvestigationType(name="type"),
             instrument=Instrument(name="instrument"),
             facilityCycle=FacilityCycle(name="20XX"),
+            datasets=[dataset],
         )
         archive_request = ArchiveRequest(investigations=[investigation])
         json_body = json.loads(archive_request.json())
@@ -340,6 +383,8 @@ class TestMainIntegration:
                     "type",
                     "investigationInstruments.instrument",
                     "investigationFacilityCycles.facilityCycle",
+                    "datasets.type",
+                    "datasets.datafiles",
                 ],
             )
             investigations = icat_client.client.search(query=query)
@@ -352,6 +397,9 @@ class TestMainIntegration:
             investigation_facility_cycles = investigation.investigationFacilityCycles
             assert len(investigation_facility_cycles) == 1
 
+            assert len(investigation.datasets) == 1
+            assert len(investigation.datasets[0].datafiles) == 1
+
             assert investigation.name == "name"
             assert investigation.visitId == "visitId"
             assert investigation.title == "title"
@@ -363,6 +411,9 @@ class TestMainIntegration:
             assert investigation.type.name == "type"
             assert investigation_instruments[0].instrument.name == "instrument"
             assert investigation_facility_cycles[0].facilityCycle.name == "20XX"
+            assert investigation.datasets[0].name == "dataset"
+            assert investigation.datasets[0].type.name == "type"
+            assert investigation.datasets[0].datafiles[0].name == "datafile"
         finally:
             icat_client.client.sessionId = None
 

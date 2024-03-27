@@ -69,6 +69,7 @@ class TestArchive:
             investigationType=InvestigationType(name="type"),
             instrument=Instrument(name="instrument"),
             facilityCycle=FacilityCycle(name="20XX"),
+            datasets=[],
         )
 
         assert investigation.releaseDate == expected_release_date

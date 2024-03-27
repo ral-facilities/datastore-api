@@ -8,6 +8,9 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.config import IcatSettings, IcatUser
 from datastore_api.icat_client import IcatClient
 from datastore_api.models.archive import (
+    Datafile,
+    Dataset,
+    DatasetType,
     Facility,
     FacilityCycle,
     Instrument,
@@ -87,7 +90,12 @@ class TestIcatClient:
         assert e.exconly() == INSUFFICIENT_PERMISSIONS
         assert icat_client.client.sessionId is None
 
-    def test_create_investigations(self, icat_client: IcatClient):
+    def test_create_entities(self, icat_client: IcatClient):
+        dataset = Dataset(
+            name="dataset",
+            datasetType=DatasetType(name="type"),
+            datafiles=[Datafile(name="datafile")],
+        )
         investigation = Investigation(
             name="name",
             visitId="visitId",
@@ -101,9 +109,10 @@ class TestIcatClient:
             investigationType=InvestigationType(name="type"),
             instrument=Instrument(name="instrument"),
             facilityCycle=FacilityCycle(name="20XX"),
+            datasets=[dataset],
         )
 
-        paths = icat_client.create_investigations(
+        paths = icat_client.create_entities(
             session_id=SESSION_ID,
             investigations=[investigation],
         )

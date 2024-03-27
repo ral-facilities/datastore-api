@@ -8,6 +8,9 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.main import app
 from datastore_api.models.archive import (
     ArchiveRequest,
+    Datafile,
+    Dataset,
+    DatasetType,
     Facility,
     FacilityCycle,
     Instrument,
@@ -25,7 +28,7 @@ def test_client(mocker: MockerFixture):
     icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
     icat_client = icat_client_mock.return_value
     icat_client.login.return_value = SESSION_ID
-    icat_client.create_investigations.return_value = ["path/to/data"]
+    icat_client.create_entities.return_value = ["path/to/data"]
     icat_client.get_investigation_paths.return_value = ["path/to/data"]
 
     mocker.patch("datastore_api.main.fts3.Context")
@@ -52,6 +55,11 @@ class TestMain:
         assert json.loads(test_response.content) == {"sessionId": SESSION_ID}
 
     def test_archive(self, test_client: TestClient):
+        dataset = Dataset(
+            name="dataset",
+            datasetType=DatasetType(name="type"),
+            datafiles=[Datafile(name="datafile")],
+        )
         investigation = Investigation(
             name="name",
             visitId="visitId",
@@ -65,6 +73,7 @@ class TestMain:
             investigationType=InvestigationType(name="type"),
             instrument=Instrument(name="instrument"),
             facilityCycle=FacilityCycle(name="20XX"),
+            datasets=[dataset],
         )
         archive_request = ArchiveRequest(investigations=[investigation])
         json_body = json.loads(archive_request.json())
