@@ -21,6 +21,7 @@ from datastore_api.models.archive import (
     Investigation,
     InvestigationType,
 )
+from datastore_api.models.restore import RestoreRequest
 
 
 log = logging.getLogger("tests")
@@ -134,21 +135,45 @@ def instrument(
     delete(session_id=session_id, entity=instrument)
 
 
-def create(session_id: str, entity: str, name: str, facility: Entity = None) -> Entity:
+@pytest.fixture(scope="function")
+def investigation(
+    session_id: str,
+    facility: Entity,
+    investigation_type: Entity,
+    instrument: Entity,
+    facility_cycle: Entity,
+) -> Generator[Entity, None, None]:
+    icat_client = get_icat_client()
+    investigation_instrument = icat_client.client.new(
+        obj="InvestigationInstrument",
+        instrument=instrument,
+    )
+    investigation_facility_cycle = icat_client.client.new(
+        obj="InvestigationFacilityCycle",
+        facilityCycle=facility_cycle,
+    )
+    investigation = create(
+        session_id=session_id,
+        entity="Investigation",
+        name="name",
+        visitId="visitId",
+        title="title",
+        facility=facility,
+        type=investigation_type,
+        investigationInstruments=[investigation_instrument],
+        investigationFacilityCycles=[investigation_facility_cycle],
+    )
+
+    yield investigation
+
+    delete(session_id=session_id, entity=investigation)
+
+
+def create(session_id: str, entity: str, **kwargs) -> Entity:
     icat_client = get_icat_client()
     try:
         icat_client.client.sessionId = session_id
-        if facility is not None:
-            facility_name = facility.name
-            icat_entity = icat_client.client.new(
-                obj=entity,
-                name=name,
-                facility=facility,
-            )
-        else:
-            facility_name = None
-            icat_entity = icat_client.client.new(obj=entity, name=name)
-
+        icat_entity = icat_client.client.new(obj=entity, **kwargs)
         icat_entity_id = icat_client.client.create(icat_entity)
         icat_entity.id = icat_entity_id
 
@@ -156,8 +181,8 @@ def create(session_id: str, entity: str, name: str, facility: Entity = None) -> 
         log.warning(str(e))
         icat_entity = icat_client.get_single_entity(
             entity=entity,
-            name=name,
-            facility_name=facility_name,
+            name=kwargs["name"],
+            facility_name=kwargs["facility"].name if "facility" in kwargs else None,
         )
     finally:
         icat_client.client.sessionId = None
@@ -174,7 +199,52 @@ def delete(session_id: str, entity: Entity) -> None:
         icat_client.client.sessionId = None
 
 
-class TestMainIntegration:
+def fts_job(
+    sources: list[str],
+    destinations: list[str],
+    bring_online: int = None,
+    copy_pin_lifetime: int = None,
+) -> dict:
+    return {
+        "files": [
+            {
+                "sources": sources,
+                "destinations": destinations,
+                "checksum": "ADLER32",
+                "selection_strategy": "auto",
+            },
+        ],
+        "delete": None,
+        "params": {
+            "verify_checksum": False,
+            "reuse": None,
+            "spacetoken": None,
+            "bring_online": bring_online,
+            "dst_file_report": False,
+            "archive_timeout": None,
+            "copy_pin_lifetime": copy_pin_lifetime,
+            "job_metadata": None,
+            "source_spacetoken": None,
+            "overwrite": False,
+            "overwrite_on_retry": False,
+            "overwrite_hop": False,
+            "multihop": False,
+            "retry": -1,
+            "retry_delay": 0,
+            "priority": None,
+            "strict_copy": False,
+            "max_time_in_queue": None,
+            "timeout": None,
+            "id_generator": "standard",
+            "sid": None,
+            "s3alternate": False,
+            "nostreams": 1,
+            "buffer_size": None,
+        },
+    }
+
+
+class TestLogin:
     def test_login_success(self, test_client: TestClient):
         credentials = {"username": "root", "password": "pw"}
         login_request = {"auth": "simple", "credentials": credentials}
@@ -215,6 +285,8 @@ class TestMainIntegration:
         assert test_response.status_code == 401
         assert json.loads(test_response.content)["detail"] == detail
 
+
+class TestMainIntegration:
     def test_archive(
         self,
         test_client: TestClient,
@@ -248,46 +320,12 @@ class TestMainIntegration:
         assert test_response.status_code == 200, content
         assert content == {"job_id": "0"}
 
-        job = {
-            "files": [
-                {
-                    "sources": [
-                        "cephfs://idc//instrument/20XX/name-visitId",
-                        "cephfs://udc//instrument/20XX/name-visitId",
-                    ],
-                    "destinations": ["tape://archive//instrument/20XX/name-visitId"],
-                    "checksum": "ADLER32",
-                    "selection_strategy": "auto",
-                },
-            ],
-            "delete": None,
-            "params": {
-                "verify_checksum": False,
-                "reuse": None,
-                "spacetoken": None,
-                "bring_online": None,
-                "dst_file_report": False,
-                "archive_timeout": None,
-                "copy_pin_lifetime": None,
-                "job_metadata": None,
-                "source_spacetoken": None,
-                "overwrite": False,
-                "overwrite_on_retry": False,
-                "overwrite_hop": False,
-                "multihop": False,
-                "retry": -1,
-                "retry_delay": 0,
-                "priority": None,
-                "strict_copy": False,
-                "max_time_in_queue": None,
-                "timeout": None,
-                "id_generator": "standard",
-                "sid": None,
-                "s3alternate": False,
-                "nostreams": 1,
-                "buffer_size": None,
-            },
-        }
+        sources = [
+            "cephfs://idc//instrument/20XX/name-visitId",
+            "cephfs://udc//instrument/20XX/name-visitId",
+        ]
+        destinations = ["tape://archive//instrument/20XX/name-visitId"]
+        job = fts_job(sources=sources, destinations=destinations)
         submit.assert_called_once_with(context=ANY, job=job)
 
         try:
@@ -327,3 +365,35 @@ class TestMainIntegration:
             assert investigation_facility_cycles[0].facilityCycle.name == "20XX"
         finally:
             icat_client.client.sessionId = None
+
+
+class TestRestore:
+    def test_restore(
+        self,
+        test_client: TestClient,
+        submit: MagicMock,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+    ):
+        restore_request = RestoreRequest(investigation_ids=[investigation.id])
+        json_body = json.loads(restore_request.json())
+        headers = {"Authorization": f"Bearer {session_id}"}
+        test_response = test_client.post("/restore", headers=headers, json=json_body)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"job_id": "0"}
+
+        sources = ["tape://archive//instrument/20XX/name-visitId"]
+        destinations = ["cephfs://udc//instrument/20XX/name-visitId"]
+        job = fts_job(
+            sources=sources,
+            destinations=destinations,
+            bring_online=28800,
+            copy_pin_lifetime=28800,
+        )
+        submit.assert_called_once_with(context=ANY, job=job)

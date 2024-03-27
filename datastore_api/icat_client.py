@@ -232,12 +232,10 @@ class IcatClient:
         query = Query(
             self.client,
             "Investigation",
-            conditions={"id": f" IN {investigation_ids}"},
+            conditions={"id": f" IN ({str(investigation_ids)[1:-1]})"},
             includes=[
-                "InvestigationInstrument",
-                "Instrument",
-                "InvestigationFacilityCycle",
-                "FacilityCycle",
+                "investigationInstruments.instrument",
+                "investigationFacilityCycles.facilityCycle",
             ],
         )
         investigations = self.client.search(query=query)
@@ -249,7 +247,7 @@ class IcatClient:
         paths = []
         for investigation in investigations:
             investigation_instrument = investigation.investigationInstruments[0]
-            investigation_facility_cycle = investigation.investigationFacilityCycle[0]
+            investigation_facility_cycle = investigation.investigationFacilityCycles[0]
             path = IcatClient.build_path(
                 instrument_name=investigation_instrument.instrument.name,
                 cycle_name=investigation_facility_cycle.facilityCycle.name,
