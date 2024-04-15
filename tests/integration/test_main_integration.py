@@ -215,10 +215,13 @@ def create(session_id: str, entity: str, **kwargs) -> Entity:
 
     except ICATObjectExistsError as e:
         log.warning(str(e))
+        conditions = {"name": kwargs["name"]}
+        if "facility" in kwargs:
+            conditions["facility.name"] = kwargs["facility"].name
+
         icat_entity = icat_client.get_single_entity(
             entity=entity,
-            name=kwargs["name"],
-            facility_name=kwargs["facility"].name if "facility" in kwargs else None,
+            conditions=conditions,
         )
     finally:
         icat_client.client.sessionId = None

@@ -118,7 +118,7 @@ class IcatClient:
     def create_entities(
         self,
         investigations: list[Investigation],
-    ) -> list[str]:
+    ) -> set[str]:
         """Creates Investigations and child Datasets/Datafiles in ICAT and returns their
         paths for use with FTS.
 
@@ -127,30 +127,76 @@ class IcatClient:
                 Metadata for the Investigations to be created.
 
         Returns:
-            list[str]: Paths to the Investigations in FTS.
+            set[str]: Paths to the Investigations in FTS.
         """
         beans = []
-        paths = []
+        all_paths = set()
         for investigation in investigations:
-            investigation_entity = self.new_investigation(investigation)
-            beans.append(investigation_entity)
-
-            path = IcatClient.build_path(
-                instrument_name=investigation.instrument.name,
-                cycle_name=investigation.facilityCycle.name,
-                investigation_name=investigation.name,
-                visit_id=investigation.visitId,
-            )
-            paths.append(path)
+            entities, paths = self.new_investigation(investigation=investigation)
+            beans.extend(entities)
+            all_paths.update(paths)
 
         self.client.createMany(beans=beans)
-        return paths
+        return all_paths
 
-    def new_investigation(self, investigation: Investigation) -> Entity:
-        """Create a new ICAT Investigation Entity and child Dataset/Datafiles.
+    def new_investigation(
+        self,
+        investigation: Investigation,
+    ) -> tuple[list[Entity], set[str]]:
+        """Create a new ICAT Investigation Entity (if needed) and child
+        Dataset/Datafiles.
 
         Args:
             investigation (Investigation): Metadata for the Investigation to be created.
+
+        Returns:
+            tuple[list[Entity], set[str]]:
+                The ICAT entities to be created and all the paths for the Datafiles.
+        """
+        dataset_entities = []
+        all_paths = set()
+        existing_investigation = self.get_single_entity(
+            entity="Investigation",
+            conditions={"name": investigation.name, "visitId": investigation.visitId},
+            includes=[
+                "investigationInstruments.instrument",
+                "investigationFacilityCycles.facilityCycle",
+            ],
+            allow_empty=True,
+        )
+
+        for dataset in investigation.datasets:
+            dataset_entity, paths = self.new_dataset(
+                investigation=investigation,
+                dataset=dataset,
+                investigation_entity=existing_investigation,
+            )
+            dataset_entities.append(dataset_entity)
+            all_paths.update(paths)
+
+        if existing_investigation is not None:
+            # Do not create the top level Investigation as it already exists
+            # Just return the Datasets for creation
+            return dataset_entities, all_paths
+        else:
+            new_investigation = self._new_investigation_entity(
+                investigation=investigation,
+                dataset_entities=dataset_entities,
+            )
+            return [new_investigation], all_paths
+
+    def _new_investigation_entity(
+        self,
+        investigation: Investigation,
+        dataset_entities: list[Entity],
+    ) -> Entity:
+        """Creates a new ICAT Investigation Entity.
+
+        Args:
+            investigation (Investigation): Metadata for the Investigation to be created.
+            dataset_entities (list[Entity]):
+                ICAT Dataset Entities belonging to the Investigation, also to be
+                created.
 
         Returns:
             Entity: The new ICAT Investigation Entity.
@@ -160,22 +206,28 @@ class IcatClient:
         # Get existing high level metadata
         facility = self.get_single_entity(
             entity="Facility",
-            name=investigation.facility.name,
+            conditions={"name": investigation.facility.name},
         )
         investigation_type = self.get_single_entity(
             entity="InvestigationType",
-            name=investigation.investigationType.name,
-            facility_name=investigation.facility.name,
+            conditions={
+                "name": investigation.investigationType.name,
+                "facility.name": investigation.facility.name,
+            },
         )
         facility_cycle = self.get_single_entity(
             entity="FacilityCycle",
-            name=investigation.facilityCycle.name,
-            facility_name=investigation.facility.name,
+            conditions={
+                "name": investigation.facilityCycle.name,
+                "facility.name": investigation.facility.name,
+            },
         )
         instrument = self.get_single_entity(
             entity="Instrument",
-            name=investigation.instrument.name,
-            facility_name=investigation.facility.name,
+            conditions={
+                "name": investigation.instrument.name,
+                "facility.name": investigation.facility.name,
+            },
         )
 
         # Create many to many relationships
@@ -188,11 +240,6 @@ class IcatClient:
             instrument=instrument,
         )
 
-        dataset_entities = []
-        for dataset in investigation.datasets:
-            dataset_entity = self.new_dataset(dataset, investigation.facility.name)
-            dataset_entities.append(dataset_entity)
-
         return self.client.new(
             "Investigation",
             facility=facility,
@@ -203,77 +250,117 @@ class IcatClient:
             **investigation_dict,
         )
 
-    def new_dataset(self, dataset: Dataset, facility_name: str) -> Entity:
+    def new_dataset(
+        self,
+        investigation: Investigation,
+        dataset: Dataset,
+        investigation_entity: Entity | None,
+    ) -> tuple[Entity, set[str]]:
         """Create a new ICAT Dataset Entity and child Datafiles.
 
         Args:
+            investigation (Investigation): Metadata for the parent Investigation.
             dataset (Dataset): Metadata for the Dataset to be created.
-            facility_name (str): Name field of the ICAT Facility Entity.
+            investigation_entity (Entity | None): Existing ICAT Investigation Entity.
 
         Returns:
-            Entity: The new ICAT Dataset Entity.
+            tuple[Entity, set[str]]:
+                The new ICAT Dataset Entity and all the paths for Datafiles.
         """
-        dataset_dict = dataset.excluded_dict()
+        datafile_entities = []
+        paths = set()
+        for datafile in dataset.datafiles:
+            datafile_entity, path = self.new_datafile(investigation, dataset, datafile)
+            datafile_entities.append(datafile_entity)
+            paths.add(path)
+
         dataset_type = self.get_single_entity(
             entity="DatasetType",
-            name=dataset.datasetType.name,
-            facility_name=facility_name,
+            conditions={
+                "name": dataset.datasetType.name,
+                "facility.name": investigation.facility.name,
+            },
         )
-        datafile_entities = []
-        for datafile in dataset.datafiles:
-            datafile_entity = self.new_datafile(datafile)
-            datafile_entities.append(datafile_entity)
+        dataset_dict = dataset.excluded_dict()
+        if investigation_entity is not None:
+            dataset_dict["investigation"] = investigation_entity
 
-        return self.client.new(
+        dataset_entity = self.client.new(
             obj="Dataset",
             type=dataset_type,
             datafiles=datafile_entities,
             **dataset_dict,
         )
 
-    def new_datafile(self, datafile: Datafile) -> Entity:
+        return dataset_entity, paths
+
+    def new_datafile(
+        self,
+        investigation: Investigation,
+        dataset: Dataset,
+        datafile: Datafile,
+    ) -> tuple[Entity, str]:
         """Creates a new ICAT Datafile Entity.
 
         Args:
+            investigation (Investigation): Metadata for the parent Investigation.
+            dataset (Dataset): Metadata for the parent Dataset.
             datafile (Datafile): Metadata for the Datafile to be created.
 
         Returns:
-            Entity: The new ICAT Datafile Entity.
+            tuple[Entity, str]: The new ICAT Datafile Entity and its path for FTS.
         """
         datafile_dict = datafile.excluded_dict()
-        return self.client.new(obj="Datafile", **datafile_dict)
+        path = self.build_path(
+            instrument_name=investigation.instrument.name,
+            cycle_name=investigation.facilityCycle.name,
+            investigation_name=investigation.name,
+            visit_id=investigation.visitId,
+            # TODO update when merged with the changes to build_path
+        )
+        return self.client.new(obj="Datafile", **datafile_dict), path
 
     def get_single_entity(
         self,
         entity: str,
-        name: str,
-        facility_name: str = None,
-    ) -> Entity:
+        conditions: dict[str, str],
+        includes: list[str] = None,
+        allow_empty: bool = False,
+    ) -> Entity | None:
         """Returns the single ICAT Entity of type `entity` that matches the criteria.
 
         Args:
             entity (str): Type of entity to get, for example "Investigation".
-            name (str): The value of the name field on the desired result.
-            facility_name (str, optional):
-                The name of the Facility. If unset, this will not form part of the
-                query. Defaults to None.
+            conditions (dict[str, str]): Key value pairs for WHERE portion of the query.
+            includes (list[str], optional): Attributes to INCLUDE. Defaults to None.
+            allow_empty (bool, optional):
+                If True, will return None rather than raise an exception if nothing
+                matches the query. Defaults to False.
 
         Raises:
-            HTTPException: If no matching entities are found.
+            HTTPException: If no matching entities are found and `allow_empty` is False.
 
         Returns:
-            Entity: The Entity matching the query.
+            Entity | None: The Entity matching the query.
         """
-        conditions = {"name": f"={name!r}"}
-        if facility_name is not None:
-            conditions["facility.name"] = f"={facility_name!r}"
+        formatted_conditions = {}
+        for key, value in conditions.items():
+            formatted_conditions[key] = f"={value!r}"
 
-        query = Query(client=self.client, entity=entity, conditions=conditions)
+        query = Query(
+            client=self.client,
+            entity=entity,
+            conditions=formatted_conditions,
+            includes=includes,
+        )
         entities = self.client.search(query=query)
 
         if len(entities) == 0:
-            detail = f"No {entity} with name {name}"
-            raise HTTPException(status_code=400, detail=detail)
+            if allow_empty:
+                return None
+            else:
+                detail = f"No {entity} with conditions {conditions}"
+                raise HTTPException(status_code=400, detail=detail)
         else:
             return entities[0]
 
