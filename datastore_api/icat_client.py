@@ -115,30 +115,13 @@ class IcatClient:
             raise HTTPException(status_code=403, detail="insufficient permissions")
 
     @handle_icat_session
-    def create_entities(
+    def create_many(
         self,
-        investigations: list[Investigation],
+        beans: list[Entity],
     ) -> set[str]:
-        """Creates Investigations and child Datasets/Datafiles in ICAT and returns their
-        paths for use with FTS.
+        return self.client.createMany(beans=beans)
 
-        Args:
-            investigations (list[Investigation]):
-                Metadata for the Investigations to be created.
-
-        Returns:
-            set[str]: Paths to the Investigations in FTS.
-        """
-        beans = []
-        all_paths = set()
-        for investigation in investigations:
-            entities, paths = self.new_investigation(investigation=investigation)
-            beans.extend(entities)
-            all_paths.update(paths)
-
-        self.client.createMany(beans=beans)
-        return all_paths
-
+    @handle_icat_session
     def new_investigation(
         self,
         investigation: Investigation,
@@ -153,9 +136,7 @@ class IcatClient:
             tuple[list[Entity], set[str]]:
                 The ICAT entities to be created and all the paths for the Datafiles.
         """
-        dataset_entities = []
-        all_paths = set()
-        existing_investigation = self.get_single_entity(
+        investigation_entity = self._get_single_entity(
             entity="Investigation",
             conditions={"name": investigation.name, "visitId": investigation.visitId},
             includes=[
@@ -165,30 +146,17 @@ class IcatClient:
             allow_empty=True,
         )
 
-        for dataset in investigation.datasets:
-            dataset_entity, paths = self.new_dataset(
+        if investigation_entity is None:
+            investigation_entity = self._new_investigation_entity(
                 investigation=investigation,
-                dataset=dataset,
-                investigation_entity=existing_investigation,
             )
-            dataset_entities.append(dataset_entity)
-            all_paths.update(paths)
 
-        if existing_investigation is not None:
-            # Do not create the top level Investigation as it already exists
-            # Just return the Datasets for creation
-            return dataset_entities, all_paths
-        else:
-            new_investigation = self._new_investigation_entity(
-                investigation=investigation,
-                dataset_entities=dataset_entities,
-            )
-            return [new_investigation], all_paths
+        return investigation_entity
 
     def _new_investigation_entity(
         self,
         investigation: Investigation,
-        dataset_entities: list[Entity],
+        # dataset_entities: list[Entity],
     ) -> Entity:
         """Creates a new ICAT Investigation Entity.
 
@@ -246,10 +214,10 @@ class IcatClient:
             type=investigation_type,
             investigationFacilityCycles=[investigation_facility_cycle],
             investigationInstruments=[investigation_instrument],
-            datasets=dataset_entities,
             **investigation_dict,
         )
 
+    @handle_icat_session
     def new_dataset(
         self,
         investigation: Investigation,
@@ -274,7 +242,7 @@ class IcatClient:
             datafile_entities.append(datafile_entity)
             paths.add(path)
 
-        dataset_type = self.get_single_entity(
+        dataset_type = self._get_single_entity(
             entity="DatasetType",
             conditions={
                 "name": dataset.datasetType.name,
@@ -285,10 +253,21 @@ class IcatClient:
         if investigation_entity is not None:
             dataset_dict["investigation"] = investigation_entity
 
+        dataset_parameter_entity_state = self.client.new(
+            "DatasetParameter",
+            type=self._get_parameter_type_state(investigation.facility.name),
+            stringValue="SUBMITTED",
+        )
+        dataset_parameter_entity_jobs = self.client.new(
+            "DatasetParameter",
+            type=self._get_parameter_type_job_ids(investigation.facility.name),
+            stringValue="",
+        )
         dataset_entity = self.client.new(
             obj="Dataset",
             type=dataset_type,
             datafiles=datafile_entities,
+            parameters=[dataset_parameter_entity_state, dataset_parameter_entity_jobs],
             **dataset_dict,
         )
 
@@ -318,9 +297,34 @@ class IcatClient:
             visit_id=investigation.visitId,
             # TODO update when merged with the changes to build_path
         )
-        return self.client.new(obj="Datafile", **datafile_dict), path
+        datafile_parameter_entity = self.client.new(
+            "DatafileParameter",
+            type=self._get_parameter_type_state(investigation.facility.name),
+            stringValue="SUBMITTED",
+        )
+        datafile_entity = self.client.new(
+            obj="Datafile",
+            parameters=[datafile_parameter_entity],
+            **datafile_dict,
+        )
+        return datafile_entity, path
 
+    @handle_icat_session
     def get_single_entity(
+        self,
+        entity: str,
+        conditions: dict[str, str],
+        includes: list[str] = None,
+        allow_empty: bool = False,
+    ) -> Entity | None:
+        return self._get_single_entity(
+            entity=entity,
+            conditions=conditions,
+            includes=includes,
+            allow_empty=allow_empty,
+        )
+
+    def _get_single_entity(
         self,
         entity: str,
         conditions: dict[str, str],
@@ -402,3 +406,37 @@ class IcatClient:
             )
             paths.append(path)
         return paths
+
+    def _get_parameter_type_state(self, facility_name: str) -> Entity:
+        """Get the ParameterType for recording FTS job state.
+
+        Args:
+            facility_name (str):
+                Name attribute of the Facility the ParameterType belong to.
+
+        Returns:
+            Entity: ICAT ParameterType Entity for recording FTS state.
+        """
+        conditions = {
+            "name": self.icat_settings.parameter_type_job_state,
+            "facility.name": facility_name,
+            "units": "",
+        }
+        return self._get_single_entity(entity="ParameterType", conditions=conditions)
+
+    def _get_parameter_type_job_ids(self, facility_name: str) -> Entity:
+        """Get the ParameterType for recording FTS job ids.
+
+        Args:
+            facility_name (str):
+                Name attribute of the Facility the ParameterType belong to.
+
+        Returns:
+            Entity: ICAT ParameterType Entity for recording FTS job ids.
+        """
+        conditions = {
+            "name": self.icat_settings.parameter_type_job_ids,
+            "facility.name": facility_name,
+            "units": "",
+        }
+        return self._get_single_entity(entity="ParameterType", conditions=conditions)

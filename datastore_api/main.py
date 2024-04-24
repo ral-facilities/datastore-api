@@ -3,17 +3,19 @@ from importlib import metadata
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import fts3.rest.client.easy as fts3
 from typing_extensions import Annotated
 
 from datastore_api.auth import validate_session_id
-from datastore_api.config import get_settings, Settings
+from datastore_api.config import get_settings
+from datastore_api.fts3_client import Fts3Client
 from datastore_api.icat_client import IcatClient
+from datastore_api.investigation_archiver import InvestigationArchiver
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
 from datastore_api.models.job import CancelResponse, StatusResponse
 from datastore_api.models.login import LoginRequest, LoginResponse
 from datastore_api.models.restore import RestoreRequest, RestoreResponse
 from datastore_api.models.version import VersionResponse
+from datastore_api.transfer_controller import RestoreController
 
 
 app = FastAPI(
@@ -45,14 +47,14 @@ def get_icat_client() -> IcatClient:
 
 
 @lru_cache
-def get_fts3_context() -> fts3.Context:
-    """Initialise and cache the context for making calls to FTS.
+def get_fts3_client() -> Fts3Client:
+    """Initialise and cache the client for making calls to FTS.
 
     Returns:
-        fts3.Context: Context for calls to FTS.
+        FtsClient: Wrapper for calls to FTS.
     """
     settings = get_settings()
-    return fts3.Context(endpoint=settings.fts3.endpoint)
+    return Fts3Client(settings.fts3)
 
 
 @app.post(
@@ -94,8 +96,7 @@ def archive(
     archive_request: ArchiveRequest,
     session_id: Annotated[str, Depends(validate_session_id)],
     icat_client: Annotated[IcatClient, Depends(get_icat_client)],
-    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
-    settings: Annotated[Settings, Depends(get_settings)],
+    fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
 ) -> ArchiveResponse:
     """Submit a request to archive experimental data, recording metadata in ICAT and
     creating an FTS transfer.
@@ -104,27 +105,29 @@ def archive(
         archive_request (ArchiveRequest): Metadata for the entities to be archived.
         session_id (str): ICAT sessionId.
         icat_client (IcatClient): Cached client for calls to ICAT.
-        fts3_context (fts3.Context): Cached context for calls to FTS.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
         settings (Settings): Cached API configuration settings.
 
     Returns:
         ArchiveResponse: FTS job_id for archive transfer.
     """
     icat_client.authorise_admin(session_id=session_id)
-    paths = icat_client.create_entities(
-        session_id=session_id,
-        investigations=archive_request.investigations,
-    )
-    transfers = []
-    for path in paths:
-        source = f"{settings.fts3.instrument_data_cache}/{path}"
-        alternate_source = f"{settings.fts3.user_data_cache}/{path}"
-        destination = f"{settings.fts3.tape_archive}/{path}"
-        transfer = fts3.new_transfer(source=source, destination=destination)
-        transfer["sources"].append(alternate_source)
-        transfers.append(transfer)
-    job = fts3.new_job(transfers=transfers)
-    return ArchiveResponse(job_id=fts3.submit(context=fts3_context, job=job))
+    beans = []
+    job_ids = []
+    for investigation in archive_request.investigations:
+        investigation_archiver = InvestigationArchiver(
+            session_id=session_id,
+            icat_client=icat_client,
+            fts3_client=fts3_client,
+            investigation=investigation,
+        )
+        investigation_archiver.archive_datasets()
+        beans.extend(investigation_archiver.beans)
+        job_ids.extend(investigation_archiver.job_ids)
+
+    icat_client.create_many(session_id=session_id, beans=beans)
+
+    return ArchiveResponse(job_ids=investigation_archiver.job_ids)
 
 
 @app.post(
@@ -137,8 +140,7 @@ def restore(
     restore_request: RestoreRequest,
     session_id: Annotated[str, Depends(validate_session_id)],
     icat_client: Annotated[IcatClient, Depends(get_icat_client)],
-    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
-    settings: Annotated[Settings, Depends(get_settings)],
+    fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
 ) -> RestoreResponse:
     """Submit a request to restore experimental data, creating an FTS transfer.
     \f
@@ -146,8 +148,7 @@ def restore(
         restore_request (RestoreRequest): ICAT ids for Investigations to restore.
         session_id (str): ICAT sessionId.
         icat_client (IcatClient): Cached client for calls to ICAT.
-        fts3_context (fts3.Context): Cached context for calls to FTS.
-        settings (Settings): Cached API configuration settings.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         RestoreResponse: FTS job_id for restore transfer.
@@ -156,19 +157,9 @@ def restore(
         session_id=session_id,
         investigation_ids=restore_request.investigation_ids,
     )
-    transfers = []
-    for path in paths:
-        transfer = fts3.new_transfer(
-            source=f"{settings.fts3.tape_archive}/{path}",
-            destination=f"{settings.fts3.user_data_cache}/{path}",
-        )
-        transfers.append(transfer)
-    job = fts3.new_job(
-        transfers=transfers,
-        bring_online=settings.fts3.bring_online,
-        copy_pin_lifetime=settings.fts3.copy_pin_lifetime,
-    )
-    return RestoreResponse(job_id=fts3.submit(context=fts3_context, job=job))
+    restore_controller = RestoreController(fts3_client=fts3_client, paths=paths)
+    restore_controller.create_fts_jobs()
+    return RestoreResponse(job_ids=restore_controller.job_ids)
 
 
 @app.delete(
@@ -179,7 +170,7 @@ def restore(
 )
 def cancel(
     job_id: str,
-    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
+    fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
 ) -> CancelResponse:
     """Cancel a job previously submitted to FTS.
     \f
@@ -190,7 +181,7 @@ def cancel(
     Returns:
         CancelResponse: Terminal state of the canceled job.
     """
-    state = fts3.cancel(context=fts3_context, job_id=job_id)
+    state = fts3_client.cancel(job_id=job_id)
     return CancelResponse(state=state)
 
 
@@ -202,7 +193,7 @@ def cancel(
 )
 def status(
     job_id: str,
-    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
+    fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
 ) -> StatusResponse:
     """Get details of a job previously submitted to FTS.
     \f
@@ -213,7 +204,7 @@ def status(
     Returns:
         StatusResponse: Details of the requested job.
     """
-    status = fts3.get_job_status(context=fts3_context, job_id=job_id)
+    status = fts3_client.status(job_id=job_id)
     return StatusResponse(status=status)
 
 

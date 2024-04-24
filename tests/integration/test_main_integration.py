@@ -33,15 +33,15 @@ log = logging.getLogger("tests")
 @pytest.fixture(scope="function")
 def test_client(mocker: MockerFixture) -> TestClient:
     # TODO remove this once we have a working FTS container for the tests
-    mocker.patch("datastore_api.main.fts3.Context")
+    mocker.patch("datastore_api.fts3_client.fts3.Context")
 
-    fts_submit_mock = mocker.patch("datastore_api.main.fts3.submit")
+    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
     fts_submit_mock.return_value = "0"
 
-    fts_status_mock = mocker.patch("datastore_api.main.fts3.get_job_status")
+    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
     fts_status_mock.return_value = {"key": "value"}
 
-    fts_submit_mock = mocker.patch("datastore_api.main.fts3.cancel")
+    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
     fts_submit_mock.return_value = "CANCELED"
     return TestClient(app)
 
@@ -49,7 +49,7 @@ def test_client(mocker: MockerFixture) -> TestClient:
 @pytest.fixture(scope="function")
 def submit(mocker: MockerFixture) -> MagicMock:
     # TODO remove this once we have a working FTS container for the tests
-    fts_submit_mock = mocker.patch("datastore_api.main.fts3.submit")
+    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
     fts_submit_mock.return_value = "0"
     return fts_submit_mock
 
@@ -172,6 +172,47 @@ def instrument(
 
 
 @pytest.fixture(scope="function")
+def parameter_type_state(
+    session_id: str,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    parameter_type = create(
+        session_id=session_id,
+        entity="ParameterType",
+        name="Archival state",
+        facility=facility,
+        units="",
+        valueType="STRING",
+        applicableToDataset=True,
+        applicableToDatafile=True,
+    )
+
+    yield parameter_type
+
+    delete(session_id=session_id, entity=parameter_type)
+
+
+@pytest.fixture(scope="function")
+def parameter_type_job_ids(
+    session_id: str,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    parameter_type = create(
+        session_id=session_id,
+        entity="ParameterType",
+        name="Archival ids",
+        facility=facility,
+        units="",
+        valueType="STRING",
+        applicableToDataset=True,
+    )
+
+    yield parameter_type
+
+    delete(session_id=session_id, entity=parameter_type)
+
+
+@pytest.fixture(scope="function")
 def investigation(
     session_id: str,
     facility: Entity,
@@ -194,6 +235,10 @@ def investigation(
         name="name",
         visitId="visitId",
         title="title",
+        summary="summary",
+        startDate=datetime.now(),
+        endDate=datetime.now(),
+        releaseDate=datetime.now(),
         facility=facility,
         type=investigation_type,
         investigationInstruments=[investigation_instrument],
@@ -336,13 +381,16 @@ class TestMainIntegration:
         dataset_type: Entity,
         facility_cycle: Entity,
         instrument: Entity,
+        investigation: Entity,
+        parameter_type_state: Entity,
+        parameter_type_job_ids: Entity,
     ):
         dataset = Dataset(
             name="dataset",
             datasetType=DatasetType(name="type"),
             datafiles=[Datafile(name="datafile")],
         )
-        investigation = Investigation(
+        investigation_metadata = Investigation(
             name="name",
             visitId="visitId",
             title="title",
@@ -357,21 +405,26 @@ class TestMainIntegration:
             facilityCycle=FacilityCycle(name="20XX"),
             datasets=[dataset],
         )
-        archive_request = ArchiveRequest(investigations=[investigation])
+        archive_request = ArchiveRequest(investigations=[investigation_metadata])
         json_body = json.loads(archive_request.json())
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_id": "0"}
+        assert content == {"job_ids": ["0"]}
 
         sources = [
             "cephfs://idc//instrument/20XX/name-visitId",
             "cephfs://udc//instrument/20XX/name-visitId",
         ]
         destinations = ["tape://archive//instrument/20XX/name-visitId"]
-        job = fts_job(sources=sources, destinations=destinations)
+        job = fts_job(
+            sources=sources,
+            destinations=destinations,
+            bring_online=28800,
+            copy_pin_lifetime=28800,
+        )
         submit.assert_called_once_with(context=ANY, job=job)
 
         try:
@@ -392,31 +445,31 @@ class TestMainIntegration:
             )
             investigations = icat_client.client.search(query=query)
             assert len(investigations) == 1
-            investigation = investigations[0]
+            investigation_entity = investigations[0]
 
-            investigation_instruments = investigation.investigationInstruments
+            investigation_instruments = investigation_entity.investigationInstruments
             assert len(investigation_instruments) == 1
 
-            investigation_facility_cycles = investigation.investigationFacilityCycles
-            assert len(investigation_facility_cycles) == 1
+            investigation_cycles = investigation_entity.investigationFacilityCycles
+            assert len(investigation_cycles) == 1
 
-            assert len(investigation.datasets) == 1
-            assert len(investigation.datasets[0].datafiles) == 1
+            assert len(investigation_entity.datasets) == 1
+            assert len(investigation_entity.datasets[0].datafiles) == 1
 
-            assert investigation.name == "name"
-            assert investigation.visitId == "visitId"
-            assert investigation.title == "title"
-            assert investigation.summary == "summary"
-            assert investigation.startDate is not None
-            assert investigation.endDate is not None
-            assert investigation.startDate is not None
-            assert investigation.facility.name == "facility"
-            assert investigation.type.name == "type"
+            assert investigation_entity.name == "name"
+            assert investigation_entity.visitId == "visitId"
+            assert investigation_entity.title == "title"
+            assert investigation_entity.summary == "summary"
+            assert investigation_entity.startDate is not None
+            assert investigation_entity.endDate is not None
+            assert investigation_entity.releaseDate is not None
+            assert investigation_entity.facility.name == "facility"
+            assert investigation_entity.type.name == "type"
             assert investigation_instruments[0].instrument.name == "instrument"
-            assert investigation_facility_cycles[0].facilityCycle.name == "20XX"
-            assert investigation.datasets[0].name == "dataset"
-            assert investigation.datasets[0].type.name == "type"
-            assert investigation.datasets[0].datafiles[0].name == "datafile"
+            assert investigation_cycles[0].facilityCycle.name == "20XX"
+            assert investigation_entity.datasets[0].name == "dataset"
+            assert investigation_entity.datasets[0].type.name == "type"
+            assert investigation_entity.datasets[0].datafiles[0].name == "datafile"
         finally:
             icat_client.client.sessionId = None
 
@@ -440,7 +493,7 @@ class TestRestore:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_id": "0"}
+        assert content == {"job_ids": ["0"]}
 
         sources = ["tape://archive//instrument/20XX/name-visitId"]
         destinations = ["cephfs://udc//instrument/20XX/name-visitId"]

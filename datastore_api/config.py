@@ -20,6 +20,8 @@ class IcatSettings(BaseModel):
     check_cert: bool = True
     admin_users: list[IcatUser] = []
     embargo_period_years: int = 2
+    parameter_type_job_ids: str = "Archival ids"
+    parameter_type_job_state: str = "Archival state"
 
 
 class Fts3Settings(BaseModel):

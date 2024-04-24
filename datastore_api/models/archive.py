@@ -58,7 +58,7 @@ class Dataset(BaseModel):
 
     # Relationships
     datasetType: DatasetType
-    datafiles: list[Datafile]
+    datafiles: Annotated[list[Datafile], Len(min_length=1)]
 
     def excluded_dict(self) -> dict[str, Any]:
         """Utility function for excluding fields which should not be passed to ICAT for
@@ -86,7 +86,7 @@ class Investigation(BaseModel):
     investigationType: InvestigationType
     instrument: Instrument
     facilityCycle: FacilityCycle
-    datasets: list[Dataset]
+    datasets: Annotated[list[Dataset], Len(min_length=1)]
 
     @validator("releaseDate")
     def define_release_date(cls, v, values, **kwargs) -> datetime:
@@ -129,4 +129,4 @@ class ArchiveRequest(BaseModel):
 
 
 class ArchiveResponse(BaseModel):
-    job_id: str = Field(example="1")
+    job_ids: list[str] = Field(example=["00000000-0000-0000-0000-000000000000"])

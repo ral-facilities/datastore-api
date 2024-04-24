@@ -5,19 +5,11 @@ from fastapi.testclient import TestClient
 import pytest
 from pytest_mock import mocker, MockerFixture
 
+from datastore_api.config import get_settings
 from datastore_api.main import app
-from datastore_api.models.archive import (
-    ArchiveRequest,
-    Datafile,
-    Dataset,
-    DatasetType,
-    Facility,
-    FacilityCycle,
-    Instrument,
-    Investigation,
-    InvestigationType,
-)
+from datastore_api.models.archive import ArchiveRequest, Investigation
 from datastore_api.models.restore import RestoreRequest
+from fixtures import investigation
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -27,19 +19,27 @@ SESSION_ID = "00000000-0000-0000-0000-000000000000"
 def test_client(mocker: MockerFixture):
     icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
     icat_client = icat_client_mock.return_value
+    icat_client.icat_settings = get_settings().icat
     icat_client.login.return_value = SESSION_ID
-    icat_client.create_entities.return_value = ["path/to/data"]
     icat_client.get_investigation_paths.return_value = ["path/to/data"]
 
-    mocker.patch("datastore_api.main.fts3.Context")
+    dataset = mocker.MagicMock(name="dataset")
+    dataset_parameter_state = mocker.MagicMock(name="dataset_parameter_state")
+    dataset_parameter_state.type.name = "Archival state"
+    dataset_parameter_job_ids = mocker.MagicMock(name="dataset_parameter_job_ids")
+    dataset_parameter_job_ids.type.name = "Archival ids"
+    dataset.parameters = [dataset_parameter_state, dataset_parameter_job_ids]
+    icat_client.new_dataset.return_value = dataset, ["path/to/data"]
 
-    fts_submit_mock = mocker.patch("datastore_api.main.fts3.submit")
+    mocker.patch("datastore_api.fts3_client.fts3.Context")
+
+    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
     fts_submit_mock.return_value = "0"
 
-    fts_status_mock = mocker.patch("datastore_api.main.fts3.get_job_status")
+    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
     fts_status_mock.return_value = {"key": "value"}
 
-    fts_submit_mock = mocker.patch("datastore_api.main.fts3.cancel")
+    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
     fts_submit_mock.return_value = "CANCELED"
 
     return TestClient(app)
@@ -54,27 +54,7 @@ class TestMain:
         assert test_response.status_code == 200
         assert json.loads(test_response.content) == {"sessionId": SESSION_ID}
 
-    def test_archive(self, test_client: TestClient):
-        dataset = Dataset(
-            name="dataset",
-            datasetType=DatasetType(name="type"),
-            datafiles=[Datafile(name="datafile")],
-        )
-        investigation = Investigation(
-            name="name",
-            visitId="visitId",
-            title="title",
-            summary="summary",
-            doi="doi",
-            startDate=datetime.now(),
-            endDate=datetime.now(),
-            releaseDate=datetime.now(),
-            facility=Facility(name="facility"),
-            investigationType=InvestigationType(name="type"),
-            instrument=Instrument(name="instrument"),
-            facilityCycle=FacilityCycle(name="20XX"),
-            datasets=[dataset],
-        )
+    def test_archive(self, test_client: TestClient, investigation: Investigation):
         archive_request = ArchiveRequest(investigations=[investigation])
         json_body = json.loads(archive_request.json())
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
@@ -82,7 +62,7 @@ class TestMain:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_id": "0"}
+        assert content == {"job_ids": ["0"]}
 
     def test_restore(self, test_client: TestClient):
         restore_request = RestoreRequest(investigation_ids=[0])
@@ -92,7 +72,7 @@ class TestMain:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_id": "0"}
+        assert content == {"job_ids": ["0"]}
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}

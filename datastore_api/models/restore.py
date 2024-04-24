@@ -9,4 +9,4 @@ class RestoreRequest(BaseModel):
 
 
 class RestoreResponse(BaseModel):
-    job_id: str = Field(example="1")
+    job_ids: list[str] = Field(example=["00000000-0000-0000-0000-000000000000"])
