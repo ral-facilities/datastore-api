@@ -1,5 +1,6 @@
 from fastapi import HTTPException
 import pytest
+from pytest_mock import MockerFixture
 
 from datastore_api.icat_client import IcatClient
 from datastore_api.models.login import Credentials, LoginRequest
@@ -12,12 +13,9 @@ INSUFFICIENT_PERMISSIONS = (
 
 
 class TestIcatClient:
-    def test_build_path(self):
-        assert IcatClient.build_path("a", "b", "c", "d") == "/a/b/c-d"
-
     def test_validate_entities(self):
         with pytest.raises(HTTPException) as e:
-            IcatClient.validate_entities([], [1])
+            IcatClient._validate_entities([], [1])
 
         assert e.exconly() == INSUFFICIENT_PERMISSIONS
 
@@ -44,14 +42,59 @@ class TestIcatClient:
         assert e.exconly() == INSUFFICIENT_PERMISSIONS
         assert icat_client.client.sessionId is None
 
-    def test_get_investigation_paths(self, icat_client: IcatClient):
-        paths = icat_client.get_investigation_paths(
+    @pytest.mark.parametrize(
+        ["investigation_ids", "dataset_ids", "datafile_ids", "expected_paths"],
+        [
+            pytest.param([], [], [], set(), id="No ids"),
+            pytest.param(
+                [1],
+                [1],
+                [1],
+                {"instrument/20XX/name-visitId/type/dataset/datafile"},
+                id="All ids",
+            ),
+        ],
+    )
+    def test_get_paths(
+        self,
+        icat_client: IcatClient,
+        mocker: MockerFixture,
+        investigation_ids: list[int],
+        dataset_ids: list[int],
+        datafile_ids: list[int],
+        expected_paths: set[str],
+    ):
+        investigation_instrument = mocker.MagicMock(name="investigation_instrument")
+        investigation_instrument.instrument.name = "instrument"
+        investigation_cycle = mocker.MagicMock(name="investigation_cycle")
+        investigation_cycle.facilityCycle.name = "20XX"
+        investigation = mocker.MagicMock(name="investigation")
+        investigation.investigationInstruments = [investigation_instrument]
+        investigation.investigationFacilityCycles = [investigation_cycle]
+        investigation.name = "name"
+        investigation.visitId = "visitId"
+
+        dataset = mocker.MagicMock(name="dataset")
+        dataset.name = "dataset"
+        dataset.type.name = "type"
+        dataset.investigation = investigation
+
+        datafile = mocker.MagicMock(name="datafile")
+        datafile.name = "datafile"
+        datafile.dataset = dataset
+
+        dataset.datafiles = [datafile]
+        investigation.datasets = [dataset]
+
+        icat_client.client.search.side_effect = [[investigation], [dataset], [datafile]]
+        paths = icat_client.get_paths(
             session_id=SESSION_ID,
-            investigation_ids=[1],
+            investigation_ids=investigation_ids,
+            dataset_ids=dataset_ids,
+            datafile_ids=datafile_ids,
         )
 
-        # Don't assert the path as the Mocked object does not have meaningful attributes
-        assert len(paths) == 1
+        assert paths == expected_paths
         assert icat_client.client.sessionId is None
 
     def test_get_single_entity_failure(self, icat_client_empty_search: IcatClient):

@@ -89,7 +89,7 @@ class Investigation(BaseModel):
     datasets: Annotated[list[Dataset], Len(min_length=1)]
 
     @validator("releaseDate")
-    def define_release_date(cls, v, values, **kwargs) -> datetime:
+    def define_release_date(cls, v: datetime | None, values: dict) -> datetime:
         if v is not None:
             return v
 

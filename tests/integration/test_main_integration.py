@@ -219,6 +219,7 @@ def investigation(
     investigation_type: Entity,
     instrument: Entity,
     facility_cycle: Entity,
+    dataset_type: Entity,
 ) -> Generator[Entity, None, None]:
     icat_client = get_icat_client()
     investigation_instrument = icat_client.client.new(
@@ -228,6 +229,16 @@ def investigation(
     investigation_facility_cycle = icat_client.client.new(
         obj="InvestigationFacilityCycle",
         facilityCycle=facility_cycle,
+    )
+    datafile = icat_client.client.new(
+        obj="Datafile",
+        name="datafile",
+    )
+    dataset = icat_client.client.new(
+        obj="Dataset",
+        name="dataset",
+        type=dataset_type,
+        datafiles=[datafile],
     )
     investigation = create(
         session_id=session_id,
@@ -243,6 +254,7 @@ def investigation(
         type=investigation_type,
         investigationInstruments=[investigation_instrument],
         investigationFacilityCycles=[investigation_facility_cycle],
+        datasets=[dataset],
     )
 
     yield investigation
@@ -370,7 +382,7 @@ class TestLogin:
         assert json.loads(test_response.content)["detail"] == detail
 
 
-class TestMainIntegration:
+class TestArchive:
     def test_archive(
         self,
         test_client: TestClient,
@@ -386,7 +398,7 @@ class TestMainIntegration:
         parameter_type_job_ids: Entity,
     ):
         dataset = Dataset(
-            name="dataset",
+            name="dataset1",
             datasetType=DatasetType(name="type"),
             datafiles=[Datafile(name="datafile")],
         )
@@ -414,11 +426,9 @@ class TestMainIntegration:
         assert test_response.status_code == 200, content
         assert content == {"job_ids": ["0"]}
 
-        sources = [
-            "cephfs://idc//instrument/20XX/name-visitId",
-            "cephfs://udc//instrument/20XX/name-visitId",
-        ]
-        destinations = ["tape://archive//instrument/20XX/name-visitId"]
+        path = "instrument/20XX/name-visitId/type/dataset1/datafile"
+        sources = [f"cephfs://idc/{path}", f"cephfs://udc/{path}"]
+        destinations = [f"tape://archive/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
@@ -453,8 +463,9 @@ class TestMainIntegration:
             investigation_cycles = investigation_entity.investigationFacilityCycles
             assert len(investigation_cycles) == 1
 
-            assert len(investigation_entity.datasets) == 1
+            assert len(investigation_entity.datasets) == 2
             assert len(investigation_entity.datasets[0].datafiles) == 1
+            assert len(investigation_entity.datasets[1].datafiles) == 1
 
             assert investigation_entity.name == "name"
             assert investigation_entity.visitId == "visitId"
@@ -495,8 +506,9 @@ class TestRestore:
         assert test_response.status_code == 200, content
         assert content == {"job_ids": ["0"]}
 
-        sources = ["tape://archive//instrument/20XX/name-visitId"]
-        destinations = ["cephfs://udc//instrument/20XX/name-visitId"]
+        path = "instrument/20XX/name-visitId/type/dataset/datafile"
+        sources = [f"tape://archive/{path}"]
+        destinations = [f"cephfs://udc/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,

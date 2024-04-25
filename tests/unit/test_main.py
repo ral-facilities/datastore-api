@@ -21,7 +21,7 @@ def test_client(mocker: MockerFixture):
     icat_client = icat_client_mock.return_value
     icat_client.icat_settings = get_settings().icat
     icat_client.login.return_value = SESSION_ID
-    icat_client.get_investigation_paths.return_value = ["path/to/data"]
+    icat_client.get_paths.return_value = ["path/to/data"]
 
     dataset = mocker.MagicMock(name="dataset")
     dataset_parameter_state = mocker.MagicMock(name="dataset_parameter_state")
