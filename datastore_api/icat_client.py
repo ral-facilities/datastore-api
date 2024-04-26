@@ -126,6 +126,33 @@ class IcatClient:
         if len(entities) != len(expected_ids):
             raise HTTPException(status_code=403, detail="insufficient permissions")
 
+    @staticmethod
+    def build_conditions(
+        equals: dict[str, str] = None,
+        contains: dict[str, str] = None,
+    ) -> dict[str, str]:
+        """Build the conditions dictionary for an ICAT query.
+
+        Args:
+            equals (dict[str, str], optional):
+                Field with key should equal the value. Defaults to None.
+            contains (dict[str, str], optional):
+                Field with key should contain the value. Defaults to None.
+
+        Returns:
+            dict[str, str]: Formatted dictionary of ICAT query conditions.
+        """
+        formatted_conditions = {}
+        if equals is not None:
+            for key, value in equals.items():
+                formatted_conditions[key] = f"={value!r}"
+
+        if contains is not None:
+            for key, value in contains.items():
+                formatted_conditions[key] = f"LIKE '%{value}%'"
+
+        return formatted_conditions
+
     @handle_icat_session
     def login(self, login_request: LoginRequest) -> str:
         """Uses the provided credentials to generate and ICAT sessionId.
@@ -138,6 +165,20 @@ class IcatClient:
             str: ICAT sessionId
         """
         return self.client.login(login_request.auth, login_request.credentials.dict())
+
+    @handle_icat_session
+    def login_functional(self) -> str:
+        """Uses the functional credentials to generate and ICAT sessionId.
+
+        Args:
+            login_request (LoginRequest):
+                ICAT user credentials and authentication method.
+
+        Returns:
+            str: ICAT sessionId
+        """
+        credentials = self.icat_settings.functional_user.dict(exclude={"auth"})
+        return self.client.login(self.icat_settings.functional_user.auth, credentials)
 
     @handle_icat_session
     def authorise_admin(self) -> None:
@@ -173,9 +214,11 @@ class IcatClient:
             tuple[list[Entity], set[str]]:
                 The ICAT entities to be created and all the paths for the Datafiles.
         """
+        equals = {"name": investigation.name, "visitId": investigation.visitId}
+        conditions = IcatClient.build_conditions(equals=equals)
         investigation_entity = self._get_single_entity(
             entity="Investigation",
-            conditions={"name": investigation.name, "visitId": investigation.visitId},
+            conditions=conditions,
             includes=[
                 "investigationInstruments.instrument",
                 "investigationFacilityCycles.facilityCycle",
@@ -209,31 +252,36 @@ class IcatClient:
         investigation_dict = investigation.excluded_dict()
 
         # Get existing high level metadata
-        facility = self.get_single_entity(
-            entity="Facility",
-            conditions={"name": investigation.facility.name},
-        )
-        investigation_type = self.get_single_entity(
+        equals = {"name": investigation.facility.name}
+        conditions = IcatClient.build_conditions(equals=equals)
+        facility = self._get_single_entity(entity="Facility", conditions=conditions)
+
+        equals = {
+            "name": investigation.investigationType.name,
+            "facility.name": investigation.facility.name,
+        }
+        conditions = IcatClient.build_conditions(equals=equals)
+        investigation_type = self._get_single_entity(
             entity="InvestigationType",
-            conditions={
-                "name": investigation.investigationType.name,
-                "facility.name": investigation.facility.name,
-            },
+            conditions=conditions,
         )
-        facility_cycle = self.get_single_entity(
+
+        equals = {
+            "name": investigation.facilityCycle.name,
+            "facility.name": investigation.facility.name,
+        }
+        conditions = IcatClient.build_conditions(equals=equals)
+        facility_cycle = self._get_single_entity(
             entity="FacilityCycle",
-            conditions={
-                "name": investigation.facilityCycle.name,
-                "facility.name": investigation.facility.name,
-            },
+            conditions=conditions,
         )
-        instrument = self.get_single_entity(
-            entity="Instrument",
-            conditions={
-                "name": investigation.instrument.name,
-                "facility.name": investigation.facility.name,
-            },
-        )
+
+        equals = {
+            "name": investigation.instrument.name,
+            "facility.name": investigation.facility.name,
+        }
+        conditions = IcatClient.build_conditions(equals=equals)
+        instrument = self._get_single_entity(entity="Instrument", conditions=conditions)
 
         # Create many to many relationships
         investigation_facility_cycle = self.client.new(
@@ -279,12 +327,14 @@ class IcatClient:
             datafile_entities.append(datafile_entity)
             paths.add(path)
 
+        equals = {
+            "name": dataset.datasetType.name,
+            "facility.name": investigation.facility.name,
+        }
+        conditions = IcatClient.build_conditions(equals=equals)
         dataset_type = self._get_single_entity(
             entity="DatasetType",
-            conditions={
-                "name": dataset.datasetType.name,
-                "facility.name": investigation.facility.name,
-            },
+            conditions=conditions,
         )
         dataset_dict = dataset.excluded_dict()
         if investigation_entity is not None:
@@ -386,14 +436,10 @@ class IcatClient:
         Returns:
             Entity | None: The Entity matching the query.
         """
-        formatted_conditions = {}
-        for key, value in conditions.items():
-            formatted_conditions[key] = f"={value!r}"
-
         query = Query(
             client=self.client,
             entity=entity,
-            conditions=formatted_conditions,
+            conditions=conditions,
             includes=includes,
         )
         entities = self.client.search(query=query)
@@ -559,11 +605,12 @@ class IcatClient:
         Returns:
             Entity: ICAT ParameterType Entity for recording FTS state.
         """
-        conditions = {
+        equals = {
             "name": self.icat_settings.parameter_type_job_state,
             "facility.name": facility_name,
             "units": "",
         }
+        conditions = IcatClient.build_conditions(equals=equals)
         return self._get_single_entity(entity="ParameterType", conditions=conditions)
 
     def _get_parameter_type_job_ids(self, facility_name: str) -> Entity:
@@ -576,9 +623,32 @@ class IcatClient:
         Returns:
             Entity: ICAT ParameterType Entity for recording FTS job ids.
         """
-        conditions = {
+        equals = {
             "name": self.icat_settings.parameter_type_job_ids,
             "facility.name": facility_name,
             "units": "",
         }
+        conditions = IcatClient.build_conditions(equals=equals)
         return self._get_single_entity(entity="ParameterType", conditions=conditions)
+
+    @handle_icat_session
+    def check_job_id(self, job_id: str) -> None:
+        """Raises an error if the `job_id` appears in any of the active archival jobs.
+
+        Args:
+            job_id (str): FTS job_id to be cancelled.
+
+        Raises:
+            HTTPException: If the `job_id` appears in any of the active archival jobs.
+        """
+        equals = {"type.name": self.icat_settings.parameter_type_job_ids}
+        contains = {"stringValue": job_id}
+        conditions = IcatClient.build_conditions(equals=equals, contains=contains)
+        parameter = self._get_single_entity(
+            entity="DatasetParameter",
+            conditions=conditions,
+            allow_empty=True,
+        )
+        if parameter is not None:
+            detail = "Archival jobs cannot be cancelled"
+            raise HTTPException(status_code=400, detail=detail)

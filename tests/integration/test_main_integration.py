@@ -262,6 +262,33 @@ def investigation(
     delete(session_id=session_id, entity=investigation)
 
 
+@pytest.fixture(scope="function")
+def dataset_with_job_id(
+    session_id: str,
+    dataset_type: Entity,
+    parameter_type_job_ids: Entity,
+    investigation: Entity,
+) -> Generator[Entity, None, None]:
+    icat_client = get_icat_client()
+    parameter = icat_client.client.new(
+        obj="DatasetParameter",
+        stringValue="0,1,2",
+        type=parameter_type_job_ids,
+    )
+    dataset = create(
+        session_id=session_id,
+        entity="Dataset",
+        name="dataset1",
+        type=dataset_type,
+        investigation=investigation,
+        parameters=[parameter],
+    )
+
+    yield dataset
+
+    delete(session_id=session_id, entity=dataset)
+
+
 def create(session_id: str, entity: str, **kwargs) -> Entity:
     icat_client = get_icat_client()
     try:
@@ -516,3 +543,29 @@ class TestRestore:
             copy_pin_lifetime=28800,
         )
         submit.assert_called_once_with(context=ANY, job=job)
+
+
+class TestCancel:
+    def test_cancel(
+        self,
+        test_client: TestClient,
+        mocker: MockerFixture,
+    ):
+        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+        fts_submit_mock.return_value = "SUBMITTED"
+        test_response = test_client.delete("/job/0")
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"state": "SUBMITTED"}
+
+    def test_cancel_archival(
+        self,
+        test_client: TestClient,
+        dataset_with_job_id: Entity,
+    ):
+        test_response = test_client.delete("/job/1")
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 400, content
+        assert content == {"detail": "Archival jobs cannot be cancelled"}

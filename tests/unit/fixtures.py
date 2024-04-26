@@ -4,7 +4,7 @@ from icat import ICATSessionError
 import pytest
 from pytest_mock import mocker, MockerFixture
 
-from datastore_api.config import IcatSettings
+from datastore_api.config import FunctionalUser, IcatSettings
 from datastore_api.icat_client import IcatClient
 from datastore_api.models.archive import (
     Datafile,
@@ -52,8 +52,14 @@ def login_side_effect(auth: str, credentials: dict) -> str:
     raise ICATSessionError("test")
 
 
+@pytest.fixture(scope="session")
+def icat_settings():
+    functional_user = FunctionalUser(auth="simple", username="root", password="pw")
+    return IcatSettings(url="", functional_user=functional_user)
+
+
 @pytest.fixture(scope="function")
-def icat_client(mocker: MockerFixture):
+def icat_client(icat_settings: IcatSettings, mocker: MockerFixture):
     client = mocker.patch("datastore_api.icat_client.Client")
     client.return_value.login.side_effect = login_side_effect
     client.return_value.getUserName.return_value = "simple/root"
@@ -61,11 +67,11 @@ def icat_client(mocker: MockerFixture):
 
     mocker.patch("datastore_api.icat_client.Query")
 
-    return IcatClient(icat_settings=IcatSettings(url=""))
+    return IcatClient(icat_settings=icat_settings)
 
 
 @pytest.fixture(scope="function")
-def icat_client_empty_search(mocker: MockerFixture):
+def icat_client_empty_search(icat_settings: IcatSettings, mocker: MockerFixture):
     def generator():
         yield []
         while True:
@@ -83,4 +89,4 @@ def icat_client_empty_search(mocker: MockerFixture):
 
     mocker.patch("datastore_api.icat_client.Query")
 
-    return IcatClient(icat_settings=IcatSettings(url=""))
+    return IcatClient(icat_settings=icat_settings)

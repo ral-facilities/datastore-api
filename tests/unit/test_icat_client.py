@@ -4,7 +4,7 @@ from pytest_mock import MockerFixture
 
 from datastore_api.icat_client import IcatClient
 from datastore_api.models.login import Credentials, LoginRequest
-from fixtures import icat_client, icat_client_empty_search, SESSION_ID
+from fixtures import icat_client, icat_client_empty_search, icat_settings, SESSION_ID
 
 
 INSUFFICIENT_PERMISSIONS = (
@@ -34,6 +34,15 @@ class TestIcatClient:
 
         assert e.exconly() == "fastapi.exceptions.HTTPException: 401: test"
         assert icat_client.client.sessionId is None
+
+    def test_functional_login(self, icat_client: IcatClient):
+        credentials = {"username": "root", "password": "pw"}
+
+        session_id = icat_client.login_functional()
+
+        assert session_id == SESSION_ID
+        assert icat_client.client.sessionId is None
+        icat_client.client.login.assert_called_once_with("simple", credentials)
 
     def test_authorise_admin_failure(self, icat_client: IcatClient):
         with pytest.raises(HTTPException) as e:
@@ -114,3 +123,10 @@ class TestIcatClient:
     def test_create_many(self, icat_client: IcatClient):
         icat_client.create_many(session_id=SESSION_ID, beans=[])
         icat_client.client.createMany.assert_called_once_with(beans=[])
+
+    def test_check_job_id(self, icat_client: IcatClient):
+        with pytest.raises(HTTPException) as e:
+            icat_client.check_job_id(session_id=SESSION_ID, job_id="0")
+
+        err = "fastapi.exceptions.HTTPException: 400: Archival jobs cannot be cancelled"
+        assert e.exconly() == err
