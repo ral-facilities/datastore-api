@@ -15,10 +15,15 @@ class IcatUser(BaseModel):
     username: str
 
 
+class FunctionalUser(IcatUser):
+    password: str
+
+
 class IcatSettings(BaseModel):
     url: str
     check_cert: bool = True
     admin_users: list[IcatUser] = []
+    functional_user: FunctionalUser
     embargo_period_years: int = 2
     parameter_type_job_ids: str = "Archival ids"
     parameter_type_job_state: str = "Archival state"

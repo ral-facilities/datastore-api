@@ -172,17 +172,22 @@ def restore(
 )
 def cancel(
     job_id: str,
+    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
     fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
 ) -> CancelResponse:
     """Cancel a job previously submitted to FTS.
     \f
     Args:
         job_id (str): FTS id for a submitted job.
-        fts3_context (fts3.Context): Cached context for calls to FTS.
+        icat_client (IcatClient): Cached client for calls to ICAT.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         CancelResponse: Terminal state of the canceled job.
     """
+    icat_client = get_icat_client()
+    session_id = icat_client.login_functional()
+    icat_client.check_job_id(session_id=session_id, job_id=job_id)
     state = fts3_client.cancel(job_id=job_id)
     return CancelResponse(state=state)
 
@@ -201,7 +206,7 @@ def status(
     \f
     Args:
         job_id (str): FTS id for a submitted job.
-        fts3_context (fts3.Context): Cached context for calls to FTS.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         StatusResponse: Details of the requested job.

@@ -3,7 +3,7 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.icat_client import IcatClient
 from datastore_api.investigation_archiver import InvestigationArchiver
 from datastore_api.models.archive import Investigation
-from fixtures import icat_client, icat_client_empty_search, investigation
+from fixtures import icat_client, icat_client_empty_search, icat_settings, investigation
 
 
 class TestInvestigationArchiver:
