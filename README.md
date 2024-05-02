@@ -46,3 +46,18 @@ By executing
 ```bash
 nox -s [SESSIONS ...]
 ```
+
+### ICAT Setup
+A full ICAT installation with Payara can be used by following the standard [installation tutorial](https://github.com/icatproject/icat.manual/tree/master/tutorials). Alternatively, the containers used for tests can provide a minimal setup which should be sufficient for development and manual testing:
+
+```bash
+sudo docker compose -f tests/docker-compose.yaml up
+```
+
+This will create containers for ICAT and the underlying database, but not any data. The requests to the API implicitly assume that certain high level entities exist, so these should be created:
+
+```bash
+icatingest.py -i datastore_api/scripts/example.yaml -f YAML --duplicate IGNORE --url http://localhost:18080 --no-check-certificate --auth simple --user root --pass pw
+```
+
+If desired the entities in `example.yaml` can be modified or extended following the [python-icat documentation](https://python-icat.readthedocs.io/en/1.3.0/icatingest.html). There are other files which will create multiple entities, if needed.
