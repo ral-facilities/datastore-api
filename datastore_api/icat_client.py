@@ -1,4 +1,5 @@
 from functools import wraps
+import logging
 from typing import Any, Callable
 
 from fastapi import HTTPException
@@ -9,6 +10,9 @@ from icat.query import Query
 from datastore_api.config import IcatSettings, IcatUser
 from datastore_api.models.archive import Datafile, Dataset, Investigation
 from datastore_api.models.login import LoginRequest
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def handle_icat_session(func: Callable):
@@ -197,6 +201,7 @@ class IcatClient:
         self,
         beans: list[Entity],
     ) -> set[str]:
+        LOGGER.debug("Calling createMany with %s beans", len(beans))
         return self.client.createMany(beans=beans)
 
     @handle_icat_session
@@ -236,7 +241,6 @@ class IcatClient:
     def _new_investigation_entity(
         self,
         investigation: Investigation,
-        # dataset_entities: list[Entity],
     ) -> Entity:
         """Creates a new ICAT Investigation Entity.
 
@@ -307,14 +311,14 @@ class IcatClient:
         self,
         investigation: Investigation,
         dataset: Dataset,
-        investigation_entity: Entity | None,
+        investigation_entity: Entity,
     ) -> tuple[Entity, set[str]]:
         """Create a new ICAT Dataset Entity and child Datafiles.
 
         Args:
             investigation (Investigation): Metadata for the parent Investigation.
             dataset (Dataset): Metadata for the Dataset to be created.
-            investigation_entity (Entity | None): Existing ICAT Investigation Entity.
+            investigation_entity (Entity): Existing or new ICAT Investigation Entity.
 
         Returns:
             tuple[Entity, set[str]]:
@@ -337,7 +341,7 @@ class IcatClient:
             conditions=conditions,
         )
         dataset_dict = dataset.excluded_dict()
-        if investigation_entity is not None:
+        if investigation_entity.id is not None:
             dataset_dict["investigation"] = investigation_entity
 
         dataset_parameter_entity_state = self.client.new(
@@ -442,7 +446,7 @@ class IcatClient:
             conditions=conditions,
             includes=includes,
         )
-        entities = self.client.search(query=query)
+        entities = self.client.search(query=str(query))
 
         if len(entities) == 0:
             if allow_empty:

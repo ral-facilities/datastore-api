@@ -12,7 +12,11 @@ class Fts3Client:
         Args:
             fts_settings (Fts3Settings): Settings for FTS3 operations.
         """
-        self.context = fts3.Context(endpoint=fts_settings.endpoint)
+        self.context = fts3.Context(
+            endpoint=fts_settings.endpoint,
+            ucert=fts_settings.x509_user_cert,
+            ukey=fts_settings.x509_user_key,
+        )
         self.instrument_data_cache = fts_settings.instrument_data_cache
         self.user_data_cache = fts_settings.user_data_cache
         self.tape_archive = fts_settings.tape_archive
@@ -48,20 +52,22 @@ class Fts3Client:
         destination = f"{self.user_data_cache}/{path}"
         return fts3.new_transfer(source=source, destination=destination)
 
-    def submit(self, transfers: list[dict[str, list]]) -> str:
+    def submit(self, transfers: list[dict[str, list]], stage: bool = False) -> str:
         """Submit a single FTS job for the `transfers`.
 
         Args:
             transfers (list[dict[str, list]]):
                 FTS transfer dicts to be submitted as one job.
+            stage (bool): Whether the job requires staging from tape before transfer.
 
         Returns:
             str: FTS job id (UUID4).
         """
         job = fts3.new_job(
             transfers=transfers,
-            bring_online=self.bring_online,
-            copy_pin_lifetime=self.copy_pin_lifetime,
+            bring_online=self.bring_online if stage else None,
+            copy_pin_lifetime=self.copy_pin_lifetime if stage else None,
+            verify_checksum="none",
         )
         return fts3.submit(context=self.context, job=job)
 

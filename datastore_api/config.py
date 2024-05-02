@@ -1,7 +1,8 @@
 from functools import lru_cache
+import os
 from typing import Any
 
-from pydantic import BaseModel, BaseSettings
+from pydantic import BaseModel, BaseSettings, validator
 
 from datastore_api.utils import load_yaml
 
@@ -34,8 +35,41 @@ class Fts3Settings(BaseModel):
     instrument_data_cache: str
     user_data_cache: str
     tape_archive: str
+    x509_user_proxy: str = None
+    x509_user_key: str = None
+    x509_user_cert: str = None
     bring_online: int = 28800  # 8 hours
     copy_pin_lifetime: int = 28800  # 8 hours
+
+    @validator("x509_user_cert", always=True)
+    def _validate_x509(cls, v: str, values: dict) -> str:
+        if v is not None:
+            x509_user_key = values.get("x509_user_key", None)
+            return Fts3Settings._validate_x509_cert(v, x509_user_key)
+        else:
+            values["x509_user_key"] = None
+            x509_user_proxy = values.get("x509_user_proxy", None)
+            return Fts3Settings._validate_x509_proxy(x509_user_proxy)
+
+    @staticmethod
+    def _validate_x509_cert(x509_user_cert: str, x509_user_key: str | None) -> str:
+        if x509_user_key is None:
+            raise ValueError("x509_user_key not set")
+        elif not os.access(x509_user_cert, os.R_OK):
+            raise ValueError("x509_user_cert not readable")
+        elif not os.access(x509_user_key, os.R_OK):
+            raise ValueError("x509_user_key not readable")
+
+        return x509_user_cert
+
+    @staticmethod
+    def _validate_x509_proxy(x509_user_proxy: str | None) -> str:
+        if x509_user_proxy is None:
+            raise ValueError("Neither x509_user_cert nor x509_user_proxy set")
+        elif not os.access(x509_user_proxy, os.R_OK):
+            raise ValueError("x509_user_proxy not readable")
+
+        return x509_user_proxy
 
 
 class Settings(BaseSettings):

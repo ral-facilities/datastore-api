@@ -5,12 +5,15 @@ from typing import Generator
 from unittest.mock import ANY, MagicMock
 
 from fastapi.testclient import TestClient
+import fts3.rest.client.easy as fts3
 from icat import ICATObjectExistsError
 from icat.entity import Entity
 from icat.query import Query
+from pydantic import UUID4, ValidationError
 import pytest
 from pytest_mock import MockerFixture
 
+from datastore_api.config import Fts3Settings, get_settings, Settings
 from datastore_api.icat_client import IcatClient
 from datastore_api.main import app, get_icat_client
 from datastore_api.models.archive import (
@@ -25,6 +28,7 @@ from datastore_api.models.archive import (
     InvestigationType,
 )
 from datastore_api.models.restore import RestoreRequest
+from tests.unit.fixtures import SESSION_ID
 
 
 log = logging.getLogger("tests")
@@ -32,26 +36,43 @@ log = logging.getLogger("tests")
 
 @pytest.fixture(scope="function")
 def test_client(mocker: MockerFixture) -> TestClient:
-    # TODO remove this once we have a working FTS container for the tests
-    mocker.patch("datastore_api.fts3_client.fts3.Context")
+    try:
+        settings = get_settings()
+    except ValidationError:
+        # Assume the issue is that we do not have the cert to communicate with FTS.
+        # This will be the case for GHA workflows, in which case,
+        # pass a readable file to satisfy the validator and mock requests to FTS.
+        fts3_settings = Fts3Settings(
+            endpoint="https://fts-test01.gridpp.rl.ac.uk:8446",
+            instrument_data_cache="root://idc:1094/",
+            user_data_cache="root://udc:1094/",
+            tape_archive="root://archive:1094/",
+            x509_user_cert=__file__,
+            x509_user_key=__file__,
+        )
+        settings = Settings(fts3=fts3_settings)
+        get_settings_mock = mocker.patch("datastore_api.main.get_settings")
+        get_settings_mock.return_value = settings
 
-    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
-    fts_submit_mock.return_value = "0"
+        mocker.patch("datastore_api.fts3_client.fts3.Context")
 
-    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
-    fts_status_mock.return_value = {"key": "value"}
+        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
+        fts_submit_mock.return_value = SESSION_ID
 
-    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
-    fts_submit_mock.return_value = "CANCELED"
+        fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
+        fts_status_mock.return_value = {"key": "value"}
+
+        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+        fts_submit_mock.return_value = "CANCELED"
+
     return TestClient(app)
 
 
 @pytest.fixture(scope="function")
 def submit(mocker: MockerFixture) -> MagicMock:
-    # TODO remove this once we have a working FTS container for the tests
-    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
-    fts_submit_mock.return_value = "0"
-    return fts_submit_mock
+    submit_mock = MagicMock(wraps=fts3.submit)
+    mocker.patch("datastore_api.fts3_client.fts3.submit", submit_mock)
+    return submit_mock
 
 
 @pytest.fixture(scope="function")
@@ -263,6 +284,23 @@ def investigation(
 
 
 @pytest.fixture(scope="function")
+def investigation_tear_down(
+    session_id: str,
+) -> Generator[None, None, None]:
+    yield None
+
+    icat_client = get_icat_client()
+    investigation = icat_client.get_single_entity(
+        session_id=session_id,
+        entity="Investigation",
+        conditions=IcatClient.build_conditions({"name": "name", "visitId": "visitId"}),
+        allow_empty=True,
+    )
+    if investigation is not None:
+        delete(session_id=session_id, entity=investigation)
+
+
+@pytest.fixture(scope="function")
 def dataset_with_job_id(
     session_id: str,
     dataset_type: Entity,
@@ -303,9 +341,9 @@ def create(session_id: str, entity: str, **kwargs) -> Entity:
         if "facility" in kwargs:
             conditions["facility.name"] = kwargs["facility"].name
 
-        icat_entity = icat_client.get_single_entity(
+        icat_entity = icat_client._get_single_entity(
             entity=entity,
-            conditions=conditions,
+            conditions=IcatClient.build_conditions(conditions),
         )
     finally:
         icat_client.client.sessionId = None
@@ -339,7 +377,7 @@ def fts_job(
         ],
         "delete": None,
         "params": {
-            "verify_checksum": False,
+            "verify_checksum": "none",
             "reuse": None,
             "spacetoken": None,
             "bring_online": bring_online,
@@ -451,16 +489,18 @@ class TestArchive:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_ids": ["0"]}
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID4(content["job_ids"][0])
 
-        path = "instrument/20XX/name-visitId/type/dataset1/datafile"
-        sources = [f"cephfs://idc/{path}", f"cephfs://udc/{path}"]
-        destinations = [f"tape://archive/{path}"]
+        path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
+        sources = [f"root://idc:1094/{path}", f"root://udc:1094/{path}"]
+        destinations = [f"root://archive:1094/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
-            bring_online=28800,
-            copy_pin_lifetime=28800,
+            bring_online=None,
+            copy_pin_lifetime=None,
         )
         submit.assert_called_once_with(context=ANY, job=job)
 
@@ -508,6 +548,111 @@ class TestArchive:
             assert investigation_entity.datasets[0].name == "dataset"
             assert investigation_entity.datasets[0].type.name == "type"
             assert investigation_entity.datasets[0].datafiles[0].name == "datafile"
+            assert investigation_entity.datasets[1].name == "dataset1"
+            assert investigation_entity.datasets[1].type.name == "type"
+            assert investigation_entity.datasets[1].datafiles[0].name == "datafile"
+        finally:
+            icat_client.client.sessionId = None
+
+    def test_archive_new_investigation(
+        self,
+        test_client: TestClient,
+        submit: MagicMock,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        dataset_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        parameter_type_state: Entity,
+        parameter_type_job_ids: Entity,
+        investigation_tear_down: None,
+    ):
+        dataset = Dataset(
+            name="dataset1",
+            datasetType=DatasetType(name="type"),
+            datafiles=[Datafile(name="datafile")],
+        )
+        investigation_metadata = Investigation(
+            name="name",
+            visitId="visitId",
+            title="title",
+            summary="summary",
+            doi="doi",
+            startDate=datetime.now(),
+            endDate=datetime.now(),
+            releaseDate=datetime.now(),
+            facility=Facility(name="facility"),
+            investigationType=InvestigationType(name="type"),
+            instrument=Instrument(name="instrument"),
+            facilityCycle=FacilityCycle(name="20XX"),
+            datasets=[dataset],
+        )
+        archive_request = ArchiveRequest(investigations=[investigation_metadata])
+        json_body = json.loads(archive_request.json())
+        headers = {"Authorization": f"Bearer {session_id}"}
+        test_response = test_client.post("/archive", headers=headers, json=json_body)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID4(content["job_ids"][0])
+
+        path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
+        sources = [f"root://idc:1094/{path}", f"root://udc:1094/{path}"]
+        destinations = [f"root://archive:1094/{path}"]
+        job = fts_job(
+            sources=sources,
+            destinations=destinations,
+            bring_online=None,
+            copy_pin_lifetime=None,
+        )
+        submit.assert_called_once_with(context=ANY, job=job)
+
+        try:
+            icat_client = get_icat_client()
+            icat_client.client.sessionId = session_id
+            query = Query(
+                client=icat_client.client,
+                entity="Investigation",
+                conditions={"name": " = 'name'"},
+                includes=[
+                    "facility",
+                    "type",
+                    "investigationInstruments.instrument",
+                    "investigationFacilityCycles.facilityCycle",
+                    "datasets.type",
+                    "datasets.datafiles",
+                ],
+            )
+            investigations = icat_client.client.search(query=query)
+            assert len(investigations) == 1
+            investigation_entity = investigations[0]
+
+            investigation_instruments = investigation_entity.investigationInstruments
+            assert len(investigation_instruments) == 1
+
+            investigation_cycles = investigation_entity.investigationFacilityCycles
+            assert len(investigation_cycles) == 1
+
+            assert len(investigation_entity.datasets) == 1
+            assert len(investigation_entity.datasets[0].datafiles) == 1
+
+            assert investigation_entity.name == "name"
+            assert investigation_entity.visitId == "visitId"
+            assert investigation_entity.title == "title"
+            assert investigation_entity.summary == "summary"
+            assert investigation_entity.startDate is not None
+            assert investigation_entity.endDate is not None
+            assert investigation_entity.releaseDate is not None
+            assert investigation_entity.facility.name == "facility"
+            assert investigation_entity.type.name == "type"
+            assert investigation_instruments[0].instrument.name == "instrument"
+            assert investigation_cycles[0].facilityCycle.name == "20XX"
+            assert investigation_entity.datasets[0].name == "dataset1"
+            assert investigation_entity.datasets[0].type.name == "type"
+            assert investigation_entity.datasets[0].datafiles[0].name == "datafile"
         finally:
             icat_client.client.sessionId = None
 
@@ -531,11 +676,13 @@ class TestRestore:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_ids": ["0"]}
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID4(content["job_ids"][0])
 
-        path = "instrument/20XX/name-visitId/type/dataset/datafile"
-        sources = [f"tape://archive/{path}"]
-        destinations = [f"cephfs://udc/{path}"]
+        path = "/instrument/20XX/name-visitId/type/dataset/datafile"
+        sources = [f"root://archive:1094/{path}"]
+        destinations = [f"root://udc:1094/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,

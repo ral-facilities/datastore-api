@@ -1,11 +1,11 @@
-from datetime import datetime
 import json
 
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 import pytest
 from pytest_mock import mocker, MockerFixture
 
-from datastore_api.config import get_settings
+from datastore_api.config import Fts3Settings, get_settings, Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest, Investigation
 from datastore_api.models.restore import RestoreRequest
@@ -17,9 +17,27 @@ SESSION_ID = "00000000-0000-0000-0000-000000000000"
 
 @pytest.fixture(scope="function")
 def test_client(mocker: MockerFixture):
+    try:
+        settings = get_settings()
+    except ValidationError:
+        # Assume the issue is that we do not have the cert to communicate with FTS.
+        # This will be the case for GHA workflows, in which case,
+        # pass a readable file to satisfy the validator and mock requests to FTS.
+        fts3_settings = Fts3Settings(
+            endpoint="",
+            instrument_data_cache="",
+            user_data_cache="",
+            tape_archive="",
+            x509_user_cert=__file__,
+            x509_user_key=__file__,
+        )
+        settings = Settings(fts3=fts3_settings)
+        get_settings_mock = mocker.patch("datastore_api.main.get_settings")
+        get_settings_mock.return_value = settings
+
     icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
     icat_client = icat_client_mock.return_value
-    icat_client.icat_settings = get_settings().icat
+    icat_client.icat_settings = settings.icat
     icat_client.login.return_value = SESSION_ID
     icat_client.get_paths.return_value = ["path/to/data"]
     icat_client.check_job_id.return_value = None
