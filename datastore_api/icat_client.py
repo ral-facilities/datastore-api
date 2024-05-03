@@ -1,13 +1,11 @@
-from functools import wraps
 import logging
-from typing import Any, Callable
 
 from fastapi import HTTPException
 from icat import Client, ICATSessionError
 from icat.entity import Entity, EntityList
 from icat.query import Query
 
-from datastore_api.config import IcatSettings, IcatUser
+from datastore_api.config import get_settings, IcatUser
 from datastore_api.models.archive import Datafile, Dataset, Investigation
 from datastore_api.models.login import LoginRequest
 
@@ -15,49 +13,19 @@ from datastore_api.models.login import LoginRequest
 LOGGER = logging.getLogger(__name__)
 
 
-def handle_icat_session(func: Callable):
-    """Sets and un-sets the Client's sessionId before and after the execution of `func`,
-    and re-raises `ICATSessionError`s.
-
-    Args:
-        func (Callable): function from `IcatClient`.
-
-    Raises:
-        HTTPException: If the session_id is not valid.
-
-    Returns:
-        _Wrapped: Wrapped `func`.
-    """
-
-    @wraps(func)
-    def _handle_icat_session(
-        self: "IcatClient",
-        session_id: str = None,
-        *args,
-        **kwargs,
-    ) -> Any:
-        try:
-            self.client.sessionId = session_id
-            return func(self, *args, **kwargs)
-        except ICATSessionError as e:
-            raise HTTPException(status_code=401, detail=e.message) from e
-        finally:
-            self.client.sessionId = None
-
-    return _handle_icat_session
-
-
 class IcatClient:
     """Wrapper for ICAT functionality."""
 
-    def __init__(self, icat_settings: IcatSettings):
+    def __init__(self, session_id: str = None):
         """Initialise the Client with the provided `icat_settings`.
 
         Args:
             settings (IcatSettings): Settings for the ICAT client and admin users.
         """
-        self.icat_settings = icat_settings
-        self.client = Client(icat_settings.url, checkCert=icat_settings.check_cert)
+        self.settings = get_settings().icat
+        self.client = Client(self.settings.url, checkCert=self.settings.check_cert)
+        self.client.autoLogout = False
+        self.client.sessionId = session_id
 
     @staticmethod
     def _build_entity_path(
@@ -131,7 +99,7 @@ class IcatClient:
             raise HTTPException(status_code=403, detail="insufficient permissions")
 
     @staticmethod
-    def build_conditions(
+    def _build_conditions(
         equals: dict[str, str] = None,
         contains: dict[str, str] = None,
     ) -> dict[str, str]:
@@ -157,7 +125,6 @@ class IcatClient:
 
         return formatted_conditions
 
-    @handle_icat_session
     def login(self, login_request: LoginRequest) -> str:
         """Uses the provided credentials to generate and ICAT sessionId.
 
@@ -168,9 +135,9 @@ class IcatClient:
         Returns:
             str: ICAT sessionId
         """
-        return self.client.login(login_request.auth, login_request.credentials.dict())
+        credentials = login_request.credentials.dict()
+        return self._login(login_request.auth, credentials)
 
-    @handle_icat_session
     def login_functional(self) -> str:
         """Uses the functional credentials to generate and ICAT sessionId.
 
@@ -181,10 +148,30 @@ class IcatClient:
         Returns:
             str: ICAT sessionId
         """
-        credentials = self.icat_settings.functional_user.dict(exclude={"auth"})
-        return self.client.login(self.icat_settings.functional_user.auth, credentials)
+        credentials = self.settings.functional_user.dict(exclude={"auth"})
+        return self._login(self.settings.functional_user.auth, credentials)
 
-    @handle_icat_session
+    def _login(self, auth: str, credentials: dict[str, str]) -> str:
+        """Uses the provided credentials to generate and ICAT sessionId.
+
+        Args:
+            auth (str): Authentication method.
+            credentials (dict[str, str]): ICAT user credentials.
+
+        Raises:
+            HTTPException: If credentials are not valid.
+
+        Returns:
+            str: ICAT sessionId for the logged in user.
+        """
+        try:
+            session_id = self.client.login(auth, credentials)
+            self.client.sessionId = session_id
+            return session_id
+
+        except ICATSessionError as e:
+            raise HTTPException(status_code=401, detail=e.message) from e
+
     def authorise_admin(self) -> None:
         """Checks the sessionId belonging to the current user is for an admin.
 
@@ -193,18 +180,24 @@ class IcatClient:
         """
         user = self.client.getUserName()
         auth, username = user.split("/")
-        if IcatUser(auth=auth, username=username) not in self.icat_settings.admin_users:
+        if IcatUser(auth=auth, username=username) not in self.settings.admin_users:
             raise HTTPException(status_code=403, detail="insufficient permissions")
 
-    @handle_icat_session
     def create_many(
         self,
         beans: list[Entity],
     ) -> set[str]:
+        """Creates multiple ICAT entities.
+
+        Args:
+            beans (list[Entity]): ICAT entities to create.
+
+        Returns:
+            set[str]: Ids of created entities.
+        """
         LOGGER.debug("Calling createMany with %s beans", len(beans))
         return self.client.createMany(beans=beans)
 
-    @handle_icat_session
     def new_investigation(
         self,
         investigation: Investigation,
@@ -220,10 +213,9 @@ class IcatClient:
                 The ICAT entities to be created and all the paths for the Datafiles.
         """
         equals = {"name": investigation.name, "visitId": investigation.visitId}
-        conditions = IcatClient.build_conditions(equals=equals)
-        investigation_entity = self._get_single_entity(
+        investigation_entity = self.get_single_entity(
             entity="Investigation",
-            conditions=conditions,
+            equals=equals,
             includes=[
                 "investigationInstruments.instrument",
                 "investigationFacilityCycles.facilityCycle",
@@ -257,35 +249,31 @@ class IcatClient:
 
         # Get existing high level metadata
         equals = {"name": investigation.facility.name}
-        conditions = IcatClient.build_conditions(equals=equals)
-        facility = self._get_single_entity(entity="Facility", conditions=conditions)
+        facility = self.get_single_entity(entity="Facility", equals=equals)
 
         equals = {
             "name": investigation.investigationType.name,
             "facility.name": investigation.facility.name,
         }
-        conditions = IcatClient.build_conditions(equals=equals)
-        investigation_type = self._get_single_entity(
+        investigation_type = self.get_single_entity(
             entity="InvestigationType",
-            conditions=conditions,
+            equals=equals,
         )
 
         equals = {
             "name": investigation.facilityCycle.name,
             "facility.name": investigation.facility.name,
         }
-        conditions = IcatClient.build_conditions(equals=equals)
-        facility_cycle = self._get_single_entity(
+        facility_cycle = self.get_single_entity(
             entity="FacilityCycle",
-            conditions=conditions,
+            equals=equals,
         )
 
         equals = {
             "name": investigation.instrument.name,
             "facility.name": investigation.facility.name,
         }
-        conditions = IcatClient.build_conditions(equals=equals)
-        instrument = self._get_single_entity(entity="Instrument", conditions=conditions)
+        instrument = self.get_single_entity(entity="Instrument", equals=equals)
 
         # Create many to many relationships
         investigation_facility_cycle = self.client.new(
@@ -306,7 +294,6 @@ class IcatClient:
             **investigation_dict,
         )
 
-    @handle_icat_session
     def new_dataset(
         self,
         investigation: Investigation,
@@ -335,10 +322,9 @@ class IcatClient:
             "name": dataset.datasetType.name,
             "facility.name": investigation.facility.name,
         }
-        conditions = IcatClient.build_conditions(equals=equals)
-        dataset_type = self._get_single_entity(
+        dataset_type = self.get_single_entity(
             entity="DatasetType",
-            conditions=conditions,
+            equals=equals,
         )
         dataset_dict = dataset.excluded_dict()
         if investigation_entity.id is not None:
@@ -397,30 +383,64 @@ class IcatClient:
         )
         datafile_entity = self.client.new(
             obj="Datafile",
+            location=path,
             parameters=[datafile_parameter_entity],
             **datafile_dict,
         )
         return datafile_entity, path
 
-    @handle_icat_session
-    def get_single_entity(
+    def update(self, bean: Entity) -> None:
+        """Updates `bean` with changes to its attributes.
+
+        Args:
+            bean (Entity): ICAT Entity with modified attributes.
+        """
+        self.client.update(bean)
+
+    def delete_many(self, beans: list[Entity]) -> None:
+        """Deletes `beans`.
+
+        Args:
+            beans (list[Entity]): ICAT entities to be deleted.
+        """
+        self.client.deleteMany(beans)
+
+    def get_entities(
         self,
         entity: str,
-        conditions: dict[str, str],
+        equals: dict[str, str] = None,
+        contains: dict[str, str] = None,
         includes: list[str] = None,
-        allow_empty: bool = False,
-    ) -> Entity | None:
-        return self._get_single_entity(
+    ) -> list[Entity]:
+        """Returns all ICAT entities matching the criteria.
+
+        Args:
+            entity (str): Type of entity to get, for example "Investigation".
+            equals (dict[str, str], optional):
+                Key value pairs where the attribute should equal the value.
+                Defaults to None.
+            contains (dict[str, str], optional):
+                Key value pairs where the attribute should contain the value.
+                Defaults to None.
+            includes (list[str], optional): Attributes to INCLUDE. Defaults to None.
+
+        Returns:
+            list[Entity]: The entities matching the query.
+        """
+        conditions = IcatClient._build_conditions(equals=equals, contains=contains)
+        query = Query(
+            client=self.client,
             entity=entity,
             conditions=conditions,
             includes=includes,
-            allow_empty=allow_empty,
         )
+        return self.client.search(query=str(query))
 
-    def _get_single_entity(
+    def get_single_entity(
         self,
         entity: str,
-        conditions: dict[str, str],
+        equals: dict[str, str] = None,
+        contains: dict[str, str] = None,
         includes: list[str] = None,
         allow_empty: bool = False,
     ) -> Entity | None:
@@ -428,7 +448,12 @@ class IcatClient:
 
         Args:
             entity (str): Type of entity to get, for example "Investigation".
-            conditions (dict[str, str]): Key value pairs for WHERE portion of the query.
+            equals (dict[str, str], optional):
+                Key value pairs where the attribute should equal the value.
+                Defaults to None.
+            contains (dict[str, str], optional):
+                Key value pairs where the attribute should contain the value.
+                Defaults to None.
             includes (list[str], optional): Attributes to INCLUDE. Defaults to None.
             allow_empty (bool, optional):
                 If True, will return None rather than raise an exception if nothing
@@ -440,24 +465,17 @@ class IcatClient:
         Returns:
             Entity | None: The Entity matching the query.
         """
-        query = Query(
-            client=self.client,
-            entity=entity,
-            conditions=conditions,
-            includes=includes,
-        )
-        entities = self.client.search(query=str(query))
+        entities = self.get_entities(entity, equals, contains, includes)
 
         if len(entities) == 0:
             if allow_empty:
                 return None
             else:
-                detail = f"No {entity} with conditions {conditions}"
+                detail = f"No {entity} with {equals} and fields containing {contains}"
                 raise HTTPException(status_code=400, detail=detail)
         else:
             return entities[0]
 
-    @handle_icat_session
     def get_paths(
         self,
         investigation_ids: list[str],
@@ -610,12 +628,11 @@ class IcatClient:
             Entity: ICAT ParameterType Entity for recording FTS state.
         """
         equals = {
-            "name": self.icat_settings.parameter_type_job_state,
+            "name": self.settings.parameter_type_job_state,
             "facility.name": facility_name,
             "units": "",
         }
-        conditions = IcatClient.build_conditions(equals=equals)
-        return self._get_single_entity(entity="ParameterType", conditions=conditions)
+        return self.get_single_entity(entity="ParameterType", equals=equals)
 
     def _get_parameter_type_job_ids(self, facility_name: str) -> Entity:
         """Get the ParameterType for recording FTS job ids.
@@ -628,14 +645,12 @@ class IcatClient:
             Entity: ICAT ParameterType Entity for recording FTS job ids.
         """
         equals = {
-            "name": self.icat_settings.parameter_type_job_ids,
+            "name": self.settings.parameter_type_job_ids,
             "facility.name": facility_name,
             "units": "",
         }
-        conditions = IcatClient.build_conditions(equals=equals)
-        return self._get_single_entity(entity="ParameterType", conditions=conditions)
+        return self.get_single_entity(entity="ParameterType", equals=equals)
 
-    @handle_icat_session
     def check_job_id(self, job_id: str) -> None:
         """Raises an error if the `job_id` appears in any of the active archival jobs.
 
@@ -645,12 +660,10 @@ class IcatClient:
         Raises:
             HTTPException: If the `job_id` appears in any of the active archival jobs.
         """
-        equals = {"type.name": self.icat_settings.parameter_type_job_ids}
-        contains = {"stringValue": job_id}
-        conditions = IcatClient.build_conditions(equals=equals, contains=contains)
-        parameter = self._get_single_entity(
+        parameter = self.get_single_entity(
             entity="DatasetParameter",
-            conditions=conditions,
+            equals={"type.name": self.settings.parameter_type_job_ids},
+            contains={"stringValue": job_id},
             allow_empty=True,
         )
         if parameter is not None:

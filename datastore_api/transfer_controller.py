@@ -82,7 +82,6 @@ class DatasetArchiver(TransferController):
 
     def __init__(
         self,
-        session_id: str,
         icat_client: IcatClient,
         fts3_client: Fts3Client,
         investigation: Investigation,
@@ -101,7 +100,6 @@ class DatasetArchiver(TransferController):
         """
         super().__init__(fts3_client)
         dataset_entity, paths = icat_client.new_dataset(
-            session_id=session_id,
             investigation=investigation,
             dataset=dataset,
             investigation_entity=investigation_entity,
@@ -117,7 +115,7 @@ class DatasetArchiver(TransferController):
         Also sets the FTS job ids on the relevant DatasetParameter.
         """
         super().create_fts_jobs()
-        type_job_ids = self.icat_client.icat_settings.parameter_type_job_ids
+        type_job_ids = self.icat_client.settings.parameter_type_job_ids
         joined_job_ids = ",".join(self.job_ids)
         for parameter in self.dataset_entity.parameters:
             if parameter.type.name == type_job_ids:

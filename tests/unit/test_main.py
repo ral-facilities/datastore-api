@@ -9,7 +9,7 @@ from datastore_api.config import Fts3Settings, get_settings, Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest, Investigation
 from datastore_api.models.restore import RestoreRequest
-from fixtures import investigation
+from tests.fixtures import investigation_metadata
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -73,8 +73,12 @@ class TestMain:
         assert test_response.status_code == 200
         assert json.loads(test_response.content) == {"sessionId": SESSION_ID}
 
-    def test_archive(self, test_client: TestClient, investigation: Investigation):
-        archive_request = ArchiveRequest(investigations=[investigation])
+    def test_archive(
+        self,
+        test_client: TestClient,
+        investigation_metadata: Investigation,
+    ):
+        archive_request = ArchiveRequest(investigations=[investigation_metadata])
         json_body = json.loads(archive_request.json())
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)

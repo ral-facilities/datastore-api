@@ -11,7 +11,6 @@ class InvestigationArchiver:
 
     def __init__(
         self,
-        session_id: str,
         icat_client: IcatClient,
         fts3_client: Fts3Client,
         investigation: Investigation,
@@ -24,14 +23,12 @@ class InvestigationArchiver:
             fts3_client (Fts3Client): FTS client to use.
             investigation (Investigation): Investigation metadata.
         """
-        self.session_id = session_id
         self.icat_client = icat_client
         self.fts3_client = fts3_client
         self.investigation = investigation
         self.job_ids = []
         self.beans = []
         self.investigation_entity = icat_client.new_investigation(
-            session_id=session_id,
             investigation=investigation,
         )
 
@@ -46,7 +43,6 @@ class InvestigationArchiver:
         dataset_entities = []
         for dataset in self.investigation.datasets:
             dataset_archiver = DatasetArchiver(
-                session_id=self.session_id,
                 icat_client=self.icat_client,
                 fts3_client=self.fts3_client,
                 investigation=self.investigation,

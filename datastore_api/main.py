@@ -1,4 +1,3 @@
-from functools import lru_cache
 from importlib import metadata
 
 from fastapi import Depends, FastAPI
@@ -6,10 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing_extensions import Annotated
 
 from datastore_api.auth import validate_session_id
-from datastore_api.config import get_settings
-from datastore_api.fts3_client import Fts3Client
+from datastore_api.fts3_client import Fts3Client, get_fts3_client
 from datastore_api.icat_client import IcatClient
 from datastore_api.investigation_archiver import InvestigationArchiver
+from datastore_api.lifespan import lifespan
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
 from datastore_api.models.job import CancelResponse, StatusResponse
 from datastore_api.models.login import LoginRequest, LoginResponse
@@ -24,6 +23,7 @@ app = FastAPI(
 The Datastore API accepts requests for the archival or retrieval of experimental data.
 These trigger subsequent requests to create corresponding metadata in ICAT,
 and schedules the transfer of the data using FTS3.""",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -33,28 +33,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@lru_cache
-def get_icat_client() -> IcatClient:
-    """Initialise and cache client for making calls to ICAT.
-
-    Returns:
-        IcatClient: Wrapper for calls to ICAT.
-    """
-    settings = get_settings()
-    return IcatClient(settings.icat)
-
-
-@lru_cache
-def get_fts3_client() -> Fts3Client:
-    """Initialise and cache the client for making calls to FTS.
-
-    Returns:
-        FtsClient: Wrapper for calls to FTS.
-    """
-    settings = get_settings()
-    return Fts3Client(settings.fts3)
 
 
 @app.post(
@@ -68,19 +46,17 @@ def get_fts3_client() -> Fts3Client:
 )
 def login(
     login_request: LoginRequest,
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
 ) -> LoginResponse:
     """Using the provided credentials authenticates against ICAT and returns the
     sessionId.
     \f
     Args:
         login_request (LoginRequest): Request body containing the user's credentials.
-        icat_client (IcatClient): Cached client for calls to ICAT.
 
     Returns:
         LoginResponse: An ICAT sessionId.
     """
-    return LoginResponse(sessionId=icat_client.login(login_request=login_request))
+    return LoginResponse(sessionId=IcatClient().login(login_request=login_request))
 
 
 @app.post(
@@ -95,7 +71,6 @@ def login(
 def archive(
     archive_request: ArchiveRequest,
     session_id: Annotated[str, Depends(validate_session_id)],
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
     fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
 ) -> ArchiveResponse:
     """Submit a request to archive experimental data, recording metadata in ICAT and
@@ -104,19 +79,17 @@ def archive(
     Args:
         archive_request (ArchiveRequest): Metadata for the entities to be archived.
         session_id (str): ICAT sessionId.
-        icat_client (IcatClient): Cached client for calls to ICAT.
         fts3_client (Fts3Client): Cached client for calls to FTS.
-        settings (Settings): Cached API configuration settings.
 
     Returns:
         ArchiveResponse: FTS job_id for archive transfer.
     """
-    icat_client.authorise_admin(session_id=session_id)
+    icat_client = IcatClient(session_id=session_id)
+    icat_client.authorise_admin()
     beans = []
     job_ids = []
     for investigation in archive_request.investigations:
         investigation_archiver = InvestigationArchiver(
-            session_id=session_id,
             icat_client=icat_client,
             fts3_client=fts3_client,
             investigation=investigation,
@@ -125,7 +98,7 @@ def archive(
         beans.extend(investigation_archiver.beans)
         job_ids.extend(investigation_archiver.job_ids)
 
-    icat_client.create_many(session_id=session_id, beans=beans)
+    icat_client.create_many(beans=beans)
 
     return ArchiveResponse(job_ids=investigation_archiver.job_ids)
 
@@ -139,7 +112,6 @@ def archive(
 def restore(
     restore_request: RestoreRequest,
     session_id: Annotated[str, Depends(validate_session_id)],
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
     fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
 ) -> RestoreResponse:
     """Submit a request to restore experimental data, creating an FTS transfer.
@@ -147,14 +119,13 @@ def restore(
     Args:
         restore_request (RestoreRequest): ICAT ids for Investigations to restore.
         session_id (str): ICAT sessionId.
-        icat_client (IcatClient): Cached client for calls to ICAT.
         fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         RestoreResponse: FTS job_id for restore transfer.
     """
+    icat_client = IcatClient(session_id=session_id)
     paths = icat_client.get_paths(
-        session_id=session_id,
         investigation_ids=restore_request.investigation_ids,
         dataset_ids=restore_request.dataset_ids,
         datafile_ids=restore_request.datafile_ids,
@@ -172,22 +143,20 @@ def restore(
 )
 def cancel(
     job_id: str,
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
     fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
 ) -> CancelResponse:
     """Cancel a job previously submitted to FTS.
     \f
     Args:
         job_id (str): FTS id for a submitted job.
-        icat_client (IcatClient): Cached client for calls to ICAT.
         fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         CancelResponse: Terminal state of the canceled job.
     """
-    icat_client = get_icat_client()
-    session_id = icat_client.login_functional()
-    icat_client.check_job_id(session_id=session_id, job_id=job_id)
+    icat_client = IcatClient()
+    icat_client.login_functional()
+    icat_client.check_job_id(job_id=job_id)
     state = fts3_client.cancel(job_id=job_id)
     return CancelResponse(state=state)
 
