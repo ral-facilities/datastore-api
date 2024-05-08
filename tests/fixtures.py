@@ -3,10 +3,17 @@ from typing import Generator
 
 from icat import ICATObjectExistsError, ICATSessionError
 from icat.entity import Entity
+from pydantic import ValidationError
 import pytest
 from pytest_mock import mocker, MockerFixture
 
-from datastore_api.config import FunctionalUser, IcatSettings
+from datastore_api.config import (
+    Fts3Settings,
+    FunctionalUser,
+    get_settings,
+    IcatSettings,
+    Settings,
+)
 from datastore_api.icat_client import IcatClient
 from datastore_api.models.archive import (
     Datafile,
@@ -21,6 +28,41 @@ from datastore_api.models.archive import (
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
+
+
+@pytest.fixture(scope="function")
+def mock_fts3_settings(mocker: MockerFixture) -> Settings:
+    try:
+        get_settings()
+    except ValidationError:
+        # Assume the issue is that we do not have the cert to communicate with FTS.
+        # This will be the case for GHA workflows, in which case,
+        # pass a readable file to satisfy the validator and mock requests to FTS.
+        fts3_settings = Fts3Settings(
+            endpoint="https://fts-test01.gridpp.rl.ac.uk:8446",
+            instrument_data_cache="root://idc:1094/",
+            user_data_cache="root://udc:1094/",
+            tape_archive="root://archive:1094/",
+            x509_user_cert=__file__,
+            x509_user_key=__file__,
+        )
+        settings = Settings(fts3=fts3_settings)
+        for module in {"fts3_client", "icat_client", "models.archive"}:
+            get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
+            get_settings_mock.return_value = settings
+
+        mocker.patch("datastore_api.fts3_client.fts3.Context")
+
+        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
+        fts_submit_mock.return_value = SESSION_ID
+
+        fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
+        fts_status_mock.return_value = {"key": "value"}
+
+        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+        fts_submit_mock.return_value = "CANCELED"
+
+        return settings
 
 
 @pytest.fixture(scope="session")
@@ -54,10 +96,11 @@ def login_side_effect(auth: str, credentials: dict) -> str:
     raise ICATSessionError("test")
 
 
-@pytest.fixture(scope="session")
-def icat_settings():
+@pytest.fixture(scope="function")
+def icat_settings(mock_fts3_settings: Settings):
     functional_user = FunctionalUser(auth="simple", username="root", password="pw")
-    return IcatSettings(url="", functional_user=functional_user)
+    mock_fts3_settings.icat.functional_user = functional_user
+    return mock_fts3_settings.icat
 
 
 @pytest.fixture(scope="function")
@@ -95,7 +138,9 @@ def icat_client_empty_search(icat_settings: IcatSettings, mocker: MockerFixture)
 
 
 @pytest.fixture(scope="function")
-def functional_icat_client() -> Generator[IcatClient, None, None]:
+def functional_icat_client(
+    mock_fts3_settings: Settings,
+) -> Generator[IcatClient, None, None]:
     icat_client = IcatClient()
     icat_client.login_functional()
 

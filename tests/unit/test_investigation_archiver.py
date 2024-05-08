@@ -8,6 +8,7 @@ from tests.fixtures import (
     icat_client_empty_search,
     icat_settings,
     investigation_metadata,
+    mock_fts3_settings,
 )
 
 

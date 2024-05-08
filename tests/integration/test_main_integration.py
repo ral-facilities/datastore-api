@@ -37,6 +37,7 @@ from tests.fixtures import (
     investigation,
     investigation_tear_down,
     investigation_type,
+    mock_fts3_settings,
     parameter_type_job_ids,
     parameter_type_state,
     SESSION_ID,
@@ -46,36 +47,7 @@ log = logging.getLogger("tests")
 
 
 @pytest.fixture(scope="function")
-def test_client(mocker: MockerFixture) -> TestClient:
-    try:
-        settings = get_settings()
-    except ValidationError:
-        # Assume the issue is that we do not have the cert to communicate with FTS.
-        # This will be the case for GHA workflows, in which case,
-        # pass a readable file to satisfy the validator and mock requests to FTS.
-        fts3_settings = Fts3Settings(
-            endpoint="https://fts-test01.gridpp.rl.ac.uk:8446",
-            instrument_data_cache="root://idc:1094/",
-            user_data_cache="root://udc:1094/",
-            tape_archive="root://archive:1094/",
-            x509_user_cert=__file__,
-            x509_user_key=__file__,
-        )
-        settings = Settings(fts3=fts3_settings)
-        get_settings_mock = mocker.patch("datastore_api.main.get_settings")
-        get_settings_mock.return_value = settings
-
-        mocker.patch("datastore_api.fts3_client.fts3.Context")
-
-        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
-        fts_submit_mock.return_value = SESSION_ID
-
-        fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
-        fts_status_mock.return_value = {"key": "value"}
-
-        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
-        fts_submit_mock.return_value = "CANCELED"
-
+def test_client(mock_fts3_settings: Settings) -> TestClient:
     return TestClient(app)
 
 

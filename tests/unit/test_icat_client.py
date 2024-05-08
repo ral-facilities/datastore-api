@@ -8,6 +8,7 @@ from tests.fixtures import (
     icat_client,
     icat_client_empty_search,
     icat_settings,
+    mock_fts3_settings,
     SESSION_ID,
 )
 

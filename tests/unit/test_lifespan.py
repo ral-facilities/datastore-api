@@ -4,6 +4,7 @@ from icat.entity import Entity
 import pytest
 from pytest_mock import MockerFixture
 
+from datastore_api.config import Settings
 from datastore_api.fts3_client import get_fts3_client
 from datastore_api.icat_client import IcatClient
 from datastore_api.lifespan import lifespan, StateCounter, update_jobs
@@ -16,13 +17,14 @@ from tests.fixtures import (
     instrument,
     investigation,
     investigation_type,
+    mock_fts3_settings,
     parameter_type_job_ids,
     parameter_type_state,
 )
 
 
 class TestLifespan:
-    async def test_lifespan(self):
+    async def test_lifespan(self, mock_fts3_settings: Settings):
         context_manager = lifespan(None)
         generator = context_manager.func(*context_manager.args)
 
@@ -98,7 +100,6 @@ class TestLifespan:
             equals={"type.name": icat_client.settings.parameter_type_job_ids},
             includes="1",
         )
-        print(parameters)
 
         beans_to_delete = update_jobs(
             icat_client=icat_client,
