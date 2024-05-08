@@ -53,7 +53,7 @@ def test_client(mock_fts3_settings: Settings) -> TestClient:
 
 @pytest.fixture(scope="function")
 def submit(mocker: MockerFixture) -> MagicMock:
-    submit_mock = MagicMock(wraps=fts3.submit)
+    submit_mock = mocker.MagicMock(wraps=fts3.submit)
     mocker.patch("datastore_api.fts3_client.fts3.submit", submit_mock)
     return submit_mock
 
