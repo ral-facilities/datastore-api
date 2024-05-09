@@ -13,7 +13,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from datastore_api.config import Fts3Settings, get_settings, Settings
-from datastore_api.icat_client import IcatClient
+from datastore_api.icat_client import get_icat_cache, IcatClient
 from datastore_api.main import app
 from datastore_api.models.archive import (
     ArchiveRequest,
@@ -171,6 +171,7 @@ class TestArchive:
         parameter_type_state: Entity,
         parameter_type_job_ids: Entity,
     ):
+        get_icat_cache.cache_clear()
         dataset = Dataset(
             name="dataset1",
             datasetType=DatasetType(name="type"),
@@ -273,6 +274,7 @@ class TestArchive:
         parameter_type_job_ids: Entity,
         investigation_tear_down: None,
     ):
+        get_icat_cache.cache_clear()
         dataset = Dataset(
             name="dataset1",
             datasetType=DatasetType(name="type"),
