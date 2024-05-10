@@ -1,5 +1,6 @@
 from functools import lru_cache
 from importlib import metadata
+import logging
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,6 +15,9 @@ from datastore_api.models.job import CancelResponse, StatusResponse
 from datastore_api.models.login import LoginRequest, LoginResponse
 from datastore_api.models.restore import RestoreRequest, RestoreResponse
 from datastore_api.models.version import VersionResponse
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 app = FastAPI(
@@ -41,7 +45,7 @@ def get_icat_client() -> IcatClient:
         IcatClient: Wrapper for calls to ICAT.
     """
     settings = get_settings()
-    return IcatClient(settings)
+    return IcatClient(settings.icat)
 
 
 @lru_cache
@@ -124,7 +128,10 @@ def archive(
         transfer["sources"].append(alternate_source)
         transfers.append(transfer)
     job = fts3.new_job(transfers=transfers)
-    return ArchiveResponse(job_id=fts3.submit(context=fts3_context, job=job))
+    job_id = fts3.submit(context=fts3_context, job=job)
+    message = "Submitted FTS archival job for %s transfers with id %s"
+    LOGGER.info(message, job_id, len(paths))
+    return ArchiveResponse(job_id=job_id)
 
 
 @app.post(
@@ -168,7 +175,10 @@ def restore(
         bring_online=settings.fts3.bring_online,
         copy_pin_lifetime=settings.fts3.copy_pin_lifetime,
     )
-    return RestoreResponse(job_id=fts3.submit(context=fts3_context, job=job))
+    job_id = fts3.submit(context=fts3_context, job=job)
+    message = "Submitted FTS restore job for %s transfers with id %s"
+    LOGGER.info(message, job_id, len(paths))
+    return RestoreResponse(job_id=job_id)
 
 
 @app.delete(
