@@ -5,14 +5,13 @@ from typing import Generator
 from unittest.mock import ANY, MagicMock
 
 from fastapi.testclient import TestClient
-import fts3.rest.client.easy as fts3
 from icat.entity import Entity
 from icat.query import Query
-from pydantic import UUID4, ValidationError
+from pydantic import UUID4
 import pytest
 from pytest_mock import MockerFixture
 
-from datastore_api.config import Fts3Settings, get_settings, Settings
+from datastore_api.config import Settings
 from datastore_api.icat_client import IcatClient
 from datastore_api.main import app
 from datastore_api.models.archive import (
@@ -41,6 +40,7 @@ from tests.fixtures import (
     parameter_type_job_ids,
     parameter_type_state,
     SESSION_ID,
+    submit,
 )
 
 log = logging.getLogger("tests")
@@ -49,13 +49,6 @@ log = logging.getLogger("tests")
 @pytest.fixture(scope="function")
 def test_client(mock_fts3_settings: Settings) -> TestClient:
     return TestClient(app)
-
-
-@pytest.fixture(scope="function")
-def submit(mocker: MockerFixture) -> MagicMock:
-    submit_mock = MagicMock(wraps=fts3.submit)
-    mocker.patch("datastore_api.fts3_client.fts3.submit", submit_mock)
-    return submit_mock
 
 
 @pytest.fixture(scope="function")
@@ -72,8 +65,8 @@ def session_id(test_client: TestClient) -> Generator[str, None, None]:
 def fts_job(
     sources: list[str],
     destinations: list[str],
-    bring_online: int = None,
-    copy_pin_lifetime: int = None,
+    bring_online: int = -1,
+    archive_timeout: int = -1,
 ) -> dict:
     return {
         "files": [
@@ -91,8 +84,8 @@ def fts_job(
             "spacetoken": None,
             "bring_online": bring_online,
             "dst_file_report": False,
-            "archive_timeout": None,
-            "copy_pin_lifetime": copy_pin_lifetime,
+            "archive_timeout": archive_timeout,
+            "copy_pin_lifetime": None,
             "job_metadata": None,
             "source_spacetoken": None,
             "overwrite": False,
@@ -208,8 +201,7 @@ class TestArchive:
         job = fts_job(
             sources=sources,
             destinations=destinations,
-            bring_online=None,
-            copy_pin_lifetime=None,
+            archive_timeout=28800,
         )
         submit.assert_called_once_with(context=ANY, job=job)
 
@@ -310,8 +302,7 @@ class TestArchive:
         job = fts_job(
             sources=sources,
             destinations=destinations,
-            bring_online=None,
-            copy_pin_lifetime=None,
+            archive_timeout=28800,
         )
         submit.assert_called_once_with(context=ANY, job=job)
 
@@ -359,9 +350,16 @@ class TestArchive:
 
 
 class TestRestore:
+    @pytest.mark.parametrize(
+        ["restore_ids"],
+        [
+            pytest.param("investigation_ids"),
+            pytest.param("dataset_ids"),
+            pytest.param("datafile_ids"),
+        ],
+    )
     def test_restore(
         self,
-        test_client: TestClient,
         submit: MagicMock,
         session_id: str,
         facility: Entity,
@@ -369,8 +367,21 @@ class TestRestore:
         facility_cycle: Entity,
         instrument: Entity,
         investigation: Entity,
+        functional_icat_client: IcatClient,
+        test_client: TestClient,
+        restore_ids: str,
     ):
-        restore_request = RestoreRequest(investigation_ids=[investigation.id])
+        if restore_ids == "investigation_ids":
+            restore_request = RestoreRequest(investigation_ids=[investigation.id])
+        elif restore_ids == "dataset_ids":
+            equals = {"investigation.id": investigation.id}
+            dataset = functional_icat_client.get_single_entity("Dataset", equals)
+            restore_request = RestoreRequest(dataset_ids=[dataset.id])
+        elif restore_ids == "datafile_ids":
+            equals = {"dataset.investigation.id": investigation.id}
+            datafile = functional_icat_client.get_single_entity("Datafile", equals)
+            restore_request = RestoreRequest(datafile_ids=[datafile.id])
+
         json_body = json.loads(restore_request.json())
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post("/restore", headers=headers, json=json_body)
@@ -381,14 +392,13 @@ class TestRestore:
         assert len(content["job_ids"]) == 1
         UUID4(content["job_ids"][0])
 
-        path = "/instrument/20XX/name-visitId/type/dataset/datafile"
-        sources = [f"root://archive:1094/{path}"]
-        destinations = [f"root://udc:1094/{path}"]
+        path = "instrument/20XX/name-visitId/type/dataset/datafile"
+        sources = [f"root://archive:1094//{path}"]
+        destinations = [f"root://udc:1094//{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
             bring_online=28800,
-            copy_pin_lifetime=28800,
         )
         submit.assert_called_once_with(context=ANY, job=job)
 

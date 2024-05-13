@@ -17,9 +17,9 @@ class TestFts3Settings:
 
         settings = Fts3Settings(
             endpoint="",
-            instrument_data_cache="",
-            user_data_cache="",
-            tape_archive="",
+            instrument_data_cache="root://idc:1094//",
+            user_data_cache="root://udc:1094//",
+            tape_archive="root://archive:1094//",
             x509_user_cert=x509_user_cert,
             x509_user_key=x509_user_key,
         )
@@ -33,9 +33,9 @@ class TestFts3Settings:
         x509_user_proxy = x509_user_proxy_path.as_posix()
         settings = Fts3Settings(
             endpoint="",
-            instrument_data_cache="",
-            user_data_cache="",
-            tape_archive="",
+            instrument_data_cache="root://idc:1094//",
+            user_data_cache="root://udc:1094//",
+            tape_archive="root://archive:1094//",
             x509_user_proxy=x509_user_proxy,
         )
         assert settings.x509_user_cert == x509_user_proxy
@@ -73,3 +73,36 @@ class TestFts3Settings:
             Fts3Settings._validate_x509_proxy(x509_user_proxy)
 
         assert e.exconly() == f"ValueError: {expected_error}"
+
+    @pytest.mark.parametrize(
+        ["endpoint", "expected_endpoint"],
+        [
+            pytest.param("protocol://hostname:port", "protocol://hostname:port//"),
+            pytest.param("protocol://hostname:port/", "protocol://hostname:port//"),
+            pytest.param(
+                "protocol://hostname:port//path",
+                "protocol://hostname:port//path/",
+            ),
+        ],
+    )
+    def test_validate_endpoint(self, endpoint: str, expected_endpoint: str):
+        validated_endpoint = Fts3Settings._validate_endpoint(endpoint)
+
+        assert validated_endpoint == expected_endpoint
+
+    @pytest.mark.parametrize(
+        ["endpoint"],
+        [
+            pytest.param("protocol:hostname:port"),
+            pytest.param("protocol:hostname:port//"),
+            pytest.param("protocol://hostname:port//path//to//root//dir//"),
+        ],
+    )
+    def test_validate_endpoint_error(self, endpoint: str):
+        with pytest.raises(ValueError) as e:
+            Fts3Settings._validate_endpoint(endpoint)
+
+        assert e.exconly() == (
+            f"ValueError: FTS endpoint {endpoint} did not contain '//' twice in the "
+            "form:\nprotocol://hostname//path/to/root/dir/"
+        )

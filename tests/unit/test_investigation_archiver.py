@@ -9,6 +9,7 @@ from tests.fixtures import (
     icat_settings,
     investigation_metadata,
     mock_fts3_settings,
+    submit,
 )
 
 

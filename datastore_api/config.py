@@ -1,10 +1,15 @@
+from enum import StrEnum
 from functools import lru_cache
+import logging
 import os
 from typing import Any
 
 from pydantic import BaseModel, BaseSettings, validator
 
 from datastore_api.utils import load_yaml
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def yaml_config_settings_source(settings: BaseSettings) -> dict[str, Any]:
@@ -30,6 +35,13 @@ class IcatSettings(BaseModel):
     parameter_type_job_state: str = "Archival state"
 
 
+class VerifyChecksum(StrEnum):
+    NONE = "none"
+    SOURCE = "source"
+    DESTINATION = "destination"
+    BOTH = "both"
+
+
 class Fts3Settings(BaseModel):
     endpoint: str
     instrument_data_cache: str
@@ -38,8 +50,10 @@ class Fts3Settings(BaseModel):
     x509_user_proxy: str = None
     x509_user_key: str = None
     x509_user_cert: str = None
+    retry: int = -1
+    verify_checksum: VerifyChecksum = VerifyChecksum.NONE
     bring_online: int = 28800  # 8 hours
-    copy_pin_lifetime: int = 28800  # 8 hours
+    archive_timeout: int = 28800  # 8 hours
 
     @validator("x509_user_cert", always=True)
     def _validate_x509(cls, v: str, values: dict) -> str:
@@ -50,6 +64,33 @@ class Fts3Settings(BaseModel):
             values["x509_user_key"] = None
             x509_user_proxy = values.get("x509_user_proxy", None)
             return Fts3Settings._validate_x509_proxy(x509_user_proxy)
+
+    @validator("instrument_data_cache", "user_data_cache", "tape_archive")
+    def _validate_endpoint(cls, v: str) -> str:
+        double_slash_count = v.count("//")
+        message = f"FTS endpoint {v} did contain second '//', appending"
+        error_message = (
+            f"FTS endpoint {v} did not contain '//' twice in the form:\n"
+            "protocol://hostname//path/to/root/dir/"
+        )
+        if double_slash_count == 2:
+            if v.endswith("/"):
+                return v
+            else:
+                message = f"FTS endpoint {v} did not end with trailing '/', appending"
+                LOGGER.warn(message)
+                return f"{v}/"
+        elif double_slash_count == 1:
+            if v.endswith("//"):
+                raise ValueError(error_message)
+            elif v.endswith("/"):
+                LOGGER.warn(message)
+                return f"{v}/"
+            else:
+                LOGGER.warn(message)
+                return f"{v}//"
+        else:
+            raise ValueError(error_message)
 
     @staticmethod
     def _validate_x509_cert(x509_user_cert: str, x509_user_key: str | None) -> str:

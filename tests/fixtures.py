@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Generator
+from unittest.mock import MagicMock
 
+import fts3.rest.client.easy as fts3
 from icat import ICATObjectExistsError, ICATSessionError
 from icat.entity import Entity
 from pydantic import ValidationError
@@ -31,38 +33,49 @@ SESSION_ID = "00000000-0000-0000-0000-000000000000"
 
 
 @pytest.fixture(scope="function")
-def mock_fts3_settings(mocker: MockerFixture) -> Settings:
+def submit(mocker: MockerFixture) -> MagicMock:
     try:
         get_settings()
+        submit_mock = mocker.MagicMock(wraps=fts3.submit)
+    except ValidationError:
+        submit_mock = mocker.MagicMock()
+        submit_mock.return_value = SESSION_ID
+
+    mocker.patch("datastore_api.fts3_client.fts3.submit", submit_mock)
+    return submit_mock
+
+
+@pytest.fixture(scope="function")
+def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
+    try:
+        settings = get_settings()
     except ValidationError:
         # Assume the issue is that we do not have the cert to communicate with FTS.
         # This will be the case for GHA workflows, in which case,
         # pass a readable file to satisfy the validator and mock requests to FTS.
         fts3_settings = Fts3Settings(
             endpoint="https://fts-test01.gridpp.rl.ac.uk:8446",
-            instrument_data_cache="root://idc:1094/",
-            user_data_cache="root://udc:1094/",
-            tape_archive="root://archive:1094/",
+            instrument_data_cache="root://idc:1094//",
+            user_data_cache="root://udc:1094//",
+            tape_archive="root://archive:1094//",
             x509_user_cert=__file__,
             x509_user_key=__file__,
         )
         settings = Settings(fts3=fts3_settings)
-        for module in {"fts3_client", "icat_client", "models.archive"}:
-            get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
-            get_settings_mock.return_value = settings
 
         mocker.patch("datastore_api.fts3_client.fts3.Context")
 
-        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
-        fts_submit_mock.return_value = SESSION_ID
+    for module in {"fts3_client", "icat_client", "models.archive"}:
+        get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
+        get_settings_mock.return_value = settings
 
-        fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
-        fts_status_mock.return_value = {"key": "value"}
+    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
+    fts_status_mock.return_value = {"key": "value"}
 
-        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
-        fts_submit_mock.return_value = "CANCELED"
+    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+    fts_submit_mock.return_value = "CANCELED"
 
-        return settings
+    return settings
 
 
 @pytest.fixture(scope="session")
