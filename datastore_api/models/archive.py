@@ -24,6 +24,12 @@ class FacilityCycle(BaseModel):
 
 
 class Investigation(BaseModel):
+    # Relationships
+    facility: Facility
+    investigationType: InvestigationType
+    instrument: Instrument
+    cycle: FacilityCycle
+
     name: str = Field(example="ABC123")
     visitId: str = Field(example="1")
     title: str = Field(example="Title")
@@ -32,16 +38,13 @@ class Investigation(BaseModel):
     startDate: datetime = None
     endDate: datetime = None
     releaseDate: datetime = None
-
-    # Relationships
-    facility: Facility
-    investigationType: InvestigationType
-    instrument: Instrument
-    cycle: FacilityCycle
     # TODO expand metadata
 
     @validator("releaseDate")
     def define_release_date(cls, v, values, **kwargs) -> datetime:
+        if values["investigationType"].name in get_settings().icat.embargo_types:
+            return None
+
         if v is not None:
             return v
 
