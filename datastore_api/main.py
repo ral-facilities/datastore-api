@@ -1,10 +1,10 @@
 from functools import lru_cache
 from importlib import metadata
+from typing import Annotated
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import fts3.rest.client.easy as fts3
-from typing_extensions import Annotated
 
 from datastore_api.auth import validate_session_id
 from datastore_api.config import get_settings, Settings
@@ -55,6 +55,12 @@ def get_fts3_context() -> fts3.Context:
     return fts3.Context(endpoint=settings.fts3.endpoint)
 
 
+SessionIdDependency = Annotated[str, Depends(validate_session_id)]
+IcatClientDependency = Annotated[IcatClient, Depends(get_icat_client)]
+Fts3ContextDependency = Annotated[fts3.Context, Depends(get_fts3_context)]
+SettingsDependency = Annotated[Settings, Depends(get_settings)]
+
+
 @app.post(
     "/login",
     response_description="An ICAT sessionId",
@@ -66,7 +72,7 @@ def get_fts3_context() -> fts3.Context:
 )
 def login(
     login_request: LoginRequest,
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
+    icat_client: IcatClientDependency,
 ) -> LoginResponse:
     """Using the provided credentials authenticates against ICAT and returns the
     sessionId.
@@ -92,10 +98,10 @@ def login(
 )
 def archive(
     archive_request: ArchiveRequest,
-    session_id: Annotated[str, Depends(validate_session_id)],
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
-    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
-    settings: Annotated[Settings, Depends(get_settings)],
+    session_id: SessionIdDependency,
+    icat_client: IcatClientDependency,
+    fts3_context: Fts3ContextDependency,
+    settings: SettingsDependency,
 ) -> ArchiveResponse:
     """Submit a request to archive experimental data, recording metadata in ICAT and
     creating an FTS transfer.
@@ -135,10 +141,10 @@ def archive(
 )
 def restore(
     restore_request: RestoreRequest,
-    session_id: Annotated[str, Depends(validate_session_id)],
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
-    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
-    settings: Annotated[Settings, Depends(get_settings)],
+    session_id: SessionIdDependency,
+    icat_client: IcatClientDependency,
+    fts3_context: Fts3ContextDependency,
+    settings: SettingsDependency,
 ) -> RestoreResponse:
     """Submit a request to restore experimental data, creating an FTS transfer.
     \f
@@ -179,7 +185,7 @@ def restore(
 )
 def cancel(
     job_id: str,
-    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
+    fts3_context: Fts3ContextDependency,
 ) -> CancelResponse:
     """Cancel a job previously submitted to FTS.
     \f
@@ -202,7 +208,7 @@ def cancel(
 )
 def status(
     job_id: str,
-    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
+    fts3_context: Fts3ContextDependency,
 ) -> StatusResponse:
     """Get details of a job previously submitted to FTS.
     \f
