@@ -24,6 +24,7 @@ class IcatSettings(BaseModel):
     check_cert: bool = True
     admin_users: list[IcatUser] = []
     embargo_period_years: int = 2
+    embargo_types: list[str] = []
 
 
 class Fts3Settings(BaseModel):
