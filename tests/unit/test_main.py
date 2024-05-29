@@ -13,6 +13,8 @@ from tests.fixtures import investigation_metadata, mock_fts3_settings, submit
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
+FILES = [{"file_state": "FINISHED"}, {"file_state": "FAILED"}]
+STATUS = {"job_state": "FINISHEDDIRTY", "files": FILES}
 
 
 @pytest.fixture(scope="function")
@@ -32,6 +34,17 @@ def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
     dataset_parameter_job_ids.type.name = "Archival ids"
     dataset.parameters = [dataset_parameter_state, dataset_parameter_job_ids]
     icat_client.new_dataset.return_value = dataset, ["path/to/data"]
+
+    mocker.patch("datastore_api.fts3_client.fts3.Context")
+
+    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
+    fts_submit_mock.return_value = SESSION_ID
+
+    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
+    fts_status_mock.return_value = STATUS
+
+    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+    fts_submit_mock.return_value = "CANCELED"
 
     return TestClient(app)
 
@@ -79,7 +92,22 @@ class TestMain:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"status": {"key": "value"}}
+        assert content == {"status": STATUS}
+
+    def test_complete(self, test_client: TestClient):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get("/job/1/complete", headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"complete": True}
+
+    def test_percentage(self, test_client: TestClient):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get("/job/1/percentage", headers=headers)
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"percentage_complete": 100.0}
 
     def test_cancel(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
