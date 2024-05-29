@@ -94,9 +94,13 @@ class TestLifespan:
         get_fts3_client_mock = mocker.patch("datastore_api.lifespan.get_fts3_client")
         get_fts3_client_mock.return_value.status.side_effect = statuses
 
+        type_job_ids = functional_icat_client.settings.parameter_type_job_ids
+        type_job_state = functional_icat_client.settings.parameter_type_job_state
+        equals_job_ids = {"type.name": type_job_ids}
+        equals_job_state = {"type.name": type_job_state}
         parameters = functional_icat_client.get_entities(
             entity="DatasetParameter",
-            equals={"type.name": functional_icat_client.settings.parameter_type_job_ids},
+            equals=equals_job_ids,
             includes="1",
         )
 
@@ -114,21 +118,21 @@ class TestLifespan:
 
         parameter = functional_icat_client.get_single_entity(
             entity="DatasetParameter",
-            equals={"type.name": functional_icat_client.settings.parameter_type_job_ids},
+            equals=equals_job_ids,
             allow_empty=True,
         )
         assert parameter.stringValue == job_ids
 
         parameter = functional_icat_client.get_single_entity(
             entity="DatasetParameter",
-            equals={"type.name": functional_icat_client.settings.parameter_type_job_state},
+            equals=equals_job_state,
             allow_empty=True,
         )
         assert parameter.stringValue == state
 
         parameter = functional_icat_client.get_single_entity(
             entity="DatafileParameter",
-            equals={"type.name": functional_icat_client.settings.parameter_type_job_state},
+            equals=equals_job_state,
             allow_empty=True,
         )
         assert parameter.stringValue == file_state
