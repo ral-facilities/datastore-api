@@ -55,15 +55,15 @@ nox -s [SESSIONS ...]
 
 To install Docker for the RHEL operating system from the rpm repository, run:
 
-```
+```bash
 sudo yum install -y yum-utils
 sudo yum-config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
 ```
 
-This will setup the repository and install the `you-utils` package.
+This will setup the repository and install the `yum-utils` package.
 To install the latest version of Docker, run:
 
-```
+```bash
 sudo yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 ```
 
@@ -71,7 +71,7 @@ _(Other installation methods can be found in the official [documentation](https:
 
 To run Docker, `cd` to the _tests_ directory containing the compose file and run:
 
-```
+```bash
 sudo docker compose up
 ```
 
