@@ -1,9 +1,9 @@
 from functools import lru_cache
 from importlib import metadata
+from typing import Annotated
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from typing_extensions import Annotated
 
 from datastore_api.auth import validate_session_id
 from datastore_api.config import get_settings
@@ -11,7 +11,14 @@ from datastore_api.fts3_client import Fts3Client
 from datastore_api.icat_client import IcatClient
 from datastore_api.investigation_archiver import InvestigationArchiver
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
-from datastore_api.models.job import CancelResponse, StatusResponse
+from datastore_api.models.job import (
+    CancelResponse,
+    CompleteResponse,
+    JobState,
+    PercentageResponse,
+    StatusResponse,
+    TransferState,
+)
 from datastore_api.models.login import LoginRequest, LoginResponse
 from datastore_api.models.restore import RestoreRequest, RestoreResponse
 from datastore_api.models.version import VersionResponse
@@ -57,6 +64,11 @@ def get_fts3_client() -> Fts3Client:
     return Fts3Client(settings.fts3)
 
 
+SessionIdDependency = Annotated[str, Depends(validate_session_id)]
+IcatClientDependency = Annotated[IcatClient, Depends(get_icat_client)]
+Fts3ClientDependency = Annotated[Fts3Client, Depends(get_fts3_client)]
+
+
 @app.post(
     "/login",
     response_description="An ICAT sessionId",
@@ -68,7 +80,7 @@ def get_fts3_client() -> Fts3Client:
 )
 def login(
     login_request: LoginRequest,
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
+    icat_client: IcatClientDependency,
 ) -> LoginResponse:
     """Using the provided credentials authenticates against ICAT and returns the
     sessionId.
@@ -94,9 +106,9 @@ def login(
 )
 def archive(
     archive_request: ArchiveRequest,
-    session_id: Annotated[str, Depends(validate_session_id)],
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
-    fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
+    session_id: SessionIdDependency,
+    icat_client: IcatClientDependency,
+    fts3_client: Fts3ClientDependency,
 ) -> ArchiveResponse:
     """Submit a request to archive experimental data, recording metadata in ICAT and
     creating an FTS transfer.
@@ -138,9 +150,9 @@ def archive(
 )
 def restore(
     restore_request: RestoreRequest,
-    session_id: Annotated[str, Depends(validate_session_id)],
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
-    fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
+    session_id: SessionIdDependency,
+    icat_client: IcatClientDependency,
+    fts3_client: Fts3ClientDependency,
 ) -> RestoreResponse:
     """Submit a request to restore experimental data, creating an FTS transfer.
     \f
@@ -172,8 +184,8 @@ def restore(
 )
 def cancel(
     job_id: str,
-    icat_client: Annotated[IcatClient, Depends(get_icat_client)],
-    fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
+    icat_client: IcatClientDependency,
+    fts3_client: Fts3ClientDependency,
 ) -> CancelResponse:
     """Cancel a job previously submitted to FTS.
     \f
@@ -198,10 +210,7 @@ def cancel(
     summary="Get details of a job previously submitted to FTS",
     tags=["Job"],
 )
-def status(
-    job_id: str,
-    fts3_client: Annotated[Fts3Client, Depends(get_fts3_client)],
-) -> StatusResponse:
+def status(job_id: str, fts3_client: Fts3ClientDependency) -> StatusResponse:
     """Get details of a job previously submitted to FTS.
     \f
     Args:
@@ -213,6 +222,53 @@ def status(
     """
     status = fts3_client.status(job_id=job_id)
     return StatusResponse(status=status)
+
+
+@app.get(
+    "/job/{job_id}/complete",
+    response_description="Whether the job is complete",
+    summary="Whether the job ended in the FINISHED, FINISHEDDIRTY or FAILED states",
+    tags=["Job"],
+)
+def complete(job_id: str, fts3_client: Fts3ClientDependency) -> CompleteResponse:
+    """Whether the job ended in the FINISHED, FINISHEDDIRTY or FAILED states.
+    \f
+    Args:
+        job_id (str): FTS id for a submitted job.
+        fts3_context (fts3.Context): Cached context for calls to FTS.
+
+    Returns:
+        CompleteResponse: Completeness of the requested job.
+    """
+    status = fts3_client.status(job_id=job_id)
+    complete_states = (JobState.finished, JobState.finished_dirty, JobState.failed)
+    return CompleteResponse(complete=status["job_state"] in complete_states)
+
+
+@app.get(
+    "/job/{job_id}/percentage",
+    response_description="Percentage of individual transfers that are completed",
+    summary="Percentage of individual transfers that are completed",
+    tags=["Job"],
+)
+def percentage(job_id: str, fts3_client: Fts3ClientDependency) -> PercentageResponse:
+    """Percentage of individual transfers that are completed.
+    \f
+    Args:
+        job_id (str): FTS id for a submitted job.
+        fts3_context (fts3.Context): Cached context for calls to FTS.
+
+    Returns:
+        PercentageResponse: Percentage of individual transfers that are completed.
+    """
+    files_complete = 0
+    status = fts3_client.status(job_id=job_id)
+    files_total = len(status["files"])
+    for file in status["files"]:
+        if file["file_state"] in (TransferState.finished, TransferState.failed):
+            files_complete += 1
+
+    return PercentageResponse(percentage_complete=100 * files_complete / files_total)
 
 
 @app.get(

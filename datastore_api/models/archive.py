@@ -72,6 +72,14 @@ class Dataset(BaseModel):
 
 
 class Investigation(BaseModel):
+    # Relationships
+    facility: Facility
+    investigationType: InvestigationType
+    instrument: Instrument
+    facilityCycle: FacilityCycle
+    datasets: Annotated[list[Dataset], Len(min_length=1)]
+
+    # Attributes
     name: str = Field(example="ABC123")
     visitId: str = Field(example="1")
     title: str = Field(example="Title")
@@ -81,15 +89,11 @@ class Investigation(BaseModel):
     endDate: datetime = None
     releaseDate: datetime = None
 
-    # Relationships
-    facility: Facility
-    investigationType: InvestigationType
-    instrument: Instrument
-    facilityCycle: FacilityCycle
-    datasets: Annotated[list[Dataset], Len(min_length=1)]
-
     @validator("releaseDate")
     def define_release_date(cls, v: datetime | None, values: dict) -> datetime:
+        if values["investigationType"].name in get_settings().icat.embargo_types:
+            return None
+
         if v is not None:
             return v
 
