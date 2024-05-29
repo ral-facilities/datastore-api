@@ -23,8 +23,10 @@ class Fts3Client:
         self.instrument_data_cache = fts_settings.instrument_data_cache
         self.user_data_cache = fts_settings.user_data_cache
         self.tape_archive = fts_settings.tape_archive
+        self.retry = fts_settings.retry
+        self.verify_checksum = fts_settings.verify_checksum
         self.bring_online = fts_settings.bring_online
-        self.copy_pin_lifetime = fts_settings.copy_pin_lifetime
+        self.archive_timeout = fts_settings.archive_timeout
 
     def archive(self, path: str) -> dict[str, list]:
         """Returns a transfer dict moving `path` from one of the caches to tape.
@@ -35,9 +37,9 @@ class Fts3Client:
         Returns:
             dict[str, list]: Transfer dict for moving `path` to tape.
         """
-        source = f"{self.instrument_data_cache}/{path}"
-        alternate_source = f"{self.user_data_cache}/{path}"
-        destination = f"{self.tape_archive}/{path}"
+        source = f"{self.instrument_data_cache}{path}"
+        alternate_source = f"{self.user_data_cache}{path}"
+        destination = f"{self.tape_archive}{path}"
         transfer = fts3.new_transfer(source=source, destination=destination)
         transfer["sources"].append(alternate_source)
         return transfer
@@ -51,8 +53,8 @@ class Fts3Client:
         Returns:
             dict[str, list]: Transfer dict for moving `path` to the UDC.
         """
-        source = f"{self.tape_archive}/{path}"
-        destination = f"{self.user_data_cache}/{path}"
+        source = f"{self.tape_archive}{path}"
+        destination = f"{self.user_data_cache}{path}"
         return fts3.new_transfer(source=source, destination=destination)
 
     def submit(self, transfers: list[dict[str, list]], stage: bool = False) -> str:
@@ -70,9 +72,10 @@ class Fts3Client:
         """
         job = fts3.new_job(
             transfers=transfers,
-            bring_online=self.bring_online if stage else None,
-            copy_pin_lifetime=self.copy_pin_lifetime if stage else None,
-            verify_checksum="none",
+            retry=self.retry,
+            verify_checksum=self.verify_checksum.value,
+            bring_online=self.bring_online if stage else -1,
+            archive_timeout=self.archive_timeout if not stage else -1,
         )
         return fts3.submit(context=self.context, job=job)
 

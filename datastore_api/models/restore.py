@@ -8,9 +8,9 @@ class RestoreRequest(BaseModel):
 
     @root_validator()
     def validate_ids(cls, values: dict) -> dict:
-        investigations = len(values["investigation_ids"])
-        datasets = len(values["dataset_ids"])
-        datafiles = len(values["datafile_ids"])
+        investigations = len(values.get("investigation_ids", []))
+        datasets = len(values.get("dataset_ids", []))
+        datafiles = len(values.get("datafile_ids", []))
         if investigations + datasets + datafiles == 0:
             raise ValueError("At least one id must be provided")
 

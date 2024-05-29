@@ -130,6 +130,7 @@ class IcatClient:
     def _build_conditions(
         equals: dict[str, str] = None,
         contains: dict[str, str] = None,
+        in_list: dict[str, list] = None,
     ) -> dict[str, str]:
         """Build the conditions dictionary for an ICAT query.
 
@@ -138,6 +139,8 @@ class IcatClient:
                 Field with key should equal the value. Defaults to None.
             contains (dict[str, str], optional):
                 Field with key should contain the value. Defaults to None.
+            contains (dict[str, list], optional):
+                Field with key should have value in list. Defaults to None.
 
         Returns:
             dict[str, str]: Formatted dictionary of ICAT query conditions.
@@ -150,6 +153,10 @@ class IcatClient:
         if contains is not None:
             for key, value in contains.items():
                 formatted_conditions[key] = f"LIKE '%{value}%'"
+
+        if in_list is not None:
+            for key, value in in_list.items():
+                formatted_conditions[key] = f" IN ({str(value)[1:-1]})"
 
         return formatted_conditions
 
@@ -544,7 +551,7 @@ class IcatClient:
         query = Query(
             self.client,
             "Investigation",
-            conditions={"id": f" IN ({str(investigation_ids)[1:-1]})"},
+            conditions=IcatClient._build_conditions(in_list={"id": investigation_ids}),
             includes=[
                 "investigationInstruments.instrument",
                 "investigationFacilityCycles.facilityCycle",
@@ -587,7 +594,7 @@ class IcatClient:
         query = Query(
             self.client,
             "Dataset",
-            conditions={"id": f" IN {dataset_ids}"},
+            conditions=IcatClient._build_conditions(in_list={"id": dataset_ids}),
             includes=[
                 "investigation.investigationInstruments.instrument",
                 "investigation.investigationFacilityCycles.facilityCycle",
@@ -626,7 +633,7 @@ class IcatClient:
         query = Query(
             self.client,
             "Datafile",
-            conditions={"id": f" IN {datafile_ids}"},
+            conditions=IcatClient._build_conditions(in_list={"id": datafile_ids}),
             includes=[
                 "dataset.investigation.investigationInstruments.instrument",
                 "dataset.investigation.investigationFacilityCycles.facilityCycle",

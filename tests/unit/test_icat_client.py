@@ -10,6 +10,7 @@ from tests.fixtures import (
     icat_settings,
     mock_fts3_settings,
     SESSION_ID,
+    submit,
 )
 
 

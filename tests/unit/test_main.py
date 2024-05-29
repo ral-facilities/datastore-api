@@ -1,15 +1,15 @@
 import json
 
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
+from pydantic import UUID4
 import pytest
 from pytest_mock import mocker, MockerFixture
 
-from datastore_api.config import Fts3Settings, get_settings, Settings
+from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest, Investigation
 from datastore_api.models.restore import RestoreRequest
-from tests.fixtures import investigation_metadata, mock_fts3_settings
+from tests.fixtures import investigation_metadata, mock_fts3_settings, submit
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -57,7 +57,9 @@ class TestMain:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_ids": [SESSION_ID]}
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID4(content["job_ids"][0])
 
     def test_restore(self, test_client: TestClient):
         restore_request = RestoreRequest(investigation_ids=[0])
@@ -67,7 +69,9 @@ class TestMain:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_ids": [SESSION_ID]}
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID4(content["job_ids"][0])
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}

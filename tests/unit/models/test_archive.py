@@ -64,9 +64,9 @@ class TestArchive:
         get_settings_mock = mocker.patch("datastore_api.models.archive.get_settings")
         fts3_settings = Fts3Settings(
             endpoint="",
-            instrument_data_cache="",
-            user_data_cache="",
-            tape_archive="",
+            instrument_data_cache="root://idc:1094//",
+            user_data_cache="root://udc:1094//",
+            tape_archive="root://archive:1094//",
             x509_user_cert=__file__,
             x509_user_key=__file__,
         )

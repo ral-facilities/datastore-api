@@ -5,7 +5,6 @@ import pytest
 from pytest_mock import MockerFixture
 
 from datastore_api.config import Settings
-from datastore_api.fts3_client import get_fts3_client
 from datastore_api.icat_client import IcatClient
 from datastore_api.lifespan import lifespan, StateCounter, update_jobs
 from tests.fixtures import (
@@ -20,6 +19,7 @@ from tests.fixtures import (
     mock_fts3_settings,
     parameter_type_job_ids,
     parameter_type_state,
+    submit,
 )
 
 
@@ -88,21 +88,20 @@ class TestLifespan:
         file_state,
         to_delete: int,
         dataset_with_job_id: Entity,
+        functional_icat_client: IcatClient,
         mocker: MockerFixture,
     ):
         get_fts3_client_mock = mocker.patch("datastore_api.lifespan.get_fts3_client")
         get_fts3_client_mock.return_value.status.side_effect = statuses
 
-        icat_client = IcatClient()
-        icat_client.login_functional()
-        parameters = icat_client.get_entities(
+        parameters = functional_icat_client.get_entities(
             entity="DatasetParameter",
-            equals={"type.name": icat_client.settings.parameter_type_job_ids},
+            equals={"type.name": functional_icat_client.settings.parameter_type_job_ids},
             includes="1",
         )
 
         beans_to_delete = update_jobs(
-            icat_client=icat_client,
+            icat_client=functional_icat_client,
             parameters=parameters,
         )
 
@@ -113,23 +112,23 @@ class TestLifespan:
         ]
         get_fts3_client_mock.return_value.status.assert_has_calls(calls)
 
-        parameter = icat_client.get_single_entity(
+        parameter = functional_icat_client.get_single_entity(
             entity="DatasetParameter",
-            equals={"type.name": icat_client.settings.parameter_type_job_ids},
+            equals={"type.name": functional_icat_client.settings.parameter_type_job_ids},
             allow_empty=True,
         )
         assert parameter.stringValue == job_ids
 
-        parameter = icat_client.get_single_entity(
+        parameter = functional_icat_client.get_single_entity(
             entity="DatasetParameter",
-            equals={"type.name": icat_client.settings.parameter_type_job_state},
+            equals={"type.name": functional_icat_client.settings.parameter_type_job_state},
             allow_empty=True,
         )
         assert parameter.stringValue == state
 
-        parameter = icat_client.get_single_entity(
+        parameter = functional_icat_client.get_single_entity(
             entity="DatafileParameter",
-            equals={"type.name": icat_client.settings.parameter_type_job_state},
+            equals={"type.name": functional_icat_client.settings.parameter_type_job_state},
             allow_empty=True,
         )
         assert parameter.stringValue == file_state
