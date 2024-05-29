@@ -7,12 +7,13 @@ The Datastore API accepts requests for the archival or retrieval of experimental
 These trigger subsequent requests to create corresponding metadata in [ICAT](https://icatproject.org/), and schedules the transfer of the data using [FTS3](https://fts3-docs.web.cern.ch/fts3-docs/).
 
 ## Deployment
-To run the API:
+To run the API (while sourcing the virtual environment):
 
 ```bash
 uvicorn --host=127.0.0.1 --port=8000 --log-config=logging.ini --reload datastore_api.main:app
 ```
 
+To run from outside of the virtual environment, add `poetry run` to the beginning of the above command.
 Changing the optional arguments as needed. Documentation can be found by navigating to `/docs`.
 
 ## Development
@@ -24,8 +25,10 @@ To develop the API Python development tools will need to be installed. The exact
 sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-setuptools openldap-devel swig gcc openssl-devel
 ```
 
+Before running the API, create the `config.yaml` and `logging.ini` config files. A sample configuration can be copied from the `config.yaml.example` and `logging.ini.example` files.
+
 ### Poetry
-[Poetry](https://python-poetry.org/) is used to manage the dependencies of this API. Note that to prevent conflicts Poetry should not be installed in the environment used for the project dependencies; [different recommended installation methods are possible](https://python-poetry.org/docs/#installing-with-pipx).
+[Poetry](https://python-poetry.org/) is used to manage the dependencies of this API. Note that to prevent conflicts Poetry should not be installed in the environment used for the project dependencies; [different recommended installation methods are possible](https://python-poetry.org/docs/#installing-with-the-official-installer). _(Note that pipx may not install the latest version)_
 
 The official documentation should be referred to for the management of dependencies, but to create a Python development environment:
 
@@ -46,3 +49,29 @@ By executing
 ```bash
 nox -s [SESSIONS ...]
 ```
+
+### Docker
+[Docker](https://www.docker.com/) is used to create and manage isolated environments for the services needed to test the API. 
+
+To install Docker for the RHEL operating system from the rpm repository, run:
+
+```
+sudo yum install -y yum-utils
+sudo yum-config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+```
+
+This will setup the repository and install the `you-utils` package.
+To install the latest version of Docker, run:
+
+```
+sudo yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+```
+
+_(Other installation methods can be found in the official [documentation](https://docs.docker.com/engine/install/rhel/#install-using-the-repository))._
+
+To run Docker, `cd` to the _tests_ directory containing the compose file and run:
+
+```
+sudo docker compose up
+```
+
