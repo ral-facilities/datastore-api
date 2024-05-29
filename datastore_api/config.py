@@ -28,6 +28,7 @@ class IcatSettings(BaseModel):
     embargo_period_years: int = 2
     parameter_type_job_ids: str = "Archival ids"
     parameter_type_job_state: str = "Archival state"
+    embargo_types: list[str] = []
 
 
 class Fts3Settings(BaseModel):

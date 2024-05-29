@@ -15,9 +15,10 @@ from datastore_api.models.archive import (
 
 class TestArchive:
     @pytest.mark.parametrize(
-        "start_date, end_date, release_date, expected_release_date",
+        "investigation_type, start_date, end_date, release_date, expected_release_date",
         [
             pytest.param(
+                "type",
                 datetime(2000, 1, 1),
                 datetime(2010, 1, 1),
                 datetime(2020, 1, 1),
@@ -25,6 +26,7 @@ class TestArchive:
                 id="All dates set",
             ),
             pytest.param(
+                "type",
                 datetime(2000, 1, 1),
                 datetime(2010, 1, 1),
                 None,
@@ -32,6 +34,7 @@ class TestArchive:
                 id="No release date",
             ),
             pytest.param(
+                "type",
                 datetime(2000, 1, 1),
                 None,
                 None,
@@ -39,6 +42,7 @@ class TestArchive:
                 id="No release or end date",
             ),
             pytest.param(
+                "type",
                 None,
                 None,
                 None,
@@ -49,10 +53,19 @@ class TestArchive:
                 ),
                 id="No dates set",
             ),
+            pytest.param(
+                "commercial",
+                datetime(2000, 1, 1),
+                datetime(2010, 1, 1),
+                datetime(2020, 1, 1),
+                None,
+                id="Commercial type",
+            ),
         ],
     )
     def test_investigation(
         self,
+        investigation_type: str,
         start_date: datetime,
         end_date: datetime,
         release_date: datetime,
@@ -82,7 +95,7 @@ class TestArchive:
             endDate=end_date,
             releaseDate=release_date,
             facility=Facility(name="facility"),
-            investigationType=InvestigationType(name="type"),
+            investigationType=InvestigationType(name=investigation_type),
             instrument=Instrument(name="instrument"),
             facilityCycle=FacilityCycle(name="20XX"),
             datasets=[],
