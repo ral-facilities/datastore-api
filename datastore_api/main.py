@@ -10,7 +10,14 @@ from datastore_api.auth import validate_session_id
 from datastore_api.config import get_settings, Settings
 from datastore_api.icat_client import IcatClient
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
-from datastore_api.models.job import CancelResponse, StatusResponse
+from datastore_api.models.job import (
+    CancelResponse,
+    CompleteResponse,
+    JobState,
+    PercentageResponse,
+    StatusResponse,
+    TransferState,
+)
 from datastore_api.models.login import LoginRequest, LoginResponse
 from datastore_api.models.restore import RestoreRequest, RestoreResponse
 from datastore_api.models.version import VersionResponse
@@ -221,6 +228,59 @@ def status(
     """
     status = fts3.get_job_status(context=fts3_context, job_id=job_id)
     return StatusResponse(status=status)
+
+
+@app.get(
+    "/job/{job_id}/complete",
+    response_description="Whether the job is complete",
+    summary="Whether the job ended in the FINISHED, FINISHEDDIRTY or FAILED states",
+    tags=["Job"],
+)
+def complete(
+    job_id: str,
+    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
+) -> CompleteResponse:
+    """Whether the job ended in the FINISHED, FINISHEDDIRTY or FAILED states.
+    \f
+    Args:
+        job_id (str): FTS id for a submitted job.
+        fts3_context (fts3.Context): Cached context for calls to FTS.
+
+    Returns:
+        CompleteResponse: Completeness of the requested job.
+    """
+    status = fts3.get_job_status(context=fts3_context, job_id=job_id)
+    complete_states = (JobState.finished, JobState.finished_dirty, JobState.failed)
+    return CompleteResponse(complete=status["job_state"] in complete_states)
+
+
+@app.get(
+    "/job/{job_id}/percentage",
+    response_description="Percentage of individual transfers that are completed",
+    summary="Percentage of individual transfers that are completed",
+    tags=["Job"],
+)
+def percentage(
+    job_id: str,
+    fts3_context: Annotated[fts3.Context, Depends(get_fts3_context)],
+) -> PercentageResponse:
+    """Percentage of individual transfers that are completed.
+    \f
+    Args:
+        job_id (str): FTS id for a submitted job.
+        fts3_context (fts3.Context): Cached context for calls to FTS.
+
+    Returns:
+        PercentageResponse: Percentage of individual transfers that are completed.
+    """
+    files_complete = 0
+    status = fts3.get_job_status(context=fts3_context, job_id=job_id)
+    files_total = len(status["files"])
+    for file in status["files"]:
+        if file["file_state"] in (TransferState.finished, TransferState.failed):
+            files_complete += 1
+
+    return PercentageResponse(percentage_complete=100 * files_complete / files_total)
 
 
 @app.get(
