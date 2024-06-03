@@ -2,13 +2,13 @@
 name = "datastore-api"
 version = "0.1.0"
 description = "The Datastore API accepts requests for the archival or retrieval of experimental data. These trigger subsequent requests to create corresponding metadata in ICAT, and schedules the transfer of the data using FTS3"
-authors = ["Patrick Austin <patrick.austin@stfc.ac.uk>"]
+authors = ["Patrick Austin <patrick.austin@stfc.ac.uk>", "Kacper Roemer <kacper.roemer@stfc.ac.uk>"]
 
 [tool.poetry.dependencies]
 python = "~3.11"
 fastapi = "^0.110.0"
 pydantic = "^1.10.14"
-python-icat = "^1.2.0"
+python-icat = "^1.3.0"
 fts3 = "^3.12.2"
 httpx = "^0.27.0"
 pyyaml = "^6.0.1"
@@ -35,5 +35,5 @@ pytest-mock = "^3.12.0"
 pytest-env = "^1.1.3"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
+requires = ["poetry-core>=1.9.0"]
 build-backend = "poetry.core.masonry.api"

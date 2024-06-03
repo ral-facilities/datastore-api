@@ -1,9 +1,13 @@
 from functools import lru_cache
+import logging
 from typing import Any
 
 from pydantic import BaseModel, BaseSettings
 
 from datastore_api.utils import load_yaml
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 def yaml_config_settings_source(settings: BaseSettings) -> dict[str, Any]:
@@ -61,4 +65,6 @@ def get_settings() -> Settings:
     Returns:
         Settings: The configurations settings for the API.
     """
-    return Settings()
+    settings = Settings()
+    LOGGER.info("Initialised and cached Settings: %s", settings)
+    return settings

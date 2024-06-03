@@ -20,6 +20,7 @@ class TransferController(ABC):
         self.paths = []
         self.transfers = []
         self.job_ids = []
+        self.total_transfers = 0
 
     def create_fts_jobs(self) -> None:
         """Iterates over `self.paths`, creating and submitting transfers to FTS as
@@ -47,6 +48,7 @@ class TransferController(ABC):
         if len(self.transfers) >= minimum_transfers:
             job_id = self.fts3_client.submit(self.transfers)
             self.job_ids.append(job_id)
+            self.total_transfers += len(self.transfers)
             self.transfers = []
 
 
