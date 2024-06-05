@@ -28,6 +28,7 @@ class InvestigationArchiver:
         self.investigation = investigation
         self.job_ids = []
         self.beans = []
+        self.total_transfers = 0
         self.investigation_entity = icat_client.new_investigation(
             investigation=investigation,
         )
@@ -52,6 +53,7 @@ class InvestigationArchiver:
             dataset_archiver.create_fts_jobs()
             dataset_entities.append(dataset_archiver.dataset_entity)
             self.job_ids.extend(dataset_archiver.job_ids)
+            self.total_transfers += dataset_archiver.total_transfers
 
         if self.investigation_entity.id is None:
             self.investigation_entity.datasets = dataset_entities
