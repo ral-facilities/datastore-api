@@ -136,4 +136,6 @@ def get_settings() -> Settings:
     Returns:
         Settings: The configurations settings for the API.
     """
-    return Settings()
+    settings = Settings()
+    LOGGER.info("Initialised and cached Settings: %s", settings)
+    return settings

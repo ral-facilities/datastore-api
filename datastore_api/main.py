@@ -1,5 +1,7 @@
 from importlib import metadata
+import logging
 from typing import Annotated
+
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,6 +24,9 @@ from datastore_api.models.login import LoginRequest, LoginResponse
 from datastore_api.models.restore import RestoreRequest, RestoreResponse
 from datastore_api.models.version import VersionResponse
 from datastore_api.transfer_controller import RestoreController
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 app = FastAPI(
@@ -109,6 +114,12 @@ def archive(
 
     icat_client.create_many(beans=beans)
 
+    LOGGER.info(
+        "Submitted FTS archival jobs for %s transfers with ids %s",
+        investigation_archiver.total_transfers,
+        investigation_archiver.job_ids,
+    )
+
     return ArchiveResponse(job_ids=investigation_archiver.job_ids)
 
 
@@ -141,6 +152,10 @@ def restore(
     )
     restore_controller = RestoreController(fts3_client=fts3_client, paths=paths)
     restore_controller.create_fts_jobs()
+
+    message = "Submitted FTS restore jobs for %s transfers with ids %s"
+    LOGGER.info(message, restore_controller.total_transfers, restore_controller.job_ids)
+
     return RestoreResponse(job_ids=restore_controller.job_ids)
 
 
