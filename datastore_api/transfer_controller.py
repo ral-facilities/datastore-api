@@ -20,6 +20,7 @@ class TransferController(ABC):
         self.paths = []
         self.transfers = []
         self.job_ids = []
+        self.stage = False
         self.total_transfers = 0
 
     def create_fts_jobs(self) -> None:
@@ -46,7 +47,7 @@ class TransferController(ABC):
                 the request. Defaults to 1.
         """
         if len(self.transfers) >= minimum_transfers:
-            job_id = self.fts3_client.submit(self.transfers)
+            job_id = self.fts3_client.submit(self.transfers, self.stage)
             self.job_ids.append(job_id)
             self.total_transfers += len(self.transfers)
             self.transfers = []
@@ -64,6 +65,7 @@ class RestoreController(TransferController):
         """
         super().__init__(fts3_client)
         self.paths = paths
+        self.stage = True
 
     def _transfer(self, path: str) -> dict[str, list]:
         """Returns a transfer dict moving `path` from tape to the UDC.
