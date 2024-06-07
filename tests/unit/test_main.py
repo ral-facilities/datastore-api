@@ -19,7 +19,6 @@ STATUS = {"job_state": "FINISHEDDIRTY", "files": FILES}
 
 @pytest.fixture(scope="function")
 def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
-
     icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
     icat_client = icat_client_mock.return_value
     icat_client.settings = mock_fts3_settings.icat
@@ -43,8 +42,8 @@ def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
     fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
     fts_status_mock.return_value = STATUS
 
-    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
-    fts_submit_mock.return_value = "CANCELED"
+    fts_cancel_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+    fts_cancel_mock.return_value = "CANCELED"
 
     return TestClient(app)
 

@@ -133,7 +133,7 @@ class IcatClient:
         return formatted_conditions
 
     def login(self, login_request: LoginRequest) -> str:
-        """Uses the provided credentials to generate and ICAT sessionId.
+        """Uses the provided credentials to generate an ICAT sessionId.
 
         Args:
             login_request (LoginRequest):
@@ -146,7 +146,7 @@ class IcatClient:
         return self._login(login_request.auth, credentials)
 
     def login_functional(self) -> str:
-        """Uses the functional credentials to generate and ICAT sessionId.
+        """Uses the functional credentials to generate an ICAT sessionId.
 
         Args:
             login_request (LoginRequest):
@@ -245,9 +245,6 @@ class IcatClient:
 
         Args:
             investigation (Investigation): Metadata for the Investigation to be created.
-            dataset_entities (list[Entity]):
-                ICAT Dataset Entities belonging to the Investigation, also to be
-                created.
 
         Returns:
             Entity: The new ICAT Investigation Entity.

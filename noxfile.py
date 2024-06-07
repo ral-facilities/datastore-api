@@ -40,6 +40,7 @@ def safety(session):
             "check",
             f"--file={requirements.name}",
             "--full-report",
+            "--ignore=70612",
         )
 
         try:

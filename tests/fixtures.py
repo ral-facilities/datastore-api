@@ -72,14 +72,32 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
     fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
     fts_status_mock.return_value = {"key": "value"}
 
-    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
-    fts_submit_mock.return_value = "CANCELED"
+    fts_cancel_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+    fts_cancel_mock.return_value = "CANCELED"
 
     return settings
 
+@pytest.fixture(scope="function")
+def investigation_metadata(mocker: MockerFixture):
+    try:
+        settings = get_settings()
+    except ValidationError:
+        # Assume the issue is that we do not have the cert to communicate with FTS.
+        # This will be the case for GHA workflows, in which case,
+        # pass a readable file to satisfy the validator and mock requests to FTS.
+        fts3_settings = Fts3Settings(
+            endpoint="",
+            instrument_data_cache="",
+            user_data_cache="",
+            tape_archive="",
+            x509_user_cert=__file__,
+            x509_user_key=__file__,
+        )
+        settings = Settings(fts3=fts3_settings)
 
-@pytest.fixture(scope="session")
-def investigation_metadata():
+        get_settings_mock = mocker.patch("datastore_api.models.archive.get_settings")
+        get_settings_mock.return_value = settings
+
     dataset = Dataset(
         name="dataset",
         datasetType=DatasetType(name="type"),
