@@ -77,6 +77,7 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
 
     return settings
 
+
 @pytest.fixture(scope="function")
 def investigation_metadata(mocker: MockerFixture):
     try:
