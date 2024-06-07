@@ -87,10 +87,10 @@ def investigation_metadata(mocker: MockerFixture):
         # This will be the case for GHA workflows, in which case,
         # pass a readable file to satisfy the validator and mock requests to FTS.
         fts3_settings = Fts3Settings(
-            endpoint="",
-            instrument_data_cache="",
-            user_data_cache="",
-            tape_archive="",
+            endpoint="https://fts-test01.gridpp.rl.ac.uk:8446",
+            instrument_data_cache="root://idc:1094//",
+            user_data_cache="root://udc:1094//",
+            tape_archive="root://archive:1094//",
             x509_user_cert=__file__,
             x509_user_key=__file__,
         )
