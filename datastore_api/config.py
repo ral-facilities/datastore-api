@@ -60,10 +60,14 @@ class Fts3Settings(BaseModel):
     def _validate_x509_cert(x509_user_cert: str, x509_user_key: str | None) -> str:
         if x509_user_key is None:
             raise ValueError("x509_user_key not set")
+        elif not os.path.exists(x509_user_cert):
+            raise ValueError("x509_user_cert set but doesn't exist")
         elif not os.access(x509_user_cert, os.R_OK):
-            raise ValueError("x509_user_cert not readable")
+            raise ValueError("x509_user_cert exists but is not readable")
+        elif not os.path.exists(x509_user_key):
+            raise ValueError("x509_user_key set but doesn't exist")
         elif not os.access(x509_user_key, os.R_OK):
-            raise ValueError("x509_user_key not readable")
+            raise ValueError("x509_user_key exists but is not readable")
 
         return x509_user_cert
 
@@ -71,8 +75,10 @@ class Fts3Settings(BaseModel):
     def _validate_x509_proxy(x509_user_proxy: str | None) -> str:
         if x509_user_proxy is None:
             raise ValueError("Neither x509_user_cert nor x509_user_proxy set")
+        elif not os.path.exists(x509_user_proxy):
+            raise ValueError("x509_user_proxy set but doesn't exist")
         elif not os.access(x509_user_proxy, os.R_OK):
-            raise ValueError("x509_user_proxy not readable")
+            raise ValueError("x509_user_proxy exists but is not readable")
 
         return x509_user_proxy
 
