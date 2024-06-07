@@ -54,6 +54,11 @@ def test_client(mocker: MockerFixture) -> TestClient:
         get_settings_mock = mocker.patch("datastore_api.main.get_settings")
         get_settings_mock.return_value = settings
 
+        get_settings_investigation_mock = mocker.patch(
+            "datastore_api.models.archive.get_settings",
+        )
+        get_settings_investigation_mock.return_value = settings
+
         mocker.patch("datastore_api.fts3_client.fts3.Context")
 
         fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
