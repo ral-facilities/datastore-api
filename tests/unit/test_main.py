@@ -37,6 +37,11 @@ def test_client(mocker: MockerFixture):
         get_settings_mock = mocker.patch("datastore_api.main.get_settings")
         get_settings_mock.return_value = settings
 
+        get_settings_investigation_mock = mocker.patch(
+            "datastore_api.models.archive.get_settings"
+        )
+        get_settings_investigation_mock.return_value = settings
+
     icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
     icat_client = icat_client_mock.return_value
     icat_client.icat_settings = settings.icat
@@ -60,8 +65,8 @@ def test_client(mocker: MockerFixture):
     fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
     fts_status_mock.return_value = STATUS
 
-    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
-    fts_submit_mock.return_value = "CANCELED"
+    fts_cancel_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+    fts_cancel_mock.return_value = "CANCELED"
 
     return TestClient(app)
 

@@ -62,8 +62,8 @@ def test_client(mocker: MockerFixture) -> TestClient:
         fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
         fts_status_mock.return_value = {"key": "value"}
 
-        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
-        fts_submit_mock.return_value = "CANCELED"
+        fts_cancel_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+        fts_cancel_mock.return_value = "CANCELED"
 
     return TestClient(app)
 
