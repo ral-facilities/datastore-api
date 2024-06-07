@@ -55,7 +55,9 @@ class TestFts3Settings:
                 "x509_user_cert exists but is not readable",
             ),
             pytest.param(
-                __file__, "not_readable", "x509_user_key exists but is not readable"
+                __file__,
+                "not_readable",
+                "x509_user_key exists but is not readable",
             ),
         ],
     )
@@ -93,7 +95,10 @@ class TestFts3Settings:
         ],
     )
     def test_x509_proxy_failure(
-        self, x509_user_proxy: str, expected_error: str, tmp_path: Path
+        self,
+        x509_user_proxy: str,
+        expected_error: str,
+        tmp_path: Path,
     ):
 
         if x509_user_proxy == "not_readable":

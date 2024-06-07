@@ -38,7 +38,7 @@ def test_client(mocker: MockerFixture):
         get_settings_mock.return_value = settings
 
         get_settings_investigation_mock = mocker.patch(
-            "datastore_api.models.archive.get_settings"
+            "datastore_api.models.archive.get_settings",
         )
         get_settings_investigation_mock.return_value = settings
 

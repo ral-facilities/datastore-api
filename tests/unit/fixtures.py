@@ -8,9 +8,9 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.config import (
     Fts3Settings,
     FunctionalUser,
+    get_settings,
     IcatSettings,
     Settings,
-    get_settings,
 )
 from datastore_api.icat_client import IcatClient
 from datastore_api.models.archive import (
