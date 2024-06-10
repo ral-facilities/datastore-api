@@ -1,3 +1,4 @@
+from functools import lru_cache
 import logging
 
 from fastapi import HTTPException
@@ -11,6 +12,33 @@ from datastore_api.models.login import LoginRequest
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+class IcatCache:
+    """Holds a cache of static ICAT information for a particular Facility."""
+
+    def __init__(self, facility_name: str) -> None:
+        """Initialises a cache of static ICAT information for `facility_name`.
+
+        Args:
+            facility_name (str): Name of the Facility in ICAT.
+        """
+        icat_client = IcatClient()
+        icat_client.login_functional()
+        equals = {"facility.name": facility_name, "units": ""}
+        self.parameter_type_job_state = icat_client.get_single_entity(
+            entity="ParameterType",
+            equals={"name": icat_client.settings.parameter_type_job_state, **equals},
+        )
+        self.parameter_type_job_ids = icat_client.get_single_entity(
+            entity="ParameterType",
+            equals={"name": icat_client.settings.parameter_type_job_ids, **equals},
+        )
+
+
+@lru_cache
+def get_icat_cache(facility_name: str) -> IcatCache:
+    return IcatCache(facility_name=facility_name)
 
 
 class IcatClient:
@@ -334,14 +362,15 @@ class IcatClient:
         if investigation_entity.id is not None:
             dataset_dict["investigation"] = investigation_entity
 
+        icat_cache = get_icat_cache(facility_name=investigation.facility.name)
         dataset_parameter_entity_state = self.client.new(
             "DatasetParameter",
-            type=self._get_parameter_type_state(investigation.facility.name),
+            type=icat_cache.parameter_type_job_state,
             stringValue="SUBMITTED",
         )
         dataset_parameter_entity_jobs = self.client.new(
             "DatasetParameter",
-            type=self._get_parameter_type_job_ids(investigation.facility.name),
+            type=icat_cache.parameter_type_job_ids,
             stringValue="",
         )
         dataset_entity = self.client.new(
@@ -371,6 +400,7 @@ class IcatClient:
             tuple[Entity, str]: The new ICAT Datafile Entity and its path for FTS.
         """
         datafile_dict = datafile.excluded_dict()
+        icat_cache = get_icat_cache(facility_name=investigation.facility.name)
         path = self._build_path(
             instrument_name=investigation.instrument.name,
             cycle_name=investigation.facilityCycle.name,
@@ -382,7 +412,7 @@ class IcatClient:
         )
         datafile_parameter_entity = self.client.new(
             "DatafileParameter",
-            type=self._get_parameter_type_state(investigation.facility.name),
+            type=icat_cache.parameter_type_job_state,
             stringValue="SUBMITTED",
         )
         datafile_entity = self.client.new(
@@ -620,40 +650,6 @@ class IcatClient:
             paths.add(path)
 
         return paths
-
-    def _get_parameter_type_state(self, facility_name: str) -> Entity:
-        """Get the ParameterType for recording FTS job state.
-
-        Args:
-            facility_name (str):
-                Name attribute of the Facility the ParameterType belong to.
-
-        Returns:
-            Entity: ICAT ParameterType Entity for recording FTS state.
-        """
-        equals = {
-            "name": self.settings.parameter_type_job_state,
-            "facility.name": facility_name,
-            "units": "",
-        }
-        return self.get_single_entity(entity="ParameterType", equals=equals)
-
-    def _get_parameter_type_job_ids(self, facility_name: str) -> Entity:
-        """Get the ParameterType for recording FTS job ids.
-
-        Args:
-            facility_name (str):
-                Name attribute of the Facility the ParameterType belong to.
-
-        Returns:
-            Entity: ICAT ParameterType Entity for recording FTS job ids.
-        """
-        equals = {
-            "name": self.settings.parameter_type_job_ids,
-            "facility.name": facility_name,
-            "units": "",
-        }
-        return self.get_single_entity(entity="ParameterType", equals=equals)
 
     def check_job_id(self, job_id: str) -> None:
         """Raises an error if the `job_id` appears in any of the active archival jobs.
