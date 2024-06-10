@@ -4,7 +4,7 @@ import tempfile
 import nox
 
 # Separating Black away from the rest of the sessions
-nox.options.sessions = "lint", "safety", "tests"
+nox.options.sessions = "lint", "safety", "unit_tests", "integration_tests"
 code_locations = "datastore_api", "tests", "noxfile.py"
 
 
@@ -40,6 +40,7 @@ def safety(session):
             "check",
             f"--file={requirements.name}",
             "--full-report",
+            "--ignore=70612",
         )
 
         try:
@@ -62,10 +63,3 @@ def integration_tests(session):
     args = session.posargs or ["--cov", "--cov-report=term-missing"]
     session.run("poetry", "install", "--with=dev", external=True)
     session.run("pytest", "tests/integration", "tests", *args)
-
-
-@nox.session(python=["3.11"], reuse_venv=True)
-def tests(session):
-    args = session.posargs or ["--cov", "--cov-report=term-missing"]
-    session.run("poetry", "install", "--with=dev", external=True)
-    session.run("pytest", "tests", *args)

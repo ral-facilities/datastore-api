@@ -1,0 +1,83 @@
+version: '3.9'
+
+services:
+
+  # Database needed to store the test data
+  icat_mariadb:
+    restart: always
+    # note: the latest version does not support the SQL connector needed by icat
+    image: mariadb:10.10
+    container_name: icat_mariadb_container
+    # note: in the case that something else is already running on 3306 locally,
+    # this can be changed or removed without affecting the tests which connect
+    # directly to the icat_mariadb service without using port forwarding
+    # ports:
+    #   - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: pw
+      MARIADB_DATABASE: icatdb
+      MARIADB_USER: icatdbuser
+      MARIADB_PASSWORD: icatdbuserpw
+    # the health check will tell us when data is in the DB
+    healthcheck:
+      # test: "/usr/bin/mysql --user=$$MARIADB_USER --password=$$MARIADB_PASSWORD --execute \"select * from icatdb.DATAFILEPARAMETER;\""
+      test: "/usr/bin/mysql --user=$$MARIADB_USER --password=$$MARIADB_PASSWORD --execute \"SHOW TABLES;\""
+      interval: 10s
+      timeout: 2s
+      retries: 10
+    networks:
+      - network
+
+  # The ICAT server, available at https://localhost:18181/icat/version
+  icat_payara:
+    restart: always
+    image: harbor.stfc.ac.uk/icat/icat_5:latest
+    container_name: icat_payara_container
+    depends_on:
+      - icat_mariadb
+    ports:
+      - "14747:4848" # payara port
+      - "18181:8181" # https port
+      - "18080:8080" # http port
+    volumes:
+      - type: bind
+        source: ./post-boot-commands.asadmin
+        target: /config/post-boot-commands.asadmin
+    environment:
+      - POSTBOOT_COMMANDS=/config/post-boot-commands.asadmin
+    healthcheck:
+      test: curl --fail http://localhost:8080/icat/version || exit 1
+      interval: 10s
+      timeout: 2s
+      retries: 10
+    networks:
+      - network
+
+  # The Auth service needed by ICAT, available at https://localhost:28181/authn.simple/version/
+  auth_payara:
+    restart: unless-stopped
+    image: harbor.stfc.ac.uk/icat/icat_auth:latest
+    container_name: auth_payara_container
+    ports:
+      - "24747:4848"
+      - "28181:8181"
+    networks:
+      - network
+
+  # Fills up the icat db with a set of auto generate / known test data
+  # Based on script: https://github.com/ral-facilities/datagateway-api/blob/v6.2.0/util/icat_db_generator.py
+  # testdata:
+  #   image: harbor.stfc.ac.uk/icat/icat_testdata:latest
+  #   container_name: testdata_container
+  #   depends_on:
+  #     icat_mariadb:
+  #       condition: service_healthy
+  #   networks:
+  #     - doi_test_network
+
+# beware: the actual network name created by Docker will be
+# <project_name>_doi_test_network, where <project_name> is
+# derived from the directory name. In this case test_doi_test_network.
+# docker run --network=tests_doi_test_network doi-mint-api pytest -c tests/pytest.ini
+networks:
+  network:

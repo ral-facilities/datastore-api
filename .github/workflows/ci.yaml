@@ -17,6 +17,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Do this early to minimise how long we wait for the health check later on
+      - name: Docker compose up
+        run: docker-compose -f tests/docker-compose.yaml up -d
+
       - name: Install python-ldap dependencies
         run: |
           sudo apt-get update
@@ -51,8 +55,24 @@ jobs:
           path: /home/runner/work/datastore-api/datastore-api/.nox/tests*
           key: nox-tests-${{ hashFiles('poetry.lock') }}
 
-      - name: Run Nox tests session
+      - name: Run Nox unit_tests
         run: nox -s unit_tests -- --cov --cov-report=xml
+
+      - name: Wait for container to start
+        run: |
+          until docker ps --filter "name=icat_payara_container" --format "{{.Status}}" | grep -q "(healthy)"; do
+            sleep 1
+          done
+        timeout-minutes: 3
+
+      - name: Log container status
+        run: docker ps
+
+      - name: Run Nox integration_tests
+        run: nox -s integration_tests
+
+      - name: Docker compose down
+        run: docker-compose -f tests/docker-compose.yaml down
 
       - name: Upload code coverage report
         uses: codecov/codecov-action@v4
@@ -128,6 +148,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -136,6 +157,7 @@ jobs:
         with:
           path: ~/.cache/pip
           key: pip-${{ hashFiles('.github/requirements.txt') }}
+
       - name: Install Poetry & Nox
         run: pip install -r .github/requirements.txt
 

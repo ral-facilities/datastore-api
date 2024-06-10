@@ -1,54 +1,28 @@
-from datetime import datetime
-
 from fastapi import HTTPException
-from icat import ICATSessionError
 import pytest
-from pytest_mock import mocker, MockerFixture
+from pytest_mock import MockerFixture
 
-from datastore_api.config import IcatSettings, IcatUser
 from datastore_api.icat_client import IcatClient
-from datastore_api.models.archive import (
-    Facility,
-    FacilityCycle,
-    Instrument,
-    Investigation,
-    InvestigationType,
-)
 from datastore_api.models.login import Credentials, LoginRequest
+from tests.fixtures import (
+    icat_client,
+    icat_client_empty_search,
+    icat_settings,
+    mock_fts3_settings,
+    SESSION_ID,
+    submit,
+)
 
 
-SESSION_ID = "00000000-0000-0000-0000-000000000000"
 INSUFFICIENT_PERMISSIONS = (
     "fastapi.exceptions.HTTPException: 403: insufficient permissions"
 )
 
 
-def login_side_effect(auth: str, credentials: dict) -> str:
-    if auth == "simple":
-        return SESSION_ID
-
-    raise ICATSessionError("test")
-
-
-@pytest.fixture(scope="function")
-def icat_client(mocker: MockerFixture):
-    client = mocker.patch("datastore_api.icat_client.Client")
-    client.return_value.login.side_effect = login_side_effect
-    client.return_value.getUserName.return_value = "simple/root"
-    client.return_value.search.return_value = [mocker.MagicMock()]
-
-    mocker.patch("datastore_api.icat_client.Query")
-
-    return IcatClient(icat_settings=IcatSettings(url=""))
-
-
 class TestIcatClient:
-    def test_build_path(self):
-        assert IcatClient.build_path("a", "b", "c", "d") == "/a/b/c-d"
-
     def test_validate_entities(self):
         with pytest.raises(HTTPException) as e:
-            IcatClient.validate_entities([], [1])
+            IcatClient._validate_entities([], [1])
 
         assert e.exconly() == INSUFFICIENT_PERMISSIONS
 
@@ -57,7 +31,7 @@ class TestIcatClient:
         login_request = LoginRequest(auth="simple", credentials=credentials)
         session_id = icat_client.login(login_request=login_request)
         assert session_id == SESSION_ID
-        assert icat_client.client.sessionId is None
+        assert icat_client.client.sessionId == SESSION_ID
 
     def test_login_failure(self, icat_client: IcatClient):
         credentials = Credentials(username="root", password="pw")
@@ -68,42 +42,96 @@ class TestIcatClient:
         assert e.exconly() == "fastapi.exceptions.HTTPException: 401: test"
         assert icat_client.client.sessionId is None
 
+    def test_functional_login(self, icat_client: IcatClient):
+        credentials = {"username": "root", "password": "pw"}
+
+        session_id = icat_client.login_functional()
+
+        assert session_id == SESSION_ID
+        assert icat_client.client.sessionId == SESSION_ID
+        icat_client.client.login.assert_called_once_with("simple", credentials)
+
     def test_authorise_admin_failure(self, icat_client: IcatClient):
+        icat_client.settings.admin_users = []
         with pytest.raises(HTTPException) as e:
-            icat_client.authorise_admin(session_id=SESSION_ID)
+            icat_client.authorise_admin()
 
         assert e.exconly() == INSUFFICIENT_PERMISSIONS
-        assert icat_client.client.sessionId is None
 
-    def test_create_investigations(self, icat_client: IcatClient):
-        investigation = Investigation(
-            name="name",
-            visitId="visitId",
-            title="title",
-            summary="summary",
-            doi="doi",
-            startDate=datetime.now(),
-            endDate=datetime.now(),
-            releaseDate=datetime.now(),
-            facility=Facility(name="facility"),
-            investigationType=InvestigationType(name="type"),
-            instrument=Instrument(name="instrument"),
-            cycle=FacilityCycle(name="20XX"),
+    @pytest.mark.parametrize(
+        ["investigation_ids", "dataset_ids", "datafile_ids", "expected_paths"],
+        [
+            pytest.param([], [], [], set(), id="No ids"),
+            pytest.param(
+                [1],
+                [1],
+                [1],
+                {"instrument/20XX/name-visitId/type/dataset/datafile"},
+                id="All ids",
+            ),
+        ],
+    )
+    def test_get_paths(
+        self,
+        icat_client: IcatClient,
+        mocker: MockerFixture,
+        investigation_ids: list[int],
+        dataset_ids: list[int],
+        datafile_ids: list[int],
+        expected_paths: set[str],
+    ):
+        investigation_instrument = mocker.MagicMock(name="investigation_instrument")
+        investigation_instrument.instrument.name = "instrument"
+        investigation_cycle = mocker.MagicMock(name="investigation_cycle")
+        investigation_cycle.facilityCycle.name = "20XX"
+        investigation = mocker.MagicMock(name="investigation")
+        investigation.investigationInstruments = [investigation_instrument]
+        investigation.investigationFacilityCycles = [investigation_cycle]
+        investigation.name = "name"
+        investigation.visitId = "visitId"
+
+        dataset = mocker.MagicMock(name="dataset")
+        dataset.name = "dataset"
+        dataset.type.name = "type"
+        dataset.investigation = investigation
+
+        datafile = mocker.MagicMock(name="datafile")
+        datafile.name = "datafile"
+        datafile.dataset = dataset
+
+        dataset.datafiles = [datafile]
+        investigation.datasets = [dataset]
+
+        icat_client.client.search.side_effect = [[investigation], [dataset], [datafile]]
+        paths = icat_client.get_paths(
+            investigation_ids=investigation_ids,
+            dataset_ids=dataset_ids,
+            datafile_ids=datafile_ids,
         )
 
-        paths = icat_client.create_investigations(
-            session_id=SESSION_ID,
-            investigations=[investigation],
-        )
-        assert paths == ["/instrument/20XX/name-visitId"]
+        assert paths == expected_paths
         assert icat_client.client.sessionId is None
 
-    def test_get_investigation_paths(self, icat_client: IcatClient):
-        paths = icat_client.get_investigation_paths(
-            session_id=SESSION_ID,
-            investigation_ids=[1],
-        )
+    def test_get_single_entity_failure(self, icat_client_empty_search: IcatClient):
+        with pytest.raises(HTTPException) as e:
+            icat_client_empty_search.get_single_entity(
+                entity="Facility",
+                equals={"name": "facility"},
+            )
 
-        # Don't assert the path as the Mocked object does not have meaningful attributes
-        assert len(paths) == 1
-        assert icat_client.client.sessionId is None
+        err = (
+            "fastapi.exceptions.HTTPException: 400: No Facility with "
+            "{'name': 'facility'} and fields containing None"
+        )
+        assert e.exconly() == err
+
+    def test_create_many(self, icat_client: IcatClient):
+        icat_client.create_many(beans=[])
+        icat_client.client.createMany.assert_called_once_with(beans=[])
+
+    def test_check_job_id(self, icat_client: IcatClient):
+        with pytest.raises(HTTPException) as e:
+            icat_client.check_job_id(job_id="0")
+
+        err = "fastapi.exceptions.HTTPException: 400: Archival jobs cannot be cancelled"
+        assert e.exconly() == err

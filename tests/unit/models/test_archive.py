@@ -1,7 +1,9 @@
 from datetime import datetime
 
 import pytest
+from pytest_mock import MockerFixture
 
+from datastore_api.config import Fts3Settings, Settings
 from datastore_api.models.archive import (
     Facility,
     FacilityCycle,
@@ -68,7 +70,21 @@ class TestArchive:
         end_date: datetime,
         release_date: datetime,
         expected_release_date: datetime,
+        mocker: MockerFixture,
     ):
+        # For GHA workflows will not have certificate files,
+        # pass a readable file to satisfy the validator.
+        get_settings_mock = mocker.patch("datastore_api.models.archive.get_settings")
+        fts3_settings = Fts3Settings(
+            endpoint="",
+            instrument_data_cache="root://idc:1094//",
+            user_data_cache="root://udc:1094//",
+            tape_archive="root://archive:1094//",
+            x509_user_cert=__file__,
+            x509_user_key=__file__,
+        )
+        get_settings_mock.return_value = Settings(fts3=fts3_settings)
+
         investigation = Investigation(
             name="name",
             visitId="visitId",
@@ -81,7 +97,8 @@ class TestArchive:
             facility=Facility(name="facility"),
             investigationType=InvestigationType(name=investigation_type),
             instrument=Instrument(name="instrument"),
-            cycle=FacilityCycle(name="20XX"),
+            facilityCycle=FacilityCycle(name="20XX"),
+            datasets=[],
         )
 
         assert investigation.releaseDate == expected_release_date

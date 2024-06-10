@@ -1,21 +1,15 @@
-from datetime import datetime
 import json
 
 from fastapi.testclient import TestClient
+from pydantic import UUID4
 import pytest
 from pytest_mock import mocker, MockerFixture
 
+from datastore_api.config import Settings
 from datastore_api.main import app
-from datastore_api.models.archive import (
-    ArchiveRequest,
-    Facility,
-    FacilityCycle,
-    Instrument,
-    Investigation,
-    InvestigationType,
-)
-from datastore_api.models.job import JobState
+from datastore_api.models.archive import ArchiveRequest, Investigation
 from datastore_api.models.restore import RestoreRequest
+from tests.fixtures import investigation_metadata, mock_fts3_settings, submit
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -24,23 +18,32 @@ STATUS = {"job_state": "FINISHEDDIRTY", "files": FILES}
 
 
 @pytest.fixture(scope="function")
-def test_client(mocker: MockerFixture):
+def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
     icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
     icat_client = icat_client_mock.return_value
+    icat_client.settings = mock_fts3_settings.icat
     icat_client.login.return_value = SESSION_ID
-    icat_client.create_investigations.return_value = ["path/to/data"]
-    icat_client.get_investigation_paths.return_value = ["path/to/data"]
+    icat_client.get_paths.return_value = ["path/to/data"]
+    icat_client.check_job_id.return_value = None
 
-    mocker.patch("datastore_api.main.fts3.Context")
+    dataset = mocker.MagicMock(name="dataset")
+    dataset_parameter_state = mocker.MagicMock(name="dataset_parameter_state")
+    dataset_parameter_state.type.name = "Archival state"
+    dataset_parameter_job_ids = mocker.MagicMock(name="dataset_parameter_job_ids")
+    dataset_parameter_job_ids.type.name = "Archival ids"
+    dataset.parameters = [dataset_parameter_state, dataset_parameter_job_ids]
+    icat_client.new_dataset.return_value = dataset, ["path/to/data"]
 
-    fts_submit_mock = mocker.patch("datastore_api.main.fts3.submit")
-    fts_submit_mock.return_value = "0"
+    mocker.patch("datastore_api.fts3_client.fts3.Context")
 
-    fts_status_mock = mocker.patch("datastore_api.main.fts3.get_job_status")
+    fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
+    fts_submit_mock.return_value = SESSION_ID
+
+    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
     fts_status_mock.return_value = STATUS
 
-    fts_submit_mock = mocker.patch("datastore_api.main.fts3.cancel")
-    fts_submit_mock.return_value = "CANCELED"
+    fts_cancel_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+    fts_cancel_mock.return_value = "CANCELED"
 
     return TestClient(app)
 
@@ -54,29 +57,21 @@ class TestMain:
         assert test_response.status_code == 200
         assert json.loads(test_response.content) == {"sessionId": SESSION_ID}
 
-    def test_archive(self, test_client: TestClient):
-        investigation = Investigation(
-            name="name",
-            visitId="visitId",
-            title="title",
-            summary="summary",
-            doi="doi",
-            startDate=datetime.now(),
-            endDate=datetime.now(),
-            releaseDate=datetime.now(),
-            facility=Facility(name="facility"),
-            investigationType=InvestigationType(name="type"),
-            instrument=Instrument(name="instrument"),
-            cycle=FacilityCycle(name="20XX"),
-        )
-        archive_request = ArchiveRequest(investigations=[investigation])
+    def test_archive(
+        self,
+        test_client: TestClient,
+        investigation_metadata: Investigation,
+    ):
+        archive_request = ArchiveRequest(investigations=[investigation_metadata])
         json_body = json.loads(archive_request.json())
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_id": "0"}
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID4(content["job_ids"][0])
 
     def test_restore(self, test_client: TestClient):
         restore_request = RestoreRequest(investigation_ids=[0])
@@ -86,7 +81,9 @@ class TestMain:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_id": "0"}
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID4(content["job_ids"][0])
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
