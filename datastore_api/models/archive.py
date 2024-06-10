@@ -31,7 +31,6 @@ class Datafile(BaseModel):
     name: str
     description: str = Field(default=None, example="Description")
     doi: str = Field(default=None, example="10.00000/00000")
-    location: str = None
     fileSize: int = None
     checksum: str = None
     datafileCreateTime: datetime = None

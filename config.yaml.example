@@ -9,9 +9,9 @@ icat:
     - auth: simple
       username: root
 fts3:
-  endpoint: https://fts-test01.gridpp.rl.ac.uk:8446
-  instrument_data_cache: root://host-172-16-113-93.nubes.stfc.ac.uk:1094
-  user_data_cache: root://host-172-16-113-93.nubes.stfc.ac.uk:1094
-  tape_archive: root://host-172-16-110-238.nubes.stfc.ac.uk:1094
+  endpoint: https://endpoint:8446
+  instrument_data_cache: root://idc:1094//
+  user_data_cache: root://udc:1094//
+  tape_archive: root://archive:1094//
   x509_user_cert: hostcert.pem
   x509_user_key: hostkey.pem

@@ -1,15 +1,15 @@
 import json
 
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
+from pydantic import UUID4
 import pytest
 from pytest_mock import mocker, MockerFixture
 
-from datastore_api.config import Fts3Settings, get_settings, Settings
+from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest, Investigation
 from datastore_api.models.restore import RestoreRequest
-from fixtures import investigation
+from tests.fixtures import investigation_metadata, mock_fts3_settings, submit
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -18,33 +18,10 @@ STATUS = {"job_state": "FINISHEDDIRTY", "files": FILES}
 
 
 @pytest.fixture(scope="function")
-def test_client(mocker: MockerFixture):
-    try:
-        settings = get_settings()
-    except ValidationError:
-        # Assume the issue is that we do not have the cert to communicate with FTS.
-        # This will be the case for GHA workflows, in which case,
-        # pass a readable file to satisfy the validator and mock requests to FTS.
-        fts3_settings = Fts3Settings(
-            endpoint="",
-            instrument_data_cache="",
-            user_data_cache="",
-            tape_archive="",
-            x509_user_cert=__file__,
-            x509_user_key=__file__,
-        )
-        settings = Settings(fts3=fts3_settings)
-        get_settings_mock = mocker.patch("datastore_api.main.get_settings")
-        get_settings_mock.return_value = settings
-
-        get_settings_investigation_mock = mocker.patch(
-            "datastore_api.models.archive.get_settings",
-        )
-        get_settings_investigation_mock.return_value = settings
-
+def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
     icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
     icat_client = icat_client_mock.return_value
-    icat_client.icat_settings = settings.icat
+    icat_client.settings = mock_fts3_settings.icat
     icat_client.login.return_value = SESSION_ID
     icat_client.get_paths.return_value = ["path/to/data"]
     icat_client.check_job_id.return_value = None
@@ -60,7 +37,7 @@ def test_client(mocker: MockerFixture):
     mocker.patch("datastore_api.fts3_client.fts3.Context")
 
     fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
-    fts_submit_mock.return_value = "0"
+    fts_submit_mock.return_value = SESSION_ID
 
     fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
     fts_status_mock.return_value = STATUS
@@ -80,15 +57,21 @@ class TestMain:
         assert test_response.status_code == 200
         assert json.loads(test_response.content) == {"sessionId": SESSION_ID}
 
-    def test_archive(self, test_client: TestClient, investigation: Investigation):
-        archive_request = ArchiveRequest(investigations=[investigation])
+    def test_archive(
+        self,
+        test_client: TestClient,
+        investigation_metadata: Investigation,
+    ):
+        archive_request = ArchiveRequest(investigations=[investigation_metadata])
         json_body = json.loads(archive_request.json())
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_ids": ["0"]}
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID4(content["job_ids"][0])
 
     def test_restore(self, test_client: TestClient):
         restore_request = RestoreRequest(investigation_ids=[0])
@@ -98,7 +81,9 @@ class TestMain:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"job_ids": ["0"]}
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID4(content["job_ids"][0])
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
