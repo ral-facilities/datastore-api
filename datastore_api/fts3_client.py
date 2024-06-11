@@ -22,6 +22,7 @@ class Fts3Client:
         )
         self.instrument_data_cache = fts_settings.instrument_data_cache
         self.user_data_cache = fts_settings.user_data_cache
+        self.download_cache = fts_settings.download_cache
         self.tape_archive = fts_settings.tape_archive
         self.retry = fts_settings.retry
         self.verify_checksum = fts_settings.verify_checksum
@@ -44,18 +45,35 @@ class Fts3Client:
         transfer["sources"].append(alternate_source)
         return transfer
 
-    def restore(self, path: str) -> dict[str, list]:
+    # TODO: Do we want to use the cache string as a variable?
+    def restore(self, path: str, cache: str) -> dict[str, list]:
         """Returns a transfer dict moving `path` from tape to the UDC.
 
         Args:
             path (str): Path of the file to be moved.
+            cache (str): cache to move the file to
 
         Returns:
             dict[str, list]: Transfer dict for moving `path` to the UDC.
         """
         source = f"{self.tape_archive}{path}"
-        destination = f"{self.user_data_cache}{path}"
+        destination = (
+            f"{self.user_data_cache if cache == 'udc' else self.download_cache}{path}"
+        )
         return fts3.new_transfer(source=source, destination=destination)
+
+    # def download(self, path: str) -> dict[str, list]:
+    #     """Returns a transfer dict moving `path` from tape to the download cache.
+
+    #     Args:
+    #         path (str): Path of the file to be moved.
+
+    #     Returns:
+    #         dict[str, list]: Transfer dict for moving `path` to the download cache.
+    #     """
+    #     source = f"{self.tape_archive}{path}"
+    #     destination = f"{self.download_cache}{path}"
+    #     return fts3.new_transfer(source=source, destination=destination)
 
     def submit(self, transfers: list[dict[str, list]], stage: bool = False) -> str:
         """Submit a single FTS job for the `transfers`.

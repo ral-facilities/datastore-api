@@ -47,6 +47,7 @@ class Fts3Settings(BaseModel):
     endpoint: str
     instrument_data_cache: str
     user_data_cache: str
+    download_cache: str = None  # TODO: change it later
     tape_archive: str
     x509_user_proxy: str = None
     x509_user_key: str = None
@@ -66,7 +67,12 @@ class Fts3Settings(BaseModel):
             x509_user_proxy = values.get("x509_user_proxy", None)
             return Fts3Settings._validate_x509_proxy(x509_user_proxy)
 
-    @validator("instrument_data_cache", "user_data_cache", "tape_archive")
+    @validator(
+        "instrument_data_cache",
+        "user_data_cache",
+        # "download_cache", # TODO: uncomment later
+        "tape_archive",
+    )
     def _validate_endpoint(cls, v: str) -> str:
         double_slash_count = v.count("//")
         message = f"FTS endpoint {v} did contain second '//', appending"

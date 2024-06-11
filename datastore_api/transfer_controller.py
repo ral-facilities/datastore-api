@@ -54,18 +54,23 @@ class TransferController(ABC):
 
 
 class RestoreController(TransferController):
-    """Controller for restoring paths to disk cache, regardless of origin."""
+    """Controller for restoring paths to disk or download cache,
+    regardless of origin.
+    """
 
-    def __init__(self, fts3_client: Fts3Client, paths: list[str]) -> None:
+    # TODO: Do we want to pass the cache string through so many layers?
+    def __init__(self, fts3_client: Fts3Client, paths: list[str], cache: str) -> None:
         """Initialises the controller with the Fts3Client and paths to use.
 
         Args:
             fts3_client (Fts3Client): The Fts3Client to use for transfers and jobs.
             paths (list[str]): File paths to restore.
+            cache (str): cache to restore file to
         """
         super().__init__(fts3_client)
         self.paths = paths
         self.stage = True
+        self.cache = cache
 
     def _transfer(self, path: str) -> dict[str, list]:
         """Returns a transfer dict moving `path` from tape to the UDC.
@@ -76,7 +81,33 @@ class RestoreController(TransferController):
         Returns:
             dict[str, list]: Transfer dict for moving `path` to the UDC.
         """
-        return self.fts3_client.restore(path)
+        return self.fts3_client.restore(path, self.cache)
+
+
+# class DownloadController(TransferController):
+#     """Controller for restoring paths to download cache, regardless of origin."""
+
+#     def __init__(self, fts3_client: Fts3Client, paths: list[str]) -> None:
+#         """Initialises the controller with the Fts3Client and paths to use.
+
+#         Args:
+#             fts3_client (Fts3Client): The Fts3Client to use for transfers and jobs.
+#             paths (list[str]): File paths to restore.
+#         """
+#         super().__init__(fts3_client)
+#         self.paths = paths
+#         self.stage = True
+
+#     def _transfer(self, path: str) -> dict[str, list]:
+#         """Returns a transfer dict moving `path` from tape to the download cache.
+
+#         Args:
+#             path (str): Path of the file to be moved.
+
+#         Returns:
+#             dict[str, list]: Transfer dict for moving `path` to the download cache.
+#         """
+#         return self.fts3_client.download(path)
 
 
 class DatasetArchiver(TransferController):

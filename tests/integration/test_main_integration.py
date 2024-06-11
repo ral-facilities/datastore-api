@@ -386,7 +386,11 @@ class TestRestore:
 
         json_body = json.loads(restore_request.json())
         headers = {"Authorization": f"Bearer {session_id}"}
-        test_response = test_client.post("/restore", headers=headers, json=json_body)
+        test_response = test_client.post(
+            "/restore/udc",
+            headers=headers,
+            json=json_body,
+        )
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content

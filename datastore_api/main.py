@@ -123,21 +123,22 @@ def archive(
     return ArchiveResponse(job_ids=investigation_archiver.job_ids)
 
 
+# TODO: improve documentation
 @app.post(
-    "/restore",
+    "/restore/udc",
     response_description="The FTS job id for the requested transfer",
     summary="Submit a request to restore experimental data, creating an FTS transfer",
     tags=["Restore"],
 )
-def restore(
+def restore_udc(
     restore_request: RestoreRequest,
     session_id: SessionIdDependency,
     fts3_client: Fts3ClientDependency,
 ) -> RestoreResponse:
-    """Submit a request to restore experimental data, creating an FTS transfer.
+    """Submit a request to restore experimental data to UDC, creating an FTS transfer.
     \f
     Args:
-        restore_request (RestoreRequest): ICAT ids for Investigations to restore.
+        restore_request (RestoreRequest): ICAT ids for Investigations to restore
         session_id (str): ICAT sessionId.
         fts3_client (Fts3Client): Cached client for calls to FTS.
 
@@ -150,13 +151,81 @@ def restore(
         dataset_ids=restore_request.dataset_ids,
         datafile_ids=restore_request.datafile_ids,
     )
-    restore_controller = RestoreController(fts3_client=fts3_client, paths=paths)
+    restore_controller = RestoreController(
+        fts3_client=fts3_client,
+        paths=paths,
+        cache="udc",  # TODO: is there a better way to do it?
+    )
     restore_controller.create_fts_jobs()
 
     message = "Submitted FTS restore jobs for %s transfers with ids %s"
     LOGGER.info(message, restore_controller.total_transfers, restore_controller.job_ids)
 
     return RestoreResponse(job_ids=restore_controller.job_ids)
+
+
+# TODO: what should be the enpoint path?
+@app.post(
+    "/restore/download",
+    response_description="The FTS job id for the requested transfer",
+    summary="Submit a request to restore experimental data, creating an FTS transfer",
+    tags=["Restore"],
+)
+def restore_download(
+    download_request: RestoreRequest,
+    session_id: SessionIdDependency,
+    fts3_client: Fts3ClientDependency,
+) -> RestoreResponse:
+    """Submit a request to restore experimental data, creating an FTS transfer.
+    \f
+    Args:
+        download_request (RestoreRequest): ICAT ids for Investigations to restore.
+        session_id (str): ICAT sessionId.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
+
+    Returns:
+        RestoreResponse: FTS job_id for download transfer.
+    """
+    icat_client = IcatClient(session_id=session_id)
+    paths = icat_client.get_paths(
+        investigation_ids=download_request.investigation_ids,
+        dataset_ids=download_request.dataset_ids,
+        datafile_ids=download_request.datafile_ids,
+    )
+
+    # TODO: do we need a 'cache' type? or just passing strings is sufficient
+    download_controller = RestoreController(
+        fts3_client=fts3_client,
+        paths=paths,
+        cache="dc",
+    )
+    download_controller.create_fts_jobs()
+
+    message = "Submitted FTS download jobs for %s transfers with ids %s"
+    LOGGER.info(
+        message,
+        download_controller.total_transfers,
+        download_controller.job_ids,
+    )
+
+    return RestoreResponse(job_ids=download_controller.job_ids)
+
+
+# TODO: implement the getData endpoint
+@app.get(
+    "data",
+    response_description="The URL to download the data",
+    summary="Get the download link for the records in download cache",
+    tags=["data"],
+)
+def get_data() -> None:
+    """Get the download link for records in download cache
+    \f
+    Args:
+    Returns:
+    """
+
+    raise Exception("not implemented")
 
 
 @app.delete(
