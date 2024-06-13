@@ -10,7 +10,7 @@ investigationType:
 datasetType:
   datasetType:
     facility: facility
-    name: type
+    name: scan
 facilityCycle:
   facilityCycle:
     facility: facility

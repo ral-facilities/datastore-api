@@ -20,7 +20,7 @@ class FacilityCycle(BaseModel):
 
 
 class DatasetType(BaseModel):
-    name: str = Field(example="type")
+    name: str = Field(example="scan")
 
 
 class InvestigationType(BaseModel):
@@ -28,7 +28,7 @@ class InvestigationType(BaseModel):
 
 
 class Datafile(BaseModel):
-    name: str
+    name: str = Field(default=None, example="file_0000.nxs")
     description: str = Field(default=None, example="Description")
     doi: str = Field(default=None, example="10.00000/00000")
     fileSize: int = None
@@ -47,7 +47,7 @@ class Datafile(BaseModel):
 
 
 class Dataset(BaseModel):
-    name: str
+    name: str = Field(default=None, example="scan_0000")
     complete: bool = True
     description: str = Field(default=None, example="Description")
     doi: str = Field(default=None, example="10.00000/00000")

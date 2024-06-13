@@ -2,6 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 import logging
 from typing import AsyncGenerator
+from urllib.error import URLError
 
 from fastapi import FastAPI
 from icat.entities import Entity
@@ -92,15 +93,19 @@ async def poll_fts() -> None:
     icat_client = IcatClient()
     icat_client.login_functional()
     while True:
-        LOGGER.info("Polling FTS for job statuses")
-        parameters = icat_client.get_entities(
-            entity="DatasetParameter",
-            equals={"type.name": icat_client.settings.parameter_type_job_ids},
-            includes="1",
-        )
-        beans_to_delete = update_jobs(icat_client, parameters)
-        icat_client.delete_many(beans=beans_to_delete)
+        LOGGER.info("Polling ICAT/FTS for job statuses")
+        try:
+            parameters = icat_client.get_entities(
+                entity="DatasetParameter",
+                equals={"type.name": icat_client.settings.parameter_type_job_ids},
+                includes="1",
+            )
+            beans_to_delete = update_jobs(icat_client, parameters)
+            icat_client.delete_many(beans=beans_to_delete)
+        except URLError as e:
+            LOGGER.error("Unable to poll for job statuses: %s", str(e))
         await asyncio.sleep(60)
+        icat_client.client.refresh()
 
 
 def update_jobs(icat_client: IcatClient, parameters: list[Entity]) -> list[Entity]:

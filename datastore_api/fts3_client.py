@@ -1,8 +1,12 @@
 from functools import lru_cache
+import logging
 
 import fts3.rest.client.easy as fts3
 
 from datastore_api.config import get_settings
+
+
+LOGGER = logging.getLogger(__name__)
 
 
 class Fts3Client:
@@ -38,10 +42,8 @@ class Fts3Client:
             dict[str, list]: Transfer dict for moving `path` to tape.
         """
         source = f"{self.instrument_data_cache}{path}"
-        alternate_source = f"{self.user_data_cache}{path}"
         destination = f"{self.tape_archive}{path}"
         transfer = fts3.new_transfer(source=source, destination=destination)
-        transfer["sources"].append(alternate_source)
         return transfer
 
     def restore(self, path: str) -> dict[str, list]:
@@ -77,6 +79,7 @@ class Fts3Client:
             bring_online=self.bring_online if stage else -1,
             archive_timeout=self.archive_timeout if not stage else -1,
         )
+        LOGGER.debug("Submitting job to FTS: %s", job)
         return fts3.submit(context=self.context, job=job)
 
     def status(self, job_id: str, list_files: bool = False) -> dict:
