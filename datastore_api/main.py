@@ -123,11 +123,13 @@ def archive(
     return ArchiveResponse(job_ids=investigation_archiver.job_ids)
 
 
-# TODO: improve documentation
 @app.post(
     "/restore/udc",
     response_description="The FTS job id for the requested transfer",
-    summary="Submit a request to restore experimental data, creating an FTS transfer",
+    summary=(
+        "Submit a request to restore experimental data to the UDC, "
+        "creating an FTS transfer"
+    ),
     tags=["Restore"],
 )
 def restore_udc(
@@ -135,7 +137,8 @@ def restore_udc(
     session_id: SessionIdDependency,
     fts3_client: Fts3ClientDependency,
 ) -> RestoreResponse:
-    """Submit a request to restore experimental data to UDC, creating an FTS transfer.
+    """Submit a request to restore experimental data to the UDC,
+    creating an FTS transfer.
     \f
     Args:
         restore_request (RestoreRequest): ICAT ids for Investigations to restore
@@ -154,7 +157,7 @@ def restore_udc(
     restore_controller = RestoreController(
         fts3_client=fts3_client,
         paths=paths,
-        cache="udc",  # TODO: is there a better way to do it?
+        destination_cache=fts3_client.user_data_cache,
     )
     restore_controller.create_fts_jobs()
 
@@ -164,11 +167,13 @@ def restore_udc(
     return RestoreResponse(job_ids=restore_controller.job_ids)
 
 
-# TODO: what should be the enpoint path?
 @app.post(
     "/restore/download",
     response_description="The FTS job id for the requested transfer",
-    summary="Submit a request to restore experimental data, creating an FTS transfer",
+    summary=(
+        "Submit a request to restore experimental data to the download cache, "
+        "creating an FTS transfer"
+    ),
     tags=["Restore"],
 )
 def restore_download(
@@ -176,7 +181,8 @@ def restore_download(
     session_id: SessionIdDependency,
     fts3_client: Fts3ClientDependency,
 ) -> RestoreResponse:
-    """Submit a request to restore experimental data, creating an FTS transfer.
+    """Submit a request to restore experimental data to the download cache,
+    creating an FTS transfer.
     \f
     Args:
         download_request (RestoreRequest): ICAT ids for Investigations to restore.
@@ -193,11 +199,10 @@ def restore_download(
         datafile_ids=download_request.datafile_ids,
     )
 
-    # TODO: do we need a 'cache' type? or just passing strings is sufficient
     download_controller = RestoreController(
         fts3_client=fts3_client,
         paths=paths,
-        cache="dc",
+        destination_cache=fts3_client.download_cache,
     )
     download_controller.create_fts_jobs()
 
@@ -215,16 +220,17 @@ def restore_download(
 @app.get(
     "data",
     response_description="The URL to download the data",
-    summary="Get the download link for the records in download cache",
+    summary="Get the download link for the records in the download cache",
     tags=["data"],
 )
 def get_data() -> None:
-    """Get the download link for records in download cache
-    \f
-    Args:
-    Returns:
-    """
+    """Get the download link for the records in the download cache
 
+    Args:
+
+    Returns:
+
+    """
     raise Exception("not implemented")
 
 

@@ -45,21 +45,18 @@ class Fts3Client:
         transfer["sources"].append(alternate_source)
         return transfer
 
-    # TODO: Do we want to use the cache string as a variable?
-    def restore(self, path: str, cache: str) -> dict[str, list]:
+    def restore(self, path: str, destination_cache: str) -> dict[str, list]:
         """Returns a transfer dict moving `path` from tape to the UDC.
 
         Args:
             path (str): Path of the file to be moved.
-            cache (str): cache to move the file to
+            destination_cache (str): URL of the destination cache.
 
         Returns:
             dict[str, list]: Transfer dict for moving `path` to the UDC.
         """
         source = f"{self.tape_archive}{path}"
-        destination = (
-            f"{self.user_data_cache if cache == 'udc' else self.download_cache}{path}"
-        )
+        destination = f"{destination_cache}{path}"
         return fts3.new_transfer(source=source, destination=destination)
 
     # def download(self, path: str) -> dict[str, list]:
