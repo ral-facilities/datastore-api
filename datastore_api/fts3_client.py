@@ -55,24 +55,19 @@ class Fts3Client:
         Returns:
             dict[str, list]: Transfer dict for moving `path` to the UDC.
         """
-        source = f"{self.tape_archive}{path}"
+        source = (
+            f"{self.tape_archive}{path}"
+            f"{'?copy_mode=push' if destination_cache == self.download_cache else ''}"
+        )
         destination = f"{destination_cache}{path}"
         return fts3.new_transfer(source=source, destination=destination)
 
-    # def download(self, path: str) -> dict[str, list]:
-    #     """Returns a transfer dict moving `path` from tape to the download cache.
-
-    #     Args:
-    #         path (str): Path of the file to be moved.
-
-    #     Returns:
-    #         dict[str, list]: Transfer dict for moving `path` to the download cache.
-    #     """
-    #     source = f"{self.tape_archive}{path}"
-    #     destination = f"{self.download_cache}{path}"
-    #     return fts3.new_transfer(source=source, destination=destination)
-
-    def submit(self, transfers: list[dict[str, list]], stage: bool = False) -> str:
+    def submit(
+        self,
+        transfers: list[dict[str, list]],
+        stage: bool = False,
+        strict_copy: bool = False,
+    ) -> str:
         """Submit a single FTS job for the `transfers`.
 
         Args:
@@ -91,6 +86,8 @@ class Fts3Client:
             verify_checksum=self.verify_checksum.value,
             bring_online=self.bring_online if stage else -1,
             archive_timeout=self.archive_timeout if not stage else -1,
+            strict_copy=strict_copy,
+            # s3alternate=strict_copy,  # TODO: ??
         )
         return fts3.submit(context=self.context, job=job)
 

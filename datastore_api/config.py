@@ -126,9 +126,18 @@ class Fts3Settings(BaseModel):
         return x509_user_proxy
 
 
+class S3Settings(BaseModel):
+    endpoint: str
+    access_key: str
+    secret_key: str
+    simulated_data_bucket: str
+    storage_bucket: str
+
+
 class Settings(BaseSettings):
     icat: IcatSettings
     fts3: Fts3Settings
+    s3: S3Settings
 
     class Config:
         @classmethod

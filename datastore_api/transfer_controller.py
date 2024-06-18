@@ -10,7 +10,7 @@ from datastore_api.models.archive import Dataset, Investigation
 class TransferController(ABC):
     """ABC for controlling and batching requests to the Fts3Client."""
 
-    def __init__(self, fts3_client: Fts3Client) -> None:
+    def __init__(self, fts3_client: Fts3Client, strict_copy: bool = False) -> None:
         """Initialises the controller with the Fts3Client to use.
 
         Args:
@@ -22,6 +22,7 @@ class TransferController(ABC):
         self.job_ids = []
         self.stage = False
         self.total_transfers = 0
+        self.strict_copy = strict_copy
 
     def create_fts_jobs(self) -> None:
         """Iterates over `self.paths`, creating and submitting transfers to FTS as
@@ -47,7 +48,11 @@ class TransferController(ABC):
                 the request. Defaults to 1.
         """
         if len(self.transfers) >= minimum_transfers:
-            job_id = self.fts3_client.submit(self.transfers, self.stage)
+            job_id = self.fts3_client.submit(
+                self.transfers,
+                self.stage,
+                self.strict_copy,
+            )
             self.job_ids.append(job_id)
             self.total_transfers += len(self.transfers)
             self.transfers = []

@@ -23,6 +23,7 @@ from datastore_api.models.job import (
 from datastore_api.models.login import LoginRequest, LoginResponse
 from datastore_api.models.restore import RestoreRequest, RestoreResponse
 from datastore_api.models.version import VersionResponse
+from datastore_api.s3_client import S3Client
 from datastore_api.transfer_controller import RestoreController
 
 
@@ -223,15 +224,19 @@ def restore_download(
     summary="Get the download link for the records in the download cache",
     tags=["data"],
 )
-def get_data() -> None:
-    """Get the download link for the records in the download cache
+def get_data(object_names: list[str]) -> dict[str, str]:
+    """Get the download links for the records in the download cache
 
     Args:
 
     Returns:
 
     """
-    raise Exception("not implemented")
+    # TODO: ??
+    links = {}
+    for name in object_names:
+        links[name] = S3Client().s3_client.create_presigned_url(object_name=name)
+    return links
 
 
 @app.delete(
