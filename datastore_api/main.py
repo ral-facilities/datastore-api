@@ -1,5 +1,6 @@
 from importlib import metadata
 import logging
+import re
 from typing import Annotated
 
 
@@ -217,25 +218,32 @@ def restore_download(
     return RestoreResponse(job_ids=download_controller.job_ids)
 
 
-# TODO: implement the getData endpoint
 @app.get(
     "data",
     response_description="The URL to download the data",
     summary="Get the download link for the records in the download cache",
     tags=["data"],
 )
-def get_data(object_names: list[str]) -> dict[str, str]:
+def get_data(job_ids: list, fts3_client: Fts3ClientDependency) -> dict[str, str]:
     """Get the download links for the records in the download cache
 
     Args:
+        job_ids (list): List of job IDs.
+        fts3_client (Fts3ClientDependency): Cached client for calls to FTS.
 
     Returns:
-
+        dict[str, str]: Dictionary with generated presigned urls.
     """
-    # TODO: ??
     links = {}
-    for name in object_names:
-        links[name] = S3Client().s3_client.create_presigned_url(object_name=name)
+    status = fts3_client.status(job_id=job_ids, list_files=True)
+    for job in status:
+        for file in job["files"]:
+            # TODO: test if this works
+            name = re.search(r"([^/]+)/?(?=\?)", file["dest_surl"]).group(1)
+            links[name] = S3Client().s3_client.create_presigned_url(
+                object_name=name,
+            )
+
     return links
 
 

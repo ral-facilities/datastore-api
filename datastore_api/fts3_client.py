@@ -87,15 +87,18 @@ class Fts3Client:
             bring_online=self.bring_online if stage else -1,
             archive_timeout=self.archive_timeout if not stage else -1,
             strict_copy=strict_copy,
-            # s3alternate=strict_copy,  # TODO: ??
         )
         return fts3.submit(context=self.context, job=job)
 
-    def status(self, job_id: str, list_files: bool = False) -> dict:
+    def status(
+        self,
+        job_id: str | list[str],
+        list_files: bool = False,
+    ) -> dict:
         """Get full status dict (including state) for an FTS job.
 
         Args:
-            job_id (str): UUID4 for an FTS job.
+            job_id (str or list): UUID4 for an FTS job.
             list_files (bool, optional):
                 If True, will return the list of individual file statuses.
                 Defaults to False.
@@ -103,11 +106,18 @@ class Fts3Client:
         Returns:
             dict: FTS status dict for `job_id`.
         """
-        return fts3.get_job_status(
-            context=self.context,
-            job_id=job_id,
-            list_files=list_files,
-        )
+        if type(job_id) is list:
+            return fts3.get_job_statuses(
+                context=self.context,
+                job_id=job_id,
+                list_files=list_files,
+            )
+        else:
+            return fts3.get_job_status(
+                context=self.context,
+                job_id=job_id,
+                list_files=list_files,
+            )
 
     def cancel(self, job_id: str) -> str:
         """Cancel an FTS job.
