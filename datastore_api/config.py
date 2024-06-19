@@ -70,7 +70,7 @@ class Fts3Settings(BaseModel):
     @validator(
         "instrument_data_cache",
         "user_data_cache",
-        # "download_cache", # TODO: uncomment later
+        "download_cache",
         "tape_archive",
     )
     def _validate_endpoint(cls, v: str) -> str:

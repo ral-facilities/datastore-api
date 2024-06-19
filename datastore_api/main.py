@@ -219,12 +219,12 @@ def restore_download(
 
 
 @app.get(
-    "data",
+    "/data",
     response_description="The URL to download the data",
     summary="Get the download link for the records in the download cache",
     tags=["data"],
 )
-def get_data(job_ids: list, fts3_client: Fts3ClientDependency) -> dict[str, str]:
+def get_data(job_ids: list[str], fts3_client: Fts3ClientDependency) -> dict[str, str]:
     """Get the download links for the records in the download cache
 
     Args:
@@ -239,7 +239,7 @@ def get_data(job_ids: list, fts3_client: Fts3ClientDependency) -> dict[str, str]
     for job in status:
         for file in job["files"]:
             # TODO: test if this works
-            name = re.search(r"([^/]+)/?(?=\?)", file["dest_surl"]).group(1)
+            name = re.search(r"\/([^\/?]+)(?:\?|$)", file["dest_surl"]).group(1)
             links[name] = S3Client().s3_client.create_presigned_url(
                 object_name=name,
             )
