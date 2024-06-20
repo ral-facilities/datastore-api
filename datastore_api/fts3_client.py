@@ -106,18 +106,14 @@ class Fts3Client:
         Returns:
             dict: FTS status dict for `job_id`.
         """
-        if type(job_id) is list:
-            return fts3.get_job_statuses(
-                context=self.context,
-                job_id=job_id,
-                list_files=list_files,
-            )
-        else:
-            return fts3.get_job_status(
-                context=self.context,
-                job_id=job_id,
-                list_files=list_files,
-            )
+        if type(job_id) is str:
+            job_id = list(job_id)
+
+        return fts3.get_jobs_statuses(
+            context=self.context,
+            job_ids=job_id,
+            list_files=list_files,
+        )
 
     def cancel(self, job_id: str) -> str:
         """Cancel an FTS job.

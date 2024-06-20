@@ -4,7 +4,7 @@ import re
 from typing import Annotated
 
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from datastore_api.auth import validate_session_id
@@ -224,9 +224,12 @@ def restore_download(
     summary="Get the download link for the records in the download cache",
     tags=["data"],
 )
-def get_data(job_ids: list[str], fts3_client: Fts3ClientDependency) -> dict[str, str]:
+def get_data(
+    fts3_client: Fts3ClientDependency,
+    job_ids: Annotated[list[str], Query()],
+) -> dict[str, str]:
     """Get the download links for the records in the download cache
-
+    \f
     Args:
         job_ids (list): List of job IDs.
         fts3_client (Fts3ClientDependency): Cached client for calls to FTS.
@@ -238,9 +241,8 @@ def get_data(job_ids: list[str], fts3_client: Fts3ClientDependency) -> dict[str,
     status = fts3_client.status(job_id=job_ids, list_files=True)
     for job in status:
         for file in job["files"]:
-            # TODO: test if this works
             name = re.search(r"\/([^\/?]+)(?:\?|$)", file["dest_surl"]).group(1)
-            links[name] = S3Client().s3_client.create_presigned_url(
+            links[name] = S3Client().create_presigned_url(
                 object_name=name,
             )
 
@@ -287,7 +289,7 @@ def status(job_id: str, fts3_client: Fts3ClientDependency) -> StatusResponse:
         StatusResponse: Details of the requested job.
     """
     status = fts3_client.status(job_id=job_id)
-    return StatusResponse(status=status)
+    return StatusResponse(status=status[0])
 
 
 @app.get(
@@ -308,7 +310,7 @@ def complete(job_id: str, fts3_client: Fts3ClientDependency) -> CompleteResponse
     """
     status = fts3_client.status(job_id=job_id)
     complete_states = (JobState.finished, JobState.finished_dirty, JobState.failed)
-    return CompleteResponse(complete=status["job_state"] in complete_states)
+    return CompleteResponse(complete=status[0]["job_state"] in complete_states)
 
 
 @app.get(
@@ -329,8 +331,8 @@ def percentage(job_id: str, fts3_client: Fts3ClientDependency) -> PercentageResp
     """
     files_complete = 0
     status = fts3_client.status(job_id=job_id)
-    files_total = len(status["files"])
-    for file in status["files"]:
+    files_total = len(status[0]["files"])
+    for file in status[0]["files"]:
         if file["file_state"] in (TransferState.finished, TransferState.failed):
             files_complete += 1
 

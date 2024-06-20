@@ -13,8 +13,17 @@ from tests.fixtures import investigation_metadata, mock_fts3_settings, submit
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
-FILES = [{"file_state": "FINISHED"}, {"file_state": "FAILED"}]
-STATUS = {"job_state": "FINISHEDDIRTY", "files": FILES}
+FILES = [
+    {
+        "file_state": "FINISHED",
+        "dest_surl": "mock://test.cern.ch/ttqv/pryb/nnvw?size_post=1048576&time=2",
+    },
+    {
+        "file_state": "FAILED",
+        "dest_surl": "mock://test.cern.ch/swnx/jznu/laso?size_post=1048576&time=2",
+    },
+]
+STATUSES = [{"job_state": "FINISHEDDIRTY", "files": FILES}]
 
 
 @pytest.fixture(scope="function")
@@ -39,8 +48,8 @@ def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
     fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
     fts_submit_mock.return_value = SESSION_ID
 
-    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
-    fts_status_mock.return_value = STATUS
+    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_jobs_statuses")
+    fts_status_mock.return_value = STATUSES
 
     fts_cancel_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
     fts_cancel_mock.return_value = "CANCELED"
@@ -73,7 +82,7 @@ class TestMain:
         assert len(content["job_ids"]) == 1
         UUID4(content["job_ids"][0])
 
-    def test_restore(self, test_client: TestClient):
+    def test_restore_to_udc(self, test_client: TestClient):
         restore_request = RestoreRequest(investigation_ids=[0])
         json_body = json.loads(restore_request.json())
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
@@ -89,13 +98,38 @@ class TestMain:
         assert len(content["job_ids"]) == 1
         UUID4(content["job_ids"][0])
 
+    def test_restore_to_download(self, test_client: TestClient):
+        restore_request = RestoreRequest(investigation_ids=[0])
+        json_body = json.loads(restore_request.json())
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.post(
+            "/restore/download",
+            headers=headers,
+            json=json_body,
+        )
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID4(content["job_ids"][0])
+
+    def test_get_data(self, test_client: TestClient):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get("/data?job_ids=1&job_ids=2", headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "nnvw" in content
+        assert "laso" in content
+
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/job/1", headers=headers)
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"status": STATUS}
+        assert content == {"status": STATUSES[0]}
 
     def test_complete(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}

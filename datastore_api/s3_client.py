@@ -13,7 +13,7 @@ class S3Client:
 
     def __init__(self) -> None:
         """ """
-        self.resource = boto3.client(
+        self.resource = boto3.resource(
             "s3",
             endpoint_url=get_settings().s3.endpoint,
             aws_access_key_id=get_settings().s3.access_key,
@@ -40,7 +40,7 @@ class S3Client:
         try:
             response = self.client.generate_presigned_url(
                 "get_object",
-                Params={"Bucket": self.bucket, "Key": object_name},
+                Params={"Bucket": self.bucket.name, "Key": object_name},
                 ExpiresIn=expiration,
             )
         except ClientError as e:
