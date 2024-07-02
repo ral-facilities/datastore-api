@@ -114,14 +114,20 @@ class TestMain:
         assert len(content["job_ids"]) == 1
         UUID4(content["job_ids"][0])
 
-    def test_get_data(self, test_client: TestClient):
+    def test_get_data(self, test_client: TestClient, mock_fts3_settings: Settings):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/data?job_ids=1&job_ids=2", headers=headers)
+
+        url = mock_fts3_settings.s3.endpoint
+        bucket = mock_fts3_settings.s3.storage_bucket
+        key = mock_fts3_settings.s3.access_key
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert "nnvw" in content
+        assert f"{url}/{bucket}/nnvw?AWSAccessKeyId={key}" in content["nnvw"]
         assert "laso" in content
+        assert f"{url}/{bucket}/laso?AWSAccessKeyId={key}" in content["laso"]
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
