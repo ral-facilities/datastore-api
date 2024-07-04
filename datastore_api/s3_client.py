@@ -13,22 +13,23 @@ class S3Client:
 
     def __init__(self) -> None:
         """ """
+        self.settings = get_settings().s3
         self.resource = boto3.resource(
             "s3",
-            endpoint_url=get_settings().s3.endpoint,
-            aws_access_key_id=get_settings().s3.access_key,
-            aws_secret_access_key=get_settings().s3.secret_key,
+            endpoint_url=self.settings.endpoint,
+            aws_access_key_id=self.settings.access_key,
+            aws_secret_access_key=self.settings.secret_key,
         )
         self.client = boto3.client(
             "s3",
-            endpoint_url=get_settings().s3.endpoint,
-            aws_access_key_id=get_settings().s3.access_key,
-            aws_secret_access_key=get_settings().s3.secret_key,
+            endpoint_url=self.settings.endpoint,
+            aws_access_key_id=self.settings.access_key,
+            aws_secret_access_key=self.settings.secret_key,
         )
         self.simulated_data_bucket = self.resource.Bucket(
-            get_settings().s3.simulated_data_bucket,
+            self.settings.simulated_data_bucket,
         )
-        self.bucket = self.resource.Bucket(get_settings().s3.storage_bucket)
+        self.bucket = self.resource.Bucket(self.settings.storage_bucket)
 
     def create_presigned_url(self, object_name, expiration=3600):
         """_summary_

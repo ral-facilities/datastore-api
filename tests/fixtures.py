@@ -65,7 +65,7 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
 
         mocker.patch("datastore_api.fts3_client.fts3.Context")
 
-    for module in {"fts3_client", "icat_client", "models.archive"}:
+    for module in {"fts3_client", "icat_client", "s3_client", "models.archive"}:
         get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
         get_settings_mock.return_value = settings
 
