@@ -18,8 +18,6 @@ fts3:
   x509_user_key: hostkey.pem
   
 s3:
-  endpoint: https://localhost
+  endpoint: https://s3storage
   access_key: access_key
   secret_key: secret_key
-  simulated_data_bucket: 'simulated_bucket_name'
-  storage_bucket: 'bucket_name'
