@@ -22,7 +22,7 @@ class Fts3Client:
         )
         self.instrument_data_cache = fts_settings.instrument_data_cache
         self.user_data_cache = fts_settings.user_data_cache
-        self.download_cache = fts_settings.download_cache
+        self.download_cache = get_settings().s3.endpoint
         self.tape_archive = fts_settings.tape_archive
         self.retry = fts_settings.retry
         self.verify_checksum = fts_settings.verify_checksum
@@ -57,7 +57,7 @@ class Fts3Client:
         """
         source = (
             f"{self.tape_archive}{path}"
-            f"{'?copy_mode=push' if destination_cache == self.download_cache else ''}"
+            f"{'?copy_mode=push' if self.download_cache in destination_cache else ''}"
         )
         destination = f"{destination_cache}{path}"
         return fts3.new_transfer(source=source, destination=destination)

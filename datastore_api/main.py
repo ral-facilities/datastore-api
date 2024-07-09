@@ -192,6 +192,7 @@ def restore_download(
         fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
+        bucket['Location'] (str): name of the created storage bucket
         RestoreResponse: FTS job_id for download transfer.
     """
     icat_client = IcatClient(session_id=session_id)
@@ -201,10 +202,17 @@ def restore_download(
         datafile_ids=download_request.datafile_ids,
     )
 
+    # TODO: what should we name the buckets? do we need to return the name?
+    bucket = S3Client().create_bucket(bucket_name=session_id)
+
+    # need to change the protocol for fts transfers
+    # https://fts3-docs.web.cern.ch/fts3-docs/docs/s3_support.html#submitting-s3-transfers
+    s3s_endpoint = fts3_client.download_cache.replace("https", "s3s")
+
     download_controller = RestoreController(
         fts3_client=fts3_client,
         paths=paths,
-        destination_cache=fts3_client.download_cache,
+        destination_cache=f"{s3s_endpoint}{bucket['Location']}",
     )
     download_controller.create_fts_jobs()
 
@@ -215,7 +223,8 @@ def restore_download(
         download_controller.job_ids,
     )
 
-    return RestoreResponse(job_ids=download_controller.job_ids)
+    # TODO: should be a better way to do it
+    return (bucket["Location"], RestoreResponse(job_ids=download_controller.job_ids))
 
 
 @app.get(
@@ -225,12 +234,14 @@ def restore_download(
     tags=["data"],
 )
 def get_data(
+    session_id: SessionIdDependency,
     fts3_client: Fts3ClientDependency,
     job_ids: Annotated[list[str], Query()],
 ) -> dict[str, str]:
     """Get the download links for the records in the download cache
     \f
     Args:
+        session_id (str): session is used as bucket name
         job_ids (list): List of job IDs.
         fts3_client (Fts3ClientDependency): Cached client for calls to FTS.
 
@@ -244,6 +255,7 @@ def get_data(
             name = re.search(r"\/([^\/?]+)(?:\?|$)", file["dest_surl"]).group(1)
             links[name] = S3Client().create_presigned_url(
                 object_name=name,
+                bucket_name=session_id,
             )
 
     return links

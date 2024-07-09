@@ -118,16 +118,16 @@ class TestMain:
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/data?job_ids=1&job_ids=2", headers=headers)
 
-        url = mock_fts3_settings.s3.endpoint
-        bucket = mock_fts3_settings.s3.storage_bucket
+        url = mock_fts3_settings.s3.endpoint[0:-2]
         key = mock_fts3_settings.s3.access_key
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert "nnvw" in content
-        assert f"{url}/{bucket}/nnvw?AWSAccessKeyId={key}" in content["nnvw"]
+        # note that SESSION_ID is used here as the bucket name
+        assert f"{url}/{SESSION_ID}/nnvw?AWSAccessKeyId={key}" in content["nnvw"]
         assert "laso" in content
-        assert f"{url}/{bucket}/laso?AWSAccessKeyId={key}" in content["laso"]
+        assert f"{url}/{SESSION_ID}/laso?AWSAccessKeyId={key}" in content["laso"]
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}

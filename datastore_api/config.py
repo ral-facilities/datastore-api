@@ -70,7 +70,6 @@ class Fts3Settings(BaseModel):
     @validator(
         "instrument_data_cache",
         "user_data_cache",
-        "download_cache",
         "tape_archive",
     )
     def _validate_endpoint(cls, v: str) -> str:
@@ -130,8 +129,35 @@ class S3Settings(BaseModel):
     endpoint: str
     access_key: str
     secret_key: str
-    simulated_data_bucket: str
-    storage_bucket: str
+
+    # TODO: this validator is the same as the one in FTS3 settings
+    # is there a way to avoid repetition?
+    @validator("endpoint")
+    def _validate_endpoint(cls, v: str) -> str:
+        double_slash_count = v.count("//")
+        message = f"S3 endpoint {v} did contain second '//', appending"
+        error_message = (
+            f"S3 endpoint {v} did not contain '//' twice in the form:\n"
+            "protocol://hostname//path/to/root/dir/"
+        )
+        if double_slash_count == 2:
+            if v.endswith("/"):
+                return v
+            else:
+                message = f"S3 endpoint {v} did not end with trailing '/', appending"
+                LOGGER.warn(message)
+                return f"{v}/"
+        elif double_slash_count == 1:
+            if v.endswith("//"):
+                raise ValueError(error_message)
+            elif v.endswith("/"):
+                LOGGER.warn(message)
+                return f"{v}/"
+            else:
+                LOGGER.warn(message)
+                return f"{v}//"
+        else:
+            raise ValueError(error_message)
 
 
 class Settings(BaseSettings):
