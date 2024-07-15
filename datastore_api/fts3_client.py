@@ -14,20 +14,20 @@ class Fts3Client:
         Args:
             fts_settings (Fts3Settings): Settings for FTS3 operations.
         """
-        fts_settings = get_settings().fts3
+        settings = get_settings()
         self.context = fts3.Context(
-            endpoint=fts_settings.endpoint,
-            ucert=fts_settings.x509_user_cert,
-            ukey=fts_settings.x509_user_key,
+            endpoint=settings.fts3.endpoint,
+            ucert=settings.fts3.x509_user_cert,
+            ukey=settings.fts3.x509_user_key,
         )
-        self.instrument_data_cache = fts_settings.instrument_data_cache
-        self.user_data_cache = fts_settings.user_data_cache
-        self.download_cache = get_settings().s3.endpoint
-        self.tape_archive = fts_settings.tape_archive
-        self.retry = fts_settings.retry
-        self.verify_checksum = fts_settings.verify_checksum
-        self.bring_online = fts_settings.bring_online
-        self.archive_timeout = fts_settings.archive_timeout
+        self.instrument_data_cache = settings.fts3.instrument_data_cache
+        self.user_data_cache = settings.fts3.user_data_cache
+        self.download_cache = settings.s3.endpoint
+        self.tape_archive = settings.fts3.tape_archive
+        self.retry = settings.fts3.retry
+        self.verify_checksum = settings.fts3.verify_checksum
+        self.bring_online = settings.fts3.bring_online
+        self.archive_timeout = settings.fts3.archive_timeout
 
     def archive(self, path: str) -> dict[str, list]:
         """Returns a transfer dict moving `path` from one of the caches to tape.
@@ -94,8 +94,8 @@ class Fts3Client:
         self,
         job_id: str | list[str],
         list_files: bool = False,
-    ) -> dict:
-        """Get full status dict (including state) for an FTS job.
+    ) -> list[dict]:
+        """Get full status dicts (including state) for one or more FTS jobs.
 
         Args:
             job_id (str or list): UUID4 for an FTS job.
@@ -104,7 +104,7 @@ class Fts3Client:
                 Defaults to False.
 
         Returns:
-            dict: FTS status dict for `job_id`.
+            list[dict]: FTS status dicts for `job_id`.
         """
         if type(job_id) is str:
             job_id = list(job_id)

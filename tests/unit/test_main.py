@@ -8,7 +8,7 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest, Investigation
-from datastore_api.models.restore import RestoreRequest
+from datastore_api.models.restore import DownloadRequest, RestoreRequest
 from tests.fixtures import investigation_metadata, mock_fts3_settings, submit
 
 
@@ -99,7 +99,11 @@ class TestMain:
         UUID4(content["job_ids"][0])
 
     def test_restore_to_download(self, test_client: TestClient):
-        restore_request = RestoreRequest(investigation_ids=[0])
+        bucket_name = "localtestbucket1"
+        restore_request = DownloadRequest(
+            investigation_ids=[0],
+            bucket_name=bucket_name,
+        )
         json_body = json.loads(restore_request.json())
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post(
@@ -114,20 +118,36 @@ class TestMain:
         assert len(content["job_ids"]) == 1
         UUID4(content["job_ids"][0])
 
-    def test_get_data(self, test_client: TestClient, mock_fts3_settings: Settings):
+        # TODO: for now delete the bucket to avoid them piling up
+        # Probably change later for get_data testing
+        test_client.delete(
+            f"/delete_bucket/{bucket_name}",
+            headers=headers,
+        )
+
+    def test_get_data(
+        self,
+        test_client: TestClient,
+        mock_fts3_settings: Settings,
+    ):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
-        test_response = test_client.get("/data?job_ids=1&job_ids=2", headers=headers)
+        test_response = test_client.get(
+            "/data?bucket_name=miniotestbucket",
+            headers=headers,
+        )
 
         url = mock_fts3_settings.s3.endpoint[0:-2]
         key = mock_fts3_settings.s3.access_key
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert "nnvw" in content
-        # note that SESSION_ID is used here as the bucket name
-        assert f"{url}/{SESSION_ID}/nnvw?AWSAccessKeyId={key}" in content["nnvw"]
-        assert "laso" in content
-        assert f"{url}/{SESSION_ID}/laso?AWSAccessKeyId={key}" in content["laso"]
+        # assert "nnvw" in content
+        # # note that SESSION_ID is used here as the bucket name
+        # assert f"{url}/{SESSION_ID}/nnvw?AWSAccessKeyId={key}" in content["nnvw"]
+        # assert "laso" in content
+        # assert f"{url}/{SESSION_ID}/laso?AWSAccessKeyId={key}" in content["laso"]
+        assert "test" in content
+        assert f"{url}/miniotestbucket/test?AWSAccessKeyId={key}" in content["test"]
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}

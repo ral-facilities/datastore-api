@@ -1,10 +1,9 @@
 from importlib import metadata
 import logging
-import re
 from typing import Annotated
 
 
-from fastapi import Depends, FastAPI, Query
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from datastore_api.auth import validate_session_id
@@ -22,7 +21,11 @@ from datastore_api.models.job import (
     TransferState,
 )
 from datastore_api.models.login import LoginRequest, LoginResponse
-from datastore_api.models.restore import RestoreRequest, RestoreResponse
+from datastore_api.models.restore import (
+    DownloadRequest,
+    RestoreRequest,
+    RestoreResponse,
+)
 from datastore_api.models.version import VersionResponse
 from datastore_api.s3_client import S3Client
 from datastore_api.transfer_controller import RestoreController
@@ -179,7 +182,7 @@ def restore_udc(
     tags=["Restore"],
 )
 def restore_download(
-    download_request: RestoreRequest,
+    download_request: DownloadRequest,
     session_id: SessionIdDependency,
     fts3_client: Fts3ClientDependency,
 ) -> RestoreResponse:
@@ -202,8 +205,9 @@ def restore_download(
         datafile_ids=download_request.datafile_ids,
     )
 
-    # TODO: what should we name the buckets? do we need to return the name?
-    bucket = S3Client().create_bucket(bucket_name=session_id)
+    # TODO: we assume that DG generates the bucket name
+    # so do we should probably check if the bucket already exists?
+    bucket = S3Client().create_bucket(bucket_name=download_request.bucket_name)
 
     # need to change the protocol for fts transfers
     # https://fts3-docs.web.cern.ch/fts3-docs/docs/s3_support.html#submitting-s3-transfers
@@ -213,9 +217,9 @@ def restore_download(
         fts3_client=fts3_client,
         paths=paths,
         destination_cache=f"{s3s_endpoint}{bucket['Location']}",
+        strict_copy=True,
     )
     download_controller.create_fts_jobs()
-
     message = "Submitted FTS download jobs for %s transfers with ids %s"
     LOGGER.info(
         message,
@@ -223,8 +227,17 @@ def restore_download(
         download_controller.job_ids,
     )
 
-    # TODO: should be a better way to do it
-    return (bucket["Location"], RestoreResponse(job_ids=download_controller.job_ids))
+    # TODO: What should be the tag value?
+    # MAX 50 TAGS
+    # Keys and Values can be max 128 characters long
+    tags = []
+    for job in download_controller.job_ids:
+        tags.append({"Key": job, "Value": "restoring"})
+
+    S3Client().tag_bucket(bucket_name=download_request.bucket_name, tags=tags)
+    # print(S3Client().get_bucket_tags(bucket_name=download_request.bucket_name))
+
+    return RestoreResponse(job_ids=download_controller.job_ids)
 
 
 @app.get(
@@ -236,7 +249,7 @@ def restore_download(
 def get_data(
     session_id: SessionIdDependency,
     fts3_client: Fts3ClientDependency,
-    job_ids: Annotated[list[str], Query()],
+    bucket_name: str,
 ) -> dict[str, str]:
     """Get the download links for the records in the download cache
     \f
@@ -249,16 +262,29 @@ def get_data(
         dict[str, str]: Dictionary with generated presigned urls.
     """
     links = {}
-    status = fts3_client.status(job_id=job_ids, list_files=True)
-    for job in status:
-        for file in job["files"]:
-            name = re.search(r"\/([^\/?]+)(?:\?|$)", file["dest_surl"]).group(1)
-            links[name] = S3Client().create_presigned_url(
-                object_name=name,
-                bucket_name=session_id,
-            )
+    object_names = S3Client().list_bucket_objects(bucket_name=bucket_name)
+    for name in object_names:
+        links[name] = S3Client().create_presigned_url(
+            object_name=name,
+            bucket_name=bucket_name,
+        )
 
     return links
+
+
+@app.delete(
+    "/delete_bucket/{bucket_name}",
+    response_description="None",
+    summary="Delete a specified bucket",
+    tags=["data"],
+)
+def delete_bucket(bucket_name: str) -> None:
+    """Delete an S3 bucket with its content
+
+    Args:
+        bucket_name (str): Name of the bucket to delete
+    """
+    S3Client().delete_bucket(bucket_name=bucket_name)
 
 
 @app.delete(

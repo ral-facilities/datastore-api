@@ -13,7 +13,11 @@ class S3Client:
     """Wrapper for S3 functionality."""
 
     def __init__(self) -> None:
-        """ """
+        """Initialise the client with the provided `s3_settings`.
+
+        Args:
+            s3_settings (S3Settings): Settings for S3 operations.
+        """
         self.settings = get_settings().s3
         self.resource = boto3.resource(
             "s3",
@@ -44,13 +48,12 @@ class S3Client:
         """
         return self.client.create_bucket(Bucket=bucket_name)
 
-    # TODO: do we need ExpectedBucketOwner?
-    def delete_bucket(self, bucket_name):
+    def delete_bucket(self, bucket_name: str):
         """Deletes a specified bucket and its contents
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/delete_bucket.html
 
         Args:
-            bucket_name (_type_): _description_
+            bucket_name (str): Name of the bucket to be deleted
         """
         # First need to empty the bucket
         # https://stackoverflow.com/questions/43326493/what-is-the-fastest-way-to-empty-s3-bucket-using-boto3
@@ -59,13 +62,15 @@ class S3Client:
 
         self.client.delete_bucket(Bucket=bucket_name)
 
-    def create_presigned_url(self, object_name, bucket_name, expiration=3600):
+    def create_presigned_url(self, object_name: str, bucket_name: str, expiration=3600):
         """Creates the download link for a single file in a bucket
         https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-presigned-urls.html
 
         Args:
-            object_name (_type_): _description_
-            expiration (int, optional): _description_. Defaults to 3600.
+            object_name (str): Name of the object in S3 bucket.
+            bucket_name (str): Name of the bucket containing the requested object.
+            expiration (int, optional): Expiration date of the download url.
+                Defaults to 3600.
         """
         # This try/except block is included in this aws example:
         # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
@@ -81,3 +86,54 @@ class S3Client:
         #     return None
 
         return response
+
+    def list_bucket_objects(self, bucket_name: str) -> list[str]:
+        """Lists objects in a S3 bucket
+
+        Args:
+            bucket_name (str): Name of the bucket
+
+        Returns:
+            list[str]: List of object names
+        """
+        object_names = []
+        # TODO: list_objects returns max 1000 objects. is it enough?
+        # Also, v2 is available:
+        # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/list_objects_v2.html
+        response = self.client.list_objects(Bucket=bucket_name)
+
+        for obj in response["Contents"]:
+            object_names.append(obj["Key"])
+
+        while response["IsTruncated"]:
+            response = self.client.list_objects(
+                Bucket=bucket_name,
+                Marker=response["NextMarker"],
+            )
+            for obj in response["Contents"]:
+                object_names.append(obj["Key"])
+
+        return object_names
+
+    def tag_bucket(self, bucket_name: str, tags: list) -> None:
+        """Tag a bucket with tags from a list
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/put_bucket_tagging.html
+
+        Args:
+            bucket_name (str): Name of the bucket to tag.
+            tags (list): List of tags in a form of dict with "Key" and "Value" keys.
+        """
+        self.client.put_bucket_tagging(Bucket=bucket_name, Tagging={"TagSet": tags})
+
+    def get_bucket_tags(self, bucket_name: str) -> list[dict]:
+        """Get tags from a specified bucket
+        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/get_bucket_tagging.html
+
+        Args:
+            bucket_name (str): Name of the bucket
+
+        Returns:
+            list[dict]: List of tags in a form of dict with "Key" and "Value" keys.
+        """
+        response = self.client.get_bucket_tagging(Bucket=bucket_name)
+        return response["TagSet"]
