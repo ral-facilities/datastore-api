@@ -17,5 +17,9 @@ class RestoreRequest(BaseModel):
         return values
 
 
+class DownloadRequest(RestoreRequest):
+    bucket_name: str
+
+
 class RestoreResponse(BaseModel):
     job_ids: list[str] = Field(example=["00000000-0000-0000-0000-000000000000"])

@@ -68,6 +68,7 @@ class RestoreController(TransferController):
         fts3_client: Fts3Client,
         paths: list[str],
         destination_cache: str,
+        strict_copy: bool = False,
     ) -> None:
         """Initialises the controller with the Fts3Client and paths to use.
 
@@ -76,7 +77,7 @@ class RestoreController(TransferController):
             paths (list[str]): File paths to restore.
             destination_cache (str): cache to restore file to
         """
-        super().__init__(fts3_client)
+        super().__init__(fts3_client, strict_copy)
         self.paths = paths
         self.stage = True
         self.destination_cache = destination_cache

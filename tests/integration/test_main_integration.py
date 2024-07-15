@@ -25,7 +25,7 @@ from datastore_api.models.archive import (
     Investigation,
     InvestigationType,
 )
-from datastore_api.models.restore import RestoreRequest
+from datastore_api.models.restore import DownloadRequest, RestoreRequest
 from tests.fixtures import (
     dataset_type,
     dataset_with_job_id,
@@ -430,15 +430,24 @@ class TestRestore:
         restore_ids: str,
     ):
         if restore_ids == "investigation_ids":
-            restore_request = RestoreRequest(investigation_ids=[investigation.id])
+            restore_request = DownloadRequest(
+                investigation_ids=[investigation.id],
+                bucket_name="test_bucket",
+            )
         elif restore_ids == "dataset_ids":
             equals = {"investigation.id": investigation.id}
             dataset = functional_icat_client.get_single_entity("Dataset", equals)
-            restore_request = RestoreRequest(dataset_ids=[dataset.id])
+            restore_request = DownloadRequest(
+                dataset_ids=[dataset.id],
+                bucket_name="test_bucket",
+            )
         elif restore_ids == "datafile_ids":
             equals = {"dataset.investigation.id": investigation.id}
             datafile = functional_icat_client.get_single_entity("Datafile", equals)
-            restore_request = RestoreRequest(datafile_ids=[datafile.id])
+            restore_request = DownloadRequest(
+                datafile_ids=[datafile.id],
+                bucket_name="test_bucket",
+            )
 
         json_body = json.loads(restore_request.json())
         headers = {"Authorization": f"Bearer {session_id}"}
@@ -456,7 +465,7 @@ class TestRestore:
 
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
         sources = [f"root://archive:1094//{path}"]
-        destinations = [f"root://localhost{path}"]  # TODO: Prob change this
+        destinations = [f"root://s3storage//{path}"]  # TODO: Prob change this
         job = fts_job(
             sources=sources,
             destinations=destinations,
@@ -491,11 +500,34 @@ class TestCancel:
         assert content == {"detail": "Archival jobs cannot be cancelled"}
 
 
-# TODO: implement get_data integration tests
-class TestGetData:
-    def test_get_data(
-        self,
-        test_client: TestClient,
-        mocker: MockerFixture,
-    ):
-        pass
+# class TestGetData:
+#     def test_get_data(
+#         self,
+#         test_client: TestClient,
+#         mocker: MockerFixture,
+#         session_id: session_id,
+#         submit: MagicMock,
+#         facility: Entity,
+#         investigation_type: Entity,
+#         facility_cycle: Entity,
+#         instrument: Entity,
+#         investigation: Entity,
+#         functional_icat_client: IcatClient,
+#         # restore_ids: str,
+#     ):
+#         path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
+#         sources = [f"root://idc:1094/{path}", f"root://udc:1094/{path}"]
+#         destinations = [f"root://archive:1094/{path}"]
+#         job = fts_job(
+#             sources=sources,
+#             destinations=destinations,
+#             archive_timeout=28800,
+#         )
+#         headers = {"Authorization": f"Bearer {session_id}"}
+#         test_response = test_client.get(
+#             "/data?job_ids=1&job_ids=2",
+#             headers=headers,
+#         )
+#         content = json.loads(test_response.content)
+#         assert test_response.status_code == 200, content
+#         assert content == {"state": "SUBMITTED"}

@@ -141,6 +141,6 @@ class TestFts3Settings:
             Fts3Settings._validate_endpoint(endpoint)
 
         assert e.exconly() == (
-            f"ValueError: FTS endpoint {endpoint} did not contain '//' twice in the "
+            f"ValueError: Endpoint {endpoint} did not contain '//' twice in the "
             "form:\nprotocol://hostname//path/to/root/dir/"
         )
