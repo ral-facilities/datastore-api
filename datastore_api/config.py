@@ -16,6 +16,33 @@ def yaml_config_settings_source(settings: BaseSettings) -> dict[str, Any]:
     return load_yaml("config.yaml", settings.__config__.env_file_encoding)
 
 
+def validate_endpoint(v: str) -> str:
+    double_slash_count = v.count("//")
+    message = f"Endpoint {v} did contain second '//', appending"
+    error_message = (
+        f"Endpoint {v} did not contain '//' twice in the form:\n"
+        "protocol://hostname//path/to/root/dir/"
+    )
+    if double_slash_count == 2:
+        if v.endswith("/"):
+            return v
+        else:
+            message = f"Endpoint {v} did not end with trailing '/', appending"
+            LOGGER.warn(message)
+            return f"{v}/"
+    elif double_slash_count == 1:
+        if v.endswith("//"):
+            raise ValueError(error_message)
+        elif v.endswith("/"):
+            LOGGER.warn(message)
+            return f"{v}/"
+        else:
+            LOGGER.warn(message)
+            return f"{v}//"
+    else:
+        raise ValueError(error_message)
+
+
 class IcatUser(BaseModel):
     auth: str
     username: str
@@ -47,7 +74,6 @@ class Fts3Settings(BaseModel):
     endpoint: str
     instrument_data_cache: str
     user_data_cache: str
-    download_cache: str = None  # TODO: change it later
     tape_archive: str
     x509_user_proxy: str = None
     x509_user_key: str = None
@@ -73,30 +99,7 @@ class Fts3Settings(BaseModel):
         "tape_archive",
     )
     def _validate_endpoint(cls, v: str) -> str:
-        double_slash_count = v.count("//")
-        message = f"FTS endpoint {v} did contain second '//', appending"
-        error_message = (
-            f"FTS endpoint {v} did not contain '//' twice in the form:\n"
-            "protocol://hostname//path/to/root/dir/"
-        )
-        if double_slash_count == 2:
-            if v.endswith("/"):
-                return v
-            else:
-                message = f"FTS endpoint {v} did not end with trailing '/', appending"
-                LOGGER.warn(message)
-                return f"{v}/"
-        elif double_slash_count == 1:
-            if v.endswith("//"):
-                raise ValueError(error_message)
-            elif v.endswith("/"):
-                LOGGER.warn(message)
-                return f"{v}/"
-            else:
-                LOGGER.warn(message)
-                return f"{v}//"
-        else:
-            raise ValueError(error_message)
+        return validate_endpoint(v)
 
     @staticmethod
     def _validate_x509_cert(x509_user_cert: str, x509_user_key: str | None) -> str:
@@ -130,34 +133,9 @@ class S3Settings(BaseModel):
     access_key: str
     secret_key: str
 
-    # TODO: this validator is the same as the one in FTS3 settings
-    # is there a way to avoid repetition?
     @validator("endpoint")
     def _validate_endpoint(cls, v: str) -> str:
-        double_slash_count = v.count("//")
-        message = f"S3 endpoint {v} did contain second '//', appending"
-        error_message = (
-            f"S3 endpoint {v} did not contain '//' twice in the form:\n"
-            "protocol://hostname//path/to/root/dir/"
-        )
-        if double_slash_count == 2:
-            if v.endswith("/"):
-                return v
-            else:
-                message = f"S3 endpoint {v} did not end with trailing '/', appending"
-                LOGGER.warn(message)
-                return f"{v}/"
-        elif double_slash_count == 1:
-            if v.endswith("//"):
-                raise ValueError(error_message)
-            elif v.endswith("/"):
-                LOGGER.warn(message)
-                return f"{v}/"
-            else:
-                LOGGER.warn(message)
-                return f"{v}//"
-        else:
-            raise ValueError(error_message)
+        return validate_endpoint(v)
 
 
 class Settings(BaseSettings):
