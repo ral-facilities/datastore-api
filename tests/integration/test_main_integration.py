@@ -27,6 +27,7 @@ from datastore_api.models.archive import (
 )
 from datastore_api.models.restore import DownloadRequest, RestoreRequest
 from tests.fixtures import (
+    bucket_deletion,
     dataset_type,
     dataset_with_job_id,
     facility,
@@ -429,6 +430,7 @@ class TestRestore:
         functional_icat_client: IcatClient,
         test_client: TestClient,
         restore_ids: str,
+        bucket_deletion: None,
     ):
         bucket_name = "localtestbucket"
         if restore_ids == "investigation_ids":
@@ -458,14 +460,6 @@ class TestRestore:
             headers=headers,
             json=json_body,
         )
-
-        # TODO: for now delete the bucket to avoid them piling up
-        # Probably change later for get_data testing
-        test_client.delete(
-            f"/delete_bucket/{bucket_name}",
-            headers=headers,
-        )
-
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert "job_ids" in content

@@ -27,6 +27,7 @@ from datastore_api.models.archive import (
     Investigation,
     InvestigationType,
 )
+from datastore_api.s3_client import S3Client
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -370,6 +371,13 @@ def investigation_tear_down(
     )
     if investigation is not None:
         delete(icat_client=functional_icat_client, entity=investigation)
+
+
+@pytest.fixture(scope="function")
+def bucket_deletion() -> Generator[None, None, None]:
+    yield None
+
+    S3Client().delete_bucket("localtestbucket")
 
 
 @pytest.fixture(scope="function")

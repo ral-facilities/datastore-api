@@ -9,7 +9,12 @@ from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest, Investigation
 from datastore_api.models.restore import DownloadRequest, RestoreRequest
-from tests.fixtures import investigation_metadata, mock_fts3_settings, submit
+from tests.fixtures import (
+    bucket_deletion,
+    investigation_metadata,
+    mock_fts3_settings,
+    submit,
+)
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -98,7 +103,11 @@ class TestMain:
         assert len(content["job_ids"]) == 1
         UUID4(content["job_ids"][0])
 
-    def test_restore_to_download(self, test_client: TestClient):
+    def test_restore_to_download(
+        self,
+        test_client: TestClient,
+        bucket_deletion: None,
+    ):
         bucket_name = "localtestbucket"
         restore_request = DownloadRequest(
             investigation_ids=[0],
@@ -111,19 +120,11 @@ class TestMain:
             headers=headers,
             json=json_body,
         )
-
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
         UUID4(content["job_ids"][0])
-
-        # TODO: for now delete the bucket to avoid them piling up
-        # Probably change later for get_data testing
-        test_client.delete(
-            f"/delete_bucket/{bucket_name}",
-            headers=headers,
-        )
 
     def test_get_data(
         self,
@@ -136,7 +137,6 @@ class TestMain:
             headers=headers,
         )
 
-        # url = mock_fts3_settings.s3.endpoint[0:-2]
         url = mock_fts3_settings.s3.endpoint
         key = mock_fts3_settings.s3.access_key
 

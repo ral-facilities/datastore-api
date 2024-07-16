@@ -12,7 +12,6 @@ fts3:
   endpoint: https://endpoint:8446
   instrument_data_cache: root://idc:1094//
   user_data_cache: root://udc:1094//
-  download_cache: root://??//
   tape_archive: root://archive:1094//
   x509_user_cert: hostcert.pem
   x509_user_key: hostkey.pem
