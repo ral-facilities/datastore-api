@@ -22,7 +22,7 @@ Changing the optional arguments as needed. Documentation can be found by navigat
 To develop the API Python development tools will need to be installed. The exact command will vary, for example on Rocky 8:
 
 ```bash
-sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-setuptools openldap-devel swig gcc openssl-devel
+sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-setuptools openldap-devel swig gcc openssl-devel xrootd-client
 ```
 
 Before running the API, create the `config.yaml` and `logging.ini` config files. A sample configuration can be copied from the `config.yaml.example` and `logging.ini.example` files.
