@@ -22,7 +22,8 @@ class Fts3Client:
         )
         self.instrument_data_cache = settings.fts3.instrument_data_cache
         self.user_data_cache = settings.fts3.user_data_cache
-        self.download_cache = settings.s3.endpoint
+        # TODO: probably not hte best way to do it
+        self.download_cache = "s3s://" + settings.s3.endpoint.split("://")[1]
         self.tape_archive = settings.fts3.tape_archive
         self.retry = settings.fts3.retry
         self.verify_checksum = settings.fts3.verify_checksum

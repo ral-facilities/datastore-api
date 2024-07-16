@@ -99,7 +99,7 @@ class TestMain:
         UUID4(content["job_ids"][0])
 
     def test_restore_to_download(self, test_client: TestClient):
-        bucket_name = "localtestbucket1"
+        bucket_name = "localtestbucket"
         restore_request = DownloadRequest(
             investigation_ids=[0],
             bucket_name=bucket_name,
@@ -136,16 +136,12 @@ class TestMain:
             headers=headers,
         )
 
-        url = mock_fts3_settings.s3.endpoint[0:-2]
+        # url = mock_fts3_settings.s3.endpoint[0:-2]
+        url = mock_fts3_settings.s3.endpoint
         key = mock_fts3_settings.s3.access_key
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        # assert "nnvw" in content
-        # # note that SESSION_ID is used here as the bucket name
-        # assert f"{url}/{SESSION_ID}/nnvw?AWSAccessKeyId={key}" in content["nnvw"]
-        # assert "laso" in content
-        # assert f"{url}/{SESSION_ID}/laso?AWSAccessKeyId={key}" in content["laso"]
         assert "test" in content
         assert f"{url}/miniotestbucket/test?AWSAccessKeyId={key}" in content["test"]
 

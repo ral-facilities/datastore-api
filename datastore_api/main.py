@@ -209,14 +209,15 @@ def restore_download(
     # so do we should probably check if the bucket already exists?
     bucket = S3Client().create_bucket(bucket_name=download_request.bucket_name)
 
+    # TODO: could be http or https
     # need to change the protocol for fts transfers
     # https://fts3-docs.web.cern.ch/fts3-docs/docs/s3_support.html#submitting-s3-transfers
-    s3s_endpoint = fts3_client.download_cache.replace("https", "s3s")
+    s3s_endpoint = "s3s://" + fts3_client.download_cache.split("://")[1]
 
     download_controller = RestoreController(
         fts3_client=fts3_client,
         paths=paths,
-        destination_cache=f"{s3s_endpoint}{bucket['Location']}",
+        destination_cache=f"{s3s_endpoint}{bucket['Location']}/",
         strict_copy=True,
     )
     download_controller.create_fts_jobs()

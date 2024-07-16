@@ -67,6 +67,7 @@ def fts_job(
     destinations: list[str],
     bring_online: int = -1,
     archive_timeout: int = -1,
+    strict_copy: bool = False,
 ) -> dict:
     return {
         "files": [
@@ -95,7 +96,7 @@ def fts_job(
             "retry": -1,
             "retry_delay": 0,
             "priority": None,
-            "strict_copy": False,
+            "strict_copy": strict_copy,
             "max_time_in_queue": None,
             "timeout": None,
             "id_generator": "standard",
@@ -429,24 +430,25 @@ class TestRestore:
         test_client: TestClient,
         restore_ids: str,
     ):
+        bucket_name = "localtestbucket"
         if restore_ids == "investigation_ids":
             restore_request = DownloadRequest(
                 investigation_ids=[investigation.id],
-                bucket_name="test_bucket",
+                bucket_name=bucket_name,
             )
         elif restore_ids == "dataset_ids":
             equals = {"investigation.id": investigation.id}
             dataset = functional_icat_client.get_single_entity("Dataset", equals)
             restore_request = DownloadRequest(
                 dataset_ids=[dataset.id],
-                bucket_name="test_bucket",
+                bucket_name=bucket_name,
             )
         elif restore_ids == "datafile_ids":
             equals = {"dataset.investigation.id": investigation.id}
             datafile = functional_icat_client.get_single_entity("Datafile", equals)
             restore_request = DownloadRequest(
                 datafile_ids=[datafile.id],
-                bucket_name="test_bucket",
+                bucket_name=bucket_name,
             )
 
         json_body = json.loads(restore_request.json())
@@ -457,6 +459,13 @@ class TestRestore:
             json=json_body,
         )
 
+        # TODO: for now delete the bucket to avoid them piling up
+        # Probably change later for get_data testing
+        test_client.delete(
+            f"/delete_bucket/{bucket_name}",
+            headers=headers,
+        )
+
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert "job_ids" in content
@@ -464,12 +473,15 @@ class TestRestore:
         UUID4(content["job_ids"][0])
 
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
-        sources = [f"root://archive:1094//{path}"]
-        destinations = [f"root://s3storage//{path}"]  # TODO: Prob change this
+        sources = [f"root://archive:1094//{path}?copy_mode=push"]
+        destinations = [
+            f"s3s://172.20.0.10:9000/{bucket_name}/{path}",
+        ]  # TODO: Prob change this
         job = fts_job(
             sources=sources,
             destinations=destinations,
             bring_online=28800,
+            strict_copy=True,
         )
         submit.assert_called_once_with(context=ANY, job=job)
 
