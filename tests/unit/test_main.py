@@ -8,7 +8,7 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest, Investigation
-from datastore_api.models.restore import DownloadRequest, RestoreRequest
+from datastore_api.models.restore import RestoreRequest
 from tests.fixtures import (
     bucket_deletion,
     investigation_metadata,
@@ -108,10 +108,8 @@ class TestMain:
         test_client: TestClient,
         bucket_deletion: None,
     ):
-        bucket_name = "localtestbucket"
-        restore_request = DownloadRequest(
+        restore_request = RestoreRequest(
             investigation_ids=[0],
-            bucket_name=bucket_name,
         )
         json_body = json.loads(restore_request.json())
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
@@ -125,7 +123,6 @@ class TestMain:
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
         assert "bucket_name"
-        assert content["bucket_name"] == bucket_name
         UUID4(content["job_ids"][0])
 
     def test_get_data(

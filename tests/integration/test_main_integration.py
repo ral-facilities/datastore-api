@@ -25,7 +25,7 @@ from datastore_api.models.archive import (
     Investigation,
     InvestigationType,
 )
-from datastore_api.models.restore import DownloadRequest, RestoreRequest
+from datastore_api.models.restore import RestoreRequest
 from tests.fixtures import (
     bucket_deletion,
     dataset_type,
@@ -432,25 +432,21 @@ class TestRestore:
         restore_ids: str,
         bucket_deletion: None,
     ):
-        bucket_name = "localtestbucket"
         if restore_ids == "investigation_ids":
-            restore_request = DownloadRequest(
+            restore_request = RestoreRequest(
                 investigation_ids=[investigation.id],
-                bucket_name=bucket_name,
             )
         elif restore_ids == "dataset_ids":
             equals = {"investigation.id": investigation.id}
             dataset = functional_icat_client.get_single_entity("Dataset", equals)
-            restore_request = DownloadRequest(
+            restore_request = RestoreRequest(
                 dataset_ids=[dataset.id],
-                bucket_name=bucket_name,
             )
         elif restore_ids == "datafile_ids":
             equals = {"dataset.investigation.id": investigation.id}
             datafile = functional_icat_client.get_single_entity("Datafile", equals)
-            restore_request = DownloadRequest(
+            restore_request = RestoreRequest(
                 datafile_ids=[datafile.id],
-                bucket_name=bucket_name,
             )
 
         json_body = json.loads(restore_request.json())
@@ -464,7 +460,9 @@ class TestRestore:
         assert test_response.status_code == 200, content
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
+        assert "bucket_name" in content
         UUID4(content["job_ids"][0])
+        bucket_name = content["bucket_name"]
 
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
         sources = [f"root://archive:1094//{path}?copy_mode=push"]

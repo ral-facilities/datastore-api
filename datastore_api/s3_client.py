@@ -111,6 +111,17 @@ class S3Client:
 
         return object_names
 
+    def list_buckets(self) -> list[str]:
+        """Lists all owned buckets
+
+        Returns:
+            list[str]: A list of bucket names
+        """
+        bucket_names = []
+        for bucket in self.client.list_buckets()["Buckets"]:
+            bucket_names.append(bucket["Name"])
+        return bucket_names
+
     def tag_bucket(self, bucket_name: str, tags: list) -> None:
         """Tag a bucket with tags from a list
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/put_bucket_tagging.html
