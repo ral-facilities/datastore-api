@@ -2,8 +2,6 @@ import logging
 
 import boto3
 
-# from botocore.exceptions import ClientError
-
 from datastore_api.config import get_settings
 
 LOGGER = logging.getLogger(__name__)
@@ -13,11 +11,7 @@ class S3Client:
     """Wrapper for S3 functionality."""
 
     def __init__(self) -> None:
-        """Initialise the client with the provided `s3_settings`.
-
-        Args:
-            s3_settings (S3Settings): Settings for S3 operations.
-        """
+        """Initialise the client with the cached `s3_settings`."""
         self.settings = get_settings().s3
         self.resource = boto3.resource(
             "s3",
@@ -37,7 +31,6 @@ class S3Client:
         """Creates a new s3 storage bucket
         https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-example-creating-buckets.html
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/create_bucket.html
-        \f
 
         Args:
             bucket_name (str): Name for the bucket
@@ -69,8 +62,11 @@ class S3Client:
         Args:
             object_name (str): Name of the object in S3 bucket.
             bucket_name (str): Name of the bucket containing the requested object.
-            expiration (int, optional): Expiration date of the download url.
+            expiration (int, optional): Expiration date of the download url in seconds.
                 Defaults to 3600.
+
+        Returns:
+            str: Presigned URL as a string
         """
         # This try/except block is included in this aws example:
         # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html

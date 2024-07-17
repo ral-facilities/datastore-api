@@ -209,15 +209,10 @@ def restore_download(
     # so do we should probably check if the bucket already exists?
     bucket = S3Client().create_bucket(bucket_name=download_request.bucket_name)
 
-    # TODO: could be http or https
-    # need to change the protocol for fts transfers
-    # https://fts3-docs.web.cern.ch/fts3-docs/docs/s3_support.html#submitting-s3-transfers
-    s3s_endpoint = "s3s://" + fts3_client.download_cache.split("://")[1]
-
     download_controller = RestoreController(
         fts3_client=fts3_client,
         paths=paths,
-        destination_cache=f"{s3s_endpoint}{bucket['Location']}/",
+        destination_cache=f"{fts3_client.download_cache}{bucket['Location']}/",
         strict_copy=True,
     )
     download_controller.create_fts_jobs()
@@ -228,36 +223,32 @@ def restore_download(
         download_controller.job_ids,
     )
 
-    # TODO: What should be the tag value?
     # MAX 50 TAGS
     # Keys and Values can be max 128 characters long
     tags = []
     for job in download_controller.job_ids:
-        tags.append({"Key": job, "Value": "restoring"})
+        tags.append({"Key": job, "Value": JobState.staging})
 
     S3Client().tag_bucket(bucket_name=download_request.bucket_name, tags=tags)
-    # print(S3Client().get_bucket_tags(bucket_name=download_request.bucket_name))
 
     return RestoreResponse(job_ids=download_controller.job_ids)
 
 
 @app.get(
-    "/data",
+    "/data/{bucket_name}",
     response_description="The URL to download the data",
     summary="Get the download link for the records in the download cache",
     tags=["data"],
 )
 def get_data(
-    session_id: SessionIdDependency,
-    fts3_client: Fts3ClientDependency,
     bucket_name: str,
+    expiration: int | None = None,
 ) -> dict[str, str]:
     """Get the download links for the records in the download cache
     \f
     Args:
-        session_id (str): session is used as bucket name
-        job_ids (list): List of job IDs.
-        fts3_client (Fts3ClientDependency): Cached client for calls to FTS.
+        bucket_name (str): The bucket containing data to download.
+        expiration (int): Expiration date of the download url in seconds.
 
     Returns:
         dict[str, str]: Dictionary with generated presigned urls.
@@ -268,6 +259,7 @@ def get_data(
         links[name] = S3Client().create_presigned_url(
             object_name=name,
             bucket_name=bucket_name,
+            expiration=expiration,
         )
 
     return links

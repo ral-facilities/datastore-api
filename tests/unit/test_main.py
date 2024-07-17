@@ -133,7 +133,7 @@ class TestMain:
     ):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get(
-            "/data?bucket_name=miniotestbucket",
+            "/data/miniotestbucket",
             headers=headers,
         )
 

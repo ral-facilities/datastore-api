@@ -22,7 +22,8 @@ class Fts3Client:
         )
         self.instrument_data_cache = settings.fts3.instrument_data_cache
         self.user_data_cache = settings.fts3.user_data_cache
-        # TODO: probably not hte best way to do it
+        # TODO: probably not the best way to do it
+        # https://fts3-docs.web.cern.ch/fts3-docs/docs/s3_support.html#submitting-s3-transfers
         self.download_cache = "s3s://" + settings.s3.endpoint.split("://")[1]
         self.tape_archive = settings.fts3.tape_archive
         self.retry = settings.fts3.retry
@@ -56,10 +57,9 @@ class Fts3Client:
         Returns:
             dict[str, list]: Transfer dict for moving `path` to the UDC.
         """
-        source = (
-            f"{self.tape_archive}{path}"
-            f"{'?copy_mode=push' if self.download_cache in destination_cache else ''}"
-        )
+        source = f"{self.tape_archive}{path}"
+        if destination_cache.startswith("s3s://"):
+            source += "?copy_mode=push"
         destination = f"{destination_cache}{path}"
         return fts3.new_transfer(source=source, destination=destination)
 
