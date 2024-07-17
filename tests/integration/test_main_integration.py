@@ -470,7 +470,7 @@ class TestRestore:
         sources = [f"root://archive:1094//{path}?copy_mode=push"]
         destinations = [
             f"s3s://172.20.0.10:9000/{bucket_name}/{path}",
-        ]  # TODO: Prob change this
+        ]
         job = fts_job(
             sources=sources,
             destinations=destinations,

@@ -124,6 +124,8 @@ class TestMain:
         assert test_response.status_code == 200, content
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
+        assert "bucket_name"
+        assert content["bucket_name"] == bucket_name
         UUID4(content["job_ids"][0])
 
     def test_get_data(
