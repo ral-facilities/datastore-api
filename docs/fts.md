@@ -65,7 +65,7 @@ In addition to each FTS job supporting multiple different files for transfer, a 
 
 Another difficulty is that settings for `bring_online` or `archive_timeout` are shared across all replicas. This means that attempting to source from both a disk and tape endpoint will not work, due to the latter requiring `bring_online` to be set.
 
-Finally, it is technically possible to schedule a transfer with the same source and destination, however this is not helpful. If the file isn’t present, then the transfer will fail, and the next route tried. If the file is present, and overwrite is not enabled, the transfer will fail and the next will be attempted (which would also fail due to overwrite). If overwrite is not enabled, then it will fail as the transfer will try to open the file for read and write at the same time. Therefore there is no scenario in which setting the destination as the source would let you implicitly check the existence of the file at the destination in order to prevent the other routes.
+Finally, it is technically possible to schedule a transfer with the same source and destination, however this is not helpful. If the file isn’t present, then the transfer will fail, and the next route tried. If the file is present, and overwrite is not enabled, the transfer will fail and the next will be attempted (which would also fail due to overwrite). If overwrite is enabled, then it will fail as the transfer will try to open the file for read and write at the same time. Therefore there is no scenario in which setting the destination as the source would let you implicitly check the existence of the file at the destination in order to prevent the other routes.
 
 ## XRootD CLI
 
