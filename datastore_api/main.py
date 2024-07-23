@@ -204,7 +204,6 @@ def restore_download(
         datafile_ids=download_request.datafile_ids,
     )
 
-    # TODO: the chances are low, but shouldn't we still check if the bucket exists?
     bucket = S3Client().create_bucket()
 
     download_controller = RestoreController(
