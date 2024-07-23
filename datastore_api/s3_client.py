@@ -1,4 +1,5 @@
 import logging
+from uuid import uuid4
 
 import boto3
 
@@ -27,7 +28,7 @@ class S3Client:
         )
 
     # TODO: expiration? / what region should be default?
-    def create_bucket(self, bucket_name: str) -> dict:
+    def create_bucket(self) -> dict:
         """Creates a new s3 storage bucket
         https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-example-creating-buckets.html
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/create_bucket.html
@@ -39,7 +40,12 @@ class S3Client:
             dict: a dictionary with 'Location', which is the forward slash
                 followed by the name of the bucket
         """
-        return self.client.create_bucket(Bucket=bucket_name)
+        bucket_name = str(uuid4())
+        try:
+            bucket = self.client.create_bucket(Bucket=bucket_name)
+        except self.client.exceptions.BucketAlreadyOwnedByYou:
+            bucket = self.create_bucket()
+        return bucket
 
     def delete_bucket(self, bucket_name: str):
         """Deletes a specified bucket and its contents

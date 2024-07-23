@@ -1,8 +1,6 @@
 from importlib import metadata
 import logging
 from typing import Annotated
-import uuid
-
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -206,13 +204,8 @@ def restore_download(
         datafile_ids=download_request.datafile_ids,
     )
 
-    # TODO: should we use another method to generate an uuid
-    # uuid4 makes a random UUID
-    # https://docs.python.org/3/library/uuid.html#uuid.uuid4
-    bucket_name = str(uuid.uuid4())
-
     # TODO: the chances are low, but shouldn't we still check if the bucket exists?
-    bucket = S3Client().create_bucket(bucket_name=bucket_name)
+    bucket = S3Client().create_bucket()
 
     download_controller = RestoreController(
         fts3_client=fts3_client,
@@ -234,11 +227,11 @@ def restore_download(
     for job in download_controller.job_ids:
         tags.append({"Key": job, "Value": JobState.staging})
 
-    S3Client().tag_bucket(bucket_name=bucket_name, tags=tags)
+    S3Client().tag_bucket(bucket_name=bucket["Location"][1:], tags=tags)
 
     return DownloadResponse(
         job_ids=download_controller.job_ids,
-        bucket_name=bucket_name,
+        bucket_name=bucket["Location"][1:],
     )
 
 
@@ -273,7 +266,6 @@ def get_data(
     return links
 
 
-# TODO: Do we need this endpoint?
 @app.delete(
     "/delete_bucket/{bucket_name}",
     response_description="None",
