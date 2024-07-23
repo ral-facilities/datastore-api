@@ -124,6 +124,7 @@ class TestMain:
         assert len(content["job_ids"]) == 1
         assert "bucket_name" in content
         UUID4(content["job_ids"][0])
+        UUID4(content["bucket_name"])
 
     def test_get_data(
         self,

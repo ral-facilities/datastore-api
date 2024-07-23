@@ -462,8 +462,9 @@ class TestRestore:
         assert len(content["job_ids"]) == 1
         assert "bucket_name" in content
         UUID4(content["job_ids"][0])
-        bucket_name = content["bucket_name"]
+        UUID4(content["bucket_name"])
 
+        bucket_name = content["bucket_name"]
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
         sources = [f"root://archive:1094//{path}?copy_mode=push"]
         destinations = [
