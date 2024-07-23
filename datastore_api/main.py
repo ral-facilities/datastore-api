@@ -100,19 +100,18 @@ def archive(
     """
     icat_client = IcatClient(session_id=session_id)
     icat_client.authorise_admin()
-    beans = []
-    job_ids = []
-    for investigation in archive_request.investigations:
-        investigation_archiver = InvestigationArchiver(
-            icat_client=icat_client,
-            fts3_client=fts3_client,
-            investigation=investigation,
-        )
-        investigation_archiver.archive_datasets()
-        beans.extend(investigation_archiver.beans)
-        job_ids.extend(investigation_archiver.job_ids)
+    investigation_archiver = InvestigationArchiver(
+        icat_client=icat_client,
+        fts3_client=fts3_client,
+        facility_name=archive_request.facility_identifier.name,
+        facility_cycle_name=archive_request.facility_cycle_identifier.name,
+        instrument_name=archive_request.instrument_identifier.name,
+        investigation=archive_request.investigation_identifier,
+        datasets=[archive_request.dataset],
+    )
+    investigation_archiver.archive_datasets()
 
-    icat_client.create_many(beans=beans)
+    icat_client.create_many(beans=investigation_archiver.beans)
 
     LOGGER.info(
         "Submitted FTS archival jobs for %s transfers with ids %s",

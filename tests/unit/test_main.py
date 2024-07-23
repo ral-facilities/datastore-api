@@ -7,9 +7,9 @@ from pytest_mock import mocker, MockerFixture
 
 from datastore_api.config import Settings
 from datastore_api.main import app
-from datastore_api.models.archive import ArchiveRequest, Investigation
+from datastore_api.models.archive import ArchiveRequest
 from datastore_api.models.restore import RestoreRequest
-from tests.fixtures import investigation_metadata, mock_fts3_settings, submit
+from tests.fixtures import archive_request, mock_fts3_settings, submit
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -60,9 +60,8 @@ class TestMain:
     def test_archive(
         self,
         test_client: TestClient,
-        investigation_metadata: Investigation,
+        archive_request: ArchiveRequest,
     ):
-        archive_request = ArchiveRequest(investigations=[investigation_metadata])
         json_body = json.loads(archive_request.json())
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)

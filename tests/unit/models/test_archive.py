@@ -4,12 +4,12 @@ import pytest
 from pytest_mock import MockerFixture
 
 from datastore_api.config import Fts3Settings, Settings
-from datastore_api.models.archive import (
-    Facility,
-    FacilityCycle,
-    Instrument,
+from datastore_api.models.icat import (
+    FacilityCycleIdentifier,
+    FacilityIdentifier,
+    InstrumentIdentifier,
     Investigation,
-    InvestigationType,
+    InvestigationTypeIdentifier,
 )
 
 
@@ -74,7 +74,7 @@ class TestArchive:
     ):
         # For GHA workflows will not have certificate files,
         # pass a readable file to satisfy the validator.
-        get_settings_mock = mocker.patch("datastore_api.models.archive.get_settings")
+        get_settings_mock = mocker.patch("datastore_api.models.icat.get_settings")
         fts3_settings = Fts3Settings(
             endpoint="",
             instrument_data_cache="root://idc:1094//",
@@ -94,10 +94,10 @@ class TestArchive:
             startDate=start_date,
             endDate=end_date,
             releaseDate=release_date,
-            facility=Facility(name="facility"),
-            investigationType=InvestigationType(name=investigation_type),
-            instrument=Instrument(name="instrument"),
-            facilityCycle=FacilityCycle(name="20XX"),
+            facility=FacilityIdentifier(name="facility"),
+            investigationType=InvestigationTypeIdentifier(name=investigation_type),
+            instrument=InstrumentIdentifier(name="instrument"),
+            facilityCycle=FacilityCycleIdentifier(name="20XX"),
             datasets=[],
         )
 

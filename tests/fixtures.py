@@ -17,15 +17,23 @@ from datastore_api.config import (
     Settings,
 )
 from datastore_api.icat_client import IcatClient
-from datastore_api.models.archive import (
+from datastore_api.models.archive import ArchiveRequest
+from datastore_api.models.icat import (
     Datafile,
+    DatafileFormatIdentifier,
     Dataset,
-    DatasetType,
-    Facility,
-    FacilityCycle,
-    Instrument,
-    Investigation,
-    InvestigationType,
+    DatasetTypeIdentifier,
+    DateTimeParameter,
+    FacilityCycleIdentifier,
+    FacilityIdentifier,
+    InstrumentIdentifier,
+    InvestigationIdentifier,
+    NumericParameter,
+    ParameterTypeIdentifier,
+    Sample,
+    SampleTypeIdentifier,
+    StringParameter,
+    TechniqueIdentifier,
 )
 
 
@@ -65,7 +73,7 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
 
         mocker.patch("datastore_api.fts3_client.fts3.Context")
 
-    for module in {"fts3_client", "icat_client", "models.archive"}:
+    for module in {"fts3_client", "icat_client", "models.icat"}:
         get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
         get_settings_mock.return_value = settings
 
@@ -79,9 +87,9 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
 
 
 @pytest.fixture(scope="function")
-def investigation_metadata(mocker: MockerFixture):
+def archive_request(mocker: MockerFixture) -> ArchiveRequest:
     try:
-        settings = get_settings()
+        get_settings()
     except ValidationError:
         # Assume the issue is that we do not have the cert to communicate with FTS.
         # This will be the case for GHA workflows, in which case,
@@ -96,28 +104,46 @@ def investigation_metadata(mocker: MockerFixture):
         )
         settings = Settings(fts3=fts3_settings)
 
-        get_settings_mock = mocker.patch("datastore_api.models.archive.get_settings")
+        get_settings_mock = mocker.patch("datastore_api.models.icat.get_settings")
         get_settings_mock.return_value = settings
 
-    dataset = Dataset(
-        name="dataset",
-        datasetType=DatasetType(name="type"),
-        datafiles=[Datafile(name="datafile")],
+    investigation_identifier = InvestigationIdentifier(name="name", visitId="visitId")
+    string_type = ParameterTypeIdentifier(name="string", units="")
+    numeric_type = ParameterTypeIdentifier(name="numeric", units="")
+    date_time_type = ParameterTypeIdentifier(name="date_time", units="")
+    parameters = [
+        StringParameter(stringValue="stringValue", parameter_type=string_type),
+        NumericParameter(
+            numericValue=0,
+            error=0,
+            rangeBottom=-1,
+            rangeTop=1,
+            parameter_type=numeric_type,
+        ),
+        DateTimeParameter(dateTimeValue=datetime.now(), parameter_type=date_time_type),
+    ]
+    datafile = Datafile(
+        name="datafile",
+        datafileFormat=DatafileFormatIdentifier(name="txt", version="0"),
+        parameters=parameters,
     )
-    return Investigation(
-        name="name",
-        visitId="visitId",
-        title="title",
-        summary="summary",
-        doi="doi",
-        startDate=datetime.now(),
-        endDate=datetime.now(),
-        releaseDate=datetime.now(),
-        facility=Facility(name="facility"),
-        investigationType=InvestigationType(name="type"),
-        instrument=Instrument(name="instrument"),
-        facilityCycle=FacilityCycle(name="20XX"),
-        datasets=[dataset],
+    sample_type = SampleTypeIdentifier(name="carbon", molecularFormula="C")
+    dataset = Dataset(
+        name="dataset1",
+        datasetType=DatasetTypeIdentifier(name="type"),
+        datafiles=[datafile],
+        sample=Sample(name="sample", sample_type=sample_type, parameters=parameters),
+        parameters=parameters,
+        datasetTechniques=[TechniqueIdentifier(name="technique")],
+        datasetInstruments=[InstrumentIdentifier(name="instrument")],
+    )
+
+    return ArchiveRequest(
+        facility_identifier=FacilityIdentifier(name="facility"),
+        instrument_identifier=InstrumentIdentifier(name="instrument"),
+        facility_cycle_identifier=FacilityCycleIdentifier(name="20XX"),
+        investigation_identifier=investigation_identifier,
+        dataset=dataset,
     )
 
 
@@ -197,6 +223,24 @@ def facility(functional_icat_client: IcatClient) -> Generator[Entity, None, None
     yield facility
 
     delete(icat_client=functional_icat_client, entity=facility)
+
+
+@pytest.fixture(scope="function")
+def datafile_format(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    datafile_format = create(
+        icat_client=functional_icat_client,
+        entity="DatafileFormat",
+        name="txt",
+        version="0",
+        facility=facility,
+    )
+
+    yield datafile_format
+
+    delete(icat_client=functional_icat_client, entity=datafile_format)
 
 
 @pytest.fixture(scope="function")
@@ -306,6 +350,105 @@ def parameter_type_job_ids(
     yield parameter_type
 
     delete(icat_client=functional_icat_client, entity=parameter_type)
+
+
+@pytest.fixture(scope="function")
+def parameter_type_string(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    parameter_type = create(
+        icat_client=functional_icat_client,
+        entity="ParameterType",
+        name="string",
+        facility=facility,
+        units="",
+        valueType="STRING",
+        applicableToDataset=True,
+        applicableToDatafile=True,
+        applicableToSample=True,
+    )
+
+    yield parameter_type
+
+    delete(icat_client=functional_icat_client, entity=parameter_type)
+
+
+@pytest.fixture(scope="function")
+def parameter_type_numeric(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    parameter_type = create(
+        icat_client=functional_icat_client,
+        entity="ParameterType",
+        name="numeric",
+        facility=facility,
+        units="",
+        valueType="NUMERIC",
+        applicableToDataset=True,
+        applicableToDatafile=True,
+        applicableToSample=True,
+    )
+
+    yield parameter_type
+
+    delete(icat_client=functional_icat_client, entity=parameter_type)
+
+
+@pytest.fixture(scope="function")
+def parameter_type_date_time(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    parameter_type = create(
+        icat_client=functional_icat_client,
+        entity="ParameterType",
+        name="date_time",
+        facility=facility,
+        units="",
+        valueType="DATE_AND_TIME",
+        applicableToDataset=True,
+        applicableToDatafile=True,
+        applicableToSample=True,
+    )
+
+    yield parameter_type
+
+    delete(icat_client=functional_icat_client, entity=parameter_type)
+
+
+@pytest.fixture(scope="function")
+def sample_type(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    sample_type = create(
+        icat_client=functional_icat_client,
+        entity="SampleType",
+        name="carbon",
+        facility=facility,
+        molecularFormula="C",
+    )
+
+    yield sample_type
+
+    delete(icat_client=functional_icat_client, entity=sample_type)
+
+
+@pytest.fixture(scope="function")
+def technique(
+    functional_icat_client: IcatClient,
+) -> Generator[Entity, None, None]:
+    technique = create(
+        icat_client=functional_icat_client,
+        entity="Technique",
+        name="technique",
+    )
+
+    yield technique
+
+    delete(icat_client=functional_icat_client, entity=technique)
 
 
 @pytest.fixture(scope="function")
