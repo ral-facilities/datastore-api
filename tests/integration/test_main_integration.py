@@ -21,6 +21,8 @@ from datastore_api.models.icat import (
 )
 from datastore_api.models.restore import RestoreRequest
 from tests.fixtures import (
+    archive_request_parameters,
+    archive_request_sample,
     archive_request,
     datafile_format,
     dataset_type,

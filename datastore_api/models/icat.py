@@ -156,7 +156,6 @@ class Dataset(BaseModel):
     complete: bool = True
     description: ShortStr = Field(default=None, example="Description")
     doi: ShortStr = Field(default=None, example="10.00000/00000")
-    location: ShortStr = None
     startDate: datetime = None
     endDate: datetime = None
 

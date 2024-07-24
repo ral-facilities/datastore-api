@@ -29,6 +29,7 @@ from datastore_api.models.icat import (
     InstrumentIdentifier,
     InvestigationIdentifier,
     NumericParameter,
+    Parameter,
     ParameterTypeIdentifier,
     Sample,
     SampleTypeIdentifier,
@@ -87,7 +88,39 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
 
 
 @pytest.fixture(scope="function")
-def archive_request(mocker: MockerFixture) -> ArchiveRequest:
+def archive_request_parameters() -> list[Parameter]:
+    string_type = ParameterTypeIdentifier(name="string", units="")
+    numeric_type = ParameterTypeIdentifier(name="numeric", units="")
+    date_time_type = ParameterTypeIdentifier(name="date_time", units="")
+    return [
+        StringParameter(stringValue="stringValue", parameter_type=string_type),
+        NumericParameter(
+            numericValue=0,
+            error=0,
+            rangeBottom=-1,
+            rangeTop=1,
+            parameter_type=numeric_type,
+        ),
+        DateTimeParameter(dateTimeValue=datetime.now(), parameter_type=date_time_type),
+    ]
+
+
+@pytest.fixture(scope="function")
+def archive_request_sample(archive_request_parameters: list[Parameter]) -> Sample:
+    sample_type = SampleTypeIdentifier(name="carbon", molecularFormula="C")
+    return Sample(
+        name="sample",
+        sample_type=sample_type,
+        parameters=archive_request_parameters,
+    )
+
+
+@pytest.fixture(scope="function")
+def archive_request(
+    archive_request_parameters: list[Parameter],
+    archive_request_sample: Sample,
+    mocker: MockerFixture,
+) -> ArchiveRequest:
     try:
         get_settings()
     except ValidationError:
@@ -108,32 +141,17 @@ def archive_request(mocker: MockerFixture) -> ArchiveRequest:
         get_settings_mock.return_value = settings
 
     investigation_identifier = InvestigationIdentifier(name="name", visitId="visitId")
-    string_type = ParameterTypeIdentifier(name="string", units="")
-    numeric_type = ParameterTypeIdentifier(name="numeric", units="")
-    date_time_type = ParameterTypeIdentifier(name="date_time", units="")
-    parameters = [
-        StringParameter(stringValue="stringValue", parameter_type=string_type),
-        NumericParameter(
-            numericValue=0,
-            error=0,
-            rangeBottom=-1,
-            rangeTop=1,
-            parameter_type=numeric_type,
-        ),
-        DateTimeParameter(dateTimeValue=datetime.now(), parameter_type=date_time_type),
-    ]
     datafile = Datafile(
         name="datafile",
         datafileFormat=DatafileFormatIdentifier(name="txt", version="0"),
-        parameters=parameters,
+        parameters=archive_request_parameters,
     )
-    sample_type = SampleTypeIdentifier(name="carbon", molecularFormula="C")
     dataset = Dataset(
         name="dataset1",
         datasetType=DatasetTypeIdentifier(name="type"),
         datafiles=[datafile],
-        sample=Sample(name="sample", sample_type=sample_type, parameters=parameters),
-        parameters=parameters,
+        sample=archive_request_sample,
+        parameters=archive_request_parameters,
         datasetTechniques=[TechniqueIdentifier(name="technique")],
         datasetInstruments=[InstrumentIdentifier(name="instrument")],
     )

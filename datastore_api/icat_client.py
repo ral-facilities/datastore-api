@@ -508,6 +508,20 @@ class IcatClient:
             Entity: Created and persisted ICAT Sample entity.
         """
         equals = {
+            "name": sample.name,
+            "investigation.name": str(investigation_entity.name),
+            "investigation.visitId": str(investigation_entity.visitId),
+            "investigation.facility.name": facility_name,
+        }
+        sample_entity = self.get_single_entity(
+            "Sample",
+            equals=equals,
+            allow_empty=True,
+        )
+        if sample_entity is not None:
+            return sample_entity
+
+        equals = {
             "name": sample.sample_type.name,
             "molecularFormula": sample.sample_type.molecularFormula,
             "facility.name": facility_name,
