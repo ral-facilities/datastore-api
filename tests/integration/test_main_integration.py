@@ -81,7 +81,7 @@ def fts_job(
         "params": {
             "verify_checksum": "none",
             "reuse": None,
-            "spacetoken": None,
+            "destination_spacetoken": None,
             "bring_online": bring_online,
             "dst_file_report": False,
             "archive_timeout": archive_timeout,
