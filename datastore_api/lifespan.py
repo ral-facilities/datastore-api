@@ -86,26 +86,37 @@ class StateCounter:
             self.finished += 1
 
 
-async def poll_fts() -> None:
+async def poll_fts_thread() -> None:
     """Starts a thread to poll FTS for the state of archival jobs, and updates ICAT with
     the results.
     """
     icat_client = IcatClient()
     icat_client.login_functional()
     while True:
-        LOGGER.info("Polling ICAT/FTS for job statuses")
-        try:
-            parameters = icat_client.get_entities(
-                entity="DatasetParameter",
-                equals={"type.name": icat_client.settings.parameter_type_job_ids},
-                includes="1",
-            )
-            beans_to_delete = update_jobs(icat_client, parameters)
-            icat_client.delete_many(beans=beans_to_delete)
-        except URLError as e:
-            LOGGER.error("Unable to poll for job statuses: %s", str(e))
+        poll_fts(icat_client)
         await asyncio.sleep(60)
-        icat_client.client.refresh()
+
+
+def poll_fts(icat_client: IcatClient) -> None:
+    """Polls ICAT for FTS job ids that need updating, then poll FTS for the latest
+    status and update the ICAT with this information.
+
+    Args:
+        icat_client (IcatClient):
+            IcatClient to use for queries, with a functional login.
+    """
+    LOGGER.info("Polling ICAT/FTS for job statuses")
+    icat_client.client.refresh()
+    try:
+        parameters = icat_client.get_entities(
+            entity="DatasetParameter",
+            equals={"type.name": icat_client.settings.parameter_type_job_ids},
+            includes="1",
+        )
+        beans_to_delete = update_jobs(icat_client, parameters)
+        icat_client.delete_many(beans=beans_to_delete)
+    except URLError as e:
+        LOGGER.error("Unable to poll for job statuses: %s", str(e))
 
 
 def update_jobs(icat_client: IcatClient, parameters: list[Entity]) -> list[Entity]:
@@ -175,5 +186,5 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     Returns:
         AsyncGenerator[None, None]
     """
-    asyncio.create_task(poll_fts())
+    asyncio.create_task(poll_fts_thread())
     yield

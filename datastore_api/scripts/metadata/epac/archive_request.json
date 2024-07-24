@@ -1,0 +1,109 @@
+{
+    "facility_identifier": {
+        "name": "epac"
+    },
+    "instrument_identifier": {
+        "name": "EA1"
+    },
+    "facility_cycle_identifier": {
+        "name": "2025"
+    },
+    "investigation_identifier": {
+        "name": "ABC123",
+        "visitId": "1"
+    },
+    "dataset": {
+        "name": "scan_0000",
+        "complete": true,
+        "description": "A scan directory",
+        "doi": "10.00000/00000",
+        "startDate": "2024-05-17 08:53:18.480623",
+        "endDate": "2024-05-17 09:53:18.480623",
+        "datasetType": {
+            "name": "scan"
+        },
+        "sample": {
+            "name": "ice",
+            "sample_type": {
+                "name": "water",
+                "molecularFormula": "H2O"
+            }
+        },
+        "parameters": [
+            {
+                "parameter_type": {
+                    "name": "num_points",
+                    "units": ""
+                },
+                "numericValue": 10
+            },
+            {
+                "parameter_type": {
+                    "name": "temperature",
+                    "units": "K"
+                },
+                "numericValue": 273.15
+            }
+        ],
+        "datasetTechniques": [
+            {
+                "technique": "wakefield"
+            }
+        ],
+        "datasetInstruments": [
+            {
+                "name": "EA1"
+            }
+        ],
+        "datafiles": [
+            {
+                "name": "file_0000.nxs",
+                "datafileFormat": {
+                    "name": "NeXus",
+                    "version": "v2024.02"
+                },
+                "description": "A dark field scan",
+                "doi": "10.00000/00000",
+                "datafileCreateTime": "2024-05-17 08:53:18.480623",
+                "datafileModTime": "2024-05-17 09:53:18.480623",
+                "checksum": "ADLER32"
+            },
+            {
+                "name": "file_0001.nxs",
+                "datafileFormat": {
+                    "name": "NeXus",
+                    "version": "v2024.02"
+                },
+                "description": "A dark field scan",
+                "doi": "10.00000/00000",
+                "datafileCreateTime": "2024-05-17 08:53:18.480623",
+                "datafileModTime": "2024-05-17 09:53:18.480623",
+                "checksum": "ADLER32"
+            },
+            {
+                "name": "file_0002.nxs",
+                "datafileFormat": {
+                    "name": "NeXus",
+                    "version": "v2024.02"
+                },
+                "description": "A dark field scan",
+                "doi": "10.00000/00000",
+                "datafileCreateTime": "2024-05-17 08:53:18.480623",
+                "datafileModTime": "2024-05-17 09:53:18.480623",
+                "checksum": "ADLER32"
+            },
+            {
+                "name": "file_0003.nxs",
+                "datafileFormat": {
+                    "name": "NeXus",
+                    "version": "v2024.02"
+                },
+                "description": "A dark field scan",
+                "doi": "10.00000/00000",
+                "datafileCreateTime": "2024-05-17 08:53:18.480623",
+                "datafileModTime": "2024-05-17 09:53:18.480623",
+                "checksum": "ADLER32"
+            }
+        ]
+    }
+}
