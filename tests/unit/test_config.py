@@ -17,7 +17,7 @@ class TestFts3Settings:
         x509_user_key = x509_user_key_path.as_posix()
 
         settings = Fts3Settings(
-            endpoint="",
+            endpoint="https://127.0.0.1",
             instrument_data_cache="root://idc:1094//",
             user_data_cache="root://udc:1094//",
             tape_archive="root://archive:1094//",
@@ -33,7 +33,7 @@ class TestFts3Settings:
         x509_user_proxy_path.write_text("proxy")
         x509_user_proxy = x509_user_proxy_path.as_posix()
         settings = Fts3Settings(
-            endpoint="",
+            endpoint="https://127.0.0.1",
             instrument_data_cache="root://idc:1094//",
             user_data_cache="root://udc:1094//",
             tape_archive="root://archive:1094//",
