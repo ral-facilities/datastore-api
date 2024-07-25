@@ -17,10 +17,10 @@ class TestFts3Settings:
         x509_user_key = x509_user_key_path.as_posix()
 
         settings = Fts3Settings(
-            endpoint="",
-            instrument_data_cache="root://idc:1094//",
-            user_data_cache="root://udc:1094//",
-            tape_archive="root://archive:1094//",
+            endpoint="https://localhost:8446",
+            instrument_data_cache="root://idc.ac.uk:1094//",
+            restored_data_cache="root://rdc.ac.uk:1094//",
+            tape_archive="root://archive.ac.uk:1094//",
             x509_user_cert=x509_user_cert,
             x509_user_key=x509_user_key,
         )
@@ -33,10 +33,10 @@ class TestFts3Settings:
         x509_user_proxy_path.write_text("proxy")
         x509_user_proxy = x509_user_proxy_path.as_posix()
         settings = Fts3Settings(
-            endpoint="",
-            instrument_data_cache="root://idc:1094//",
-            user_data_cache="root://udc:1094//",
-            tape_archive="root://archive:1094//",
+            endpoint="https://localhost:8446",
+            instrument_data_cache="root://idc.ac.uk:1094//",
+            restored_data_cache="root://rdc.ac.uk:1094//",
+            tape_archive="root://archive.ac.uk:1094//",
             x509_user_proxy=x509_user_proxy,
         )
         assert settings.x509_user_cert == x509_user_proxy
@@ -115,32 +115,35 @@ class TestFts3Settings:
     @pytest.mark.parametrize(
         ["endpoint", "expected_endpoint"],
         [
-            pytest.param("protocol://hostname:port", "protocol://hostname:port//"),
-            pytest.param("protocol://hostname:port/", "protocol://hostname:port//"),
+            pytest.param("root://domain.ac.uk:1094", "root://domain.ac.uk:1094//"),
+            pytest.param("root://domain.ac.uk:1094/", "root://domain.ac.uk:1094//"),
             pytest.param(
-                "protocol://hostname:port//path",
-                "protocol://hostname:port//path/",
+                "root://domain.ac.uk:1094//path",
+                "root://domain.ac.uk:1094//path/",
             ),
         ],
     )
     def test_validate_endpoint(self, endpoint: str, expected_endpoint: str):
-        validated_endpoint = Fts3Settings._validate_endpoint(endpoint)
+        validated_endpoint = Fts3Settings._validate_storage_endpoint(endpoint)
 
         assert validated_endpoint == expected_endpoint
 
     @pytest.mark.parametrize(
-        ["endpoint"],
+        ["endpoint", "error"],
         [
-            pytest.param("protocol:hostname:port"),
-            pytest.param("protocol:hostname:port//"),
-            pytest.param("protocol://hostname:port//path//to//root//dir//"),
+            pytest.param("http://domain.ac.uk:1094", "URL scheme not permitted"),
+            pytest.param(
+                "root://domain.ac.uk:1094?query=query",
+                "Url query not supported for FTS endpoint",
+            ),
+            pytest.param(
+                "root://domain.ac.uk:1094#fragment",
+                "Url fragment not supported for FTS endpoint",
+            ),
         ],
     )
-    def test_validate_endpoint_error(self, endpoint: str):
+    def test_validate_endpoint_error(self, endpoint: str, error: str):
         with pytest.raises(ValueError) as e:
-            Fts3Settings._validate_endpoint(endpoint)
+            Fts3Settings._validate_storage_endpoint(endpoint)
 
-        assert e.exconly() == (
-            f"ValueError: FTS endpoint {endpoint} did not contain '//' twice in the "
-            "form:\nprotocol://hostname//path/to/root/dir/"
-        )
+        assert error in e.exconly()

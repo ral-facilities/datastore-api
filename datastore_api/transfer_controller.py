@@ -68,13 +68,13 @@ class RestoreController(TransferController):
         self.stage = True
 
     def _transfer(self, path: str) -> dict[str, list]:
-        """Returns a transfer dict moving `path` from tape to the UDC.
+        """Returns a transfer dict moving `path` from tape to the RDC.
 
         Args:
             path (str): Path of the file to be moved.
 
         Returns:
-            dict[str, list]: Transfer dict for moving `path` to the UDC.
+            dict[str, list]: Transfer dict for moving `path` to the RDC.
         """
         return self.fts3_client.restore(path)
 
