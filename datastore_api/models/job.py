@@ -29,7 +29,7 @@ class TransferState(StrEnum):
 
 
 class StatusResponse(BaseModel):
-    status: dict  # TODO
+    status: dict | list[dict]  # TODO
 
 
 class CompleteResponse(BaseModel):

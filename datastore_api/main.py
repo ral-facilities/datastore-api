@@ -10,7 +10,7 @@ from datastore_api.auth import validate_session_id
 from datastore_api.fts3_client import Fts3Client, get_fts3_client
 from datastore_api.icat_client import IcatClient
 from datastore_api.investigation_archiver import InvestigationArchiver
-from datastore_api.lifespan import lifespan
+from datastore_api.lifespan import lifespan, StateCounter
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
 from datastore_api.models.job import (
     CancelResponse,
@@ -334,13 +334,18 @@ def complete(job_id: str, fts3_client: Fts3ClientDependency) -> CompleteResponse
     \f
     Args:
         job_id (str): FTS id for a submitted job.
-        fts3_context (fts3.Context): Cached context for calls to FTS.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         CompleteResponse: Completeness of the requested job.
     """
     status = fts3_client.status(job_id=job_id)
-    complete_states = (JobState.finished, JobState.finished_dirty, JobState.failed)
+    complete_states = (
+        JobState.finished,
+        JobState.finished_dirty,
+        JobState.failed,
+        JobState.canceled,
+    )
     return CompleteResponse(complete=status[0]["job_state"] in complete_states)
 
 
@@ -355,7 +360,7 @@ def percentage(job_id: str, fts3_client: Fts3ClientDependency) -> PercentageResp
     \f
     Args:
         job_id (str): FTS id for a submitted job.
-        fts3_context (fts3.Context): Cached context for calls to FTS.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         PercentageResponse: Percentage of individual transfers that are completed.
@@ -367,6 +372,104 @@ def percentage(job_id: str, fts3_client: Fts3ClientDependency) -> PercentageResp
         if file["file_state"] in (TransferState.finished, TransferState.failed):
             files_complete += 1
 
+    return PercentageResponse(percentage_complete=100 * files_complete / files_total)
+
+
+@app.get(
+    "/status/{bucket_name}",
+    response_description="List of fts3 job statuses relating to the specified bucket",
+    summary="Get details of FTS jobs relating to the specified bucket",
+    tags=["Status"],
+)
+def get_status(
+    bucket_name: str,
+    fts3_client: Fts3ClientDependency,
+) -> StatusResponse:
+    """Get details of FTS jobs relating to the specified bucket
+    \f
+    Args:
+        bucket_name (str): Name of the bucket from which to retrieve job statuses.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
+
+    Returns:
+        StatusResponse: List of job statuses relating to the specified bucket.
+    """
+    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
+    statuses = fts3_client.status(job_id=job_ids)
+    new_tags = []
+    for status in statuses:
+        new_tags.append({"Key": status.job_id, "Value": status.job_state})
+    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
+    return StatusResponse(status=statuses)
+
+
+@app.get(
+    "/status/{bucket_name}/complete",
+    response_description="Completeness of jobs relating to the specified bucket.",
+    summary="Whether all jobs relating to the bucket are complete.",
+    tags=["Status"],
+)
+def get_complete(
+    bucket_name: str,
+    fts3_client: Fts3ClientDependency,
+) -> CompleteResponse:
+    """Whether all jobs relating to the bucket are complete.
+
+    Args:
+        bucket_name (str): Name of the bucket from which to retrieve job statuses.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
+
+    Returns:
+        CompleteResponse: Completeness of jobs relating to the specified bucket.
+    """
+    state_counter = StateCounter()
+    new_tags = []
+    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
+    statuses = fts3_client.status(job_id=job_ids)
+    for status in statuses:
+        new_tags.append({"Key": status.job_id, "Value": status.job_state})
+        state_counter.check_state(state=status.job_state, job_id=status.job_id)
+    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
+    complete = state_counter.state in (
+        JobState.canceled,
+        JobState.failed,
+        JobState.finished,
+        JobState.finished_dirty,
+    )
+    return CompleteResponse(complete=complete)
+
+
+@app.get(
+    "/status/{bucket_name}/percentage",
+    response_description="Percentage of all individual transfers to the bucket",
+    summary="Percentage of all individual transfers to the bucket, that are completed",
+    tags=["Status"],
+)
+def get_percentage(
+    bucket_name: str,
+    fts3_client: Fts3ClientDependency,
+) -> PercentageResponse:
+    """Percentage of all individual transfers to the bucket, that are completed
+
+    Args:
+        bucket_name (str): Name of the bucket for which the percentage is being checked.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
+
+    Returns:
+        PercentageResponse: Percentage of all individual transfers to the bucket
+    """
+    files_complete = 0
+    files_total = 0
+    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
+    statuses = fts3_client.status(job_id=job_ids)
+    new_tags = []
+    for status in statuses:
+        new_tags.append({"Key": status.job_id, "Value": status.job_state})
+        files_total += len(status["files"])
+        for file in status["files"]:
+            if file["file_state"] in (TransferState.finished, TransferState.failed):
+                files_complete += 1
+    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
     return PercentageResponse(percentage_complete=100 * files_complete / files_total)
 
 
