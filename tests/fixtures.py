@@ -377,7 +377,9 @@ def investigation_tear_down(
 def bucket_deletion() -> Generator[None, None, None]:
     yield None
 
-    S3Client().delete_bucket("localtestbucket")
+    for bucket in S3Client().list_buckets():
+        if bucket != "miniotestbucket":
+            S3Client().delete_bucket(bucket)
 
 
 @pytest.fixture(scope="function")
