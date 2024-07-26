@@ -14,6 +14,7 @@ from tests.fixtures import (
     investigation_metadata,
     mock_fts3_settings,
     submit,
+    tag_bucket,
 )
 
 
@@ -175,7 +176,7 @@ class TestMain:
         assert test_response.status_code == 200, content
         assert content == {"percentage_complete": 100.0}
 
-    def test_download_status(self, test_client: TestClient):
+    def test_download_status(self, test_client: TestClient, tag_bucket: None):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/status/miniotestbucket", headers=headers)
 
@@ -183,7 +184,7 @@ class TestMain:
         assert test_response.status_code == 200, content
         assert content == {"status": STATUSES}
 
-    def test_download_complete(self, test_client: TestClient):
+    def test_download_complete(self, test_client: TestClient, tag_bucket: None):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get(
             "/status/miniotestbucket/complete",
@@ -194,7 +195,7 @@ class TestMain:
         assert test_response.status_code == 200, content
         assert content == {"complete": True}
 
-    def test_download_percentage(self, test_client: TestClient):
+    def test_download_percentage(self, test_client: TestClient, tag_bucket: None):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get(
             "/status/miniotestbucket/percentage",

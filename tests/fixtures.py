@@ -383,6 +383,12 @@ def bucket_deletion() -> Generator[None, None, None]:
 
 
 @pytest.fixture(scope="function")
+def tag_bucket() -> Generator[None, None, None]:
+    tags = [{"Key": "00000000-0000-0000-0000-000000000000", "Value": "STAGING"}]
+    S3Client().tag_bucket(bucket_name="miniotestbucket", tags=tags)
+
+
+@pytest.fixture(scope="function")
 def dataset_with_job_id(
     functional_icat_client: IcatClient,
     dataset_type: Entity,
