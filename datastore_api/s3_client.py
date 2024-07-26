@@ -83,7 +83,7 @@ class S3Client:
 
         return response
 
-    def list_bucket_objects(self, bucket_name: str) -> list[str]:
+    def list_bucket_objects(self, bucket_name: str, max_keys: int = 1000) -> list[str]:
         """Lists objects in a S3 bucket
 
         Args:
@@ -96,7 +96,7 @@ class S3Client:
         # TODO: list_objects returns max 1000 objects. is it enough?
         # Also, v2 is available:
         # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/list_objects_v2.html
-        response = self.client.list_objects(Bucket=bucket_name)
+        response = self.client.list_objects(Bucket=bucket_name, MaxKeys=max_keys)
 
         for obj in response["Contents"]:
             object_names.append(obj["Key"])

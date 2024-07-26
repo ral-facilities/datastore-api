@@ -133,17 +133,6 @@ class S3Settings(BaseModel):
     access_key: str
     secret_key: str
 
-    @validator("endpoint")
-    def _validate_s3_endpoint(cls, v: str) -> str:
-        if v.endswith("//"):
-            LOGGER.warn(f"S3 Endpoint {v} did contain second '//', removing")
-            return v[:-2]
-        elif v.endswith("/"):
-            LOGGER.warn(f"S3 Endpoint {v} did end with trailing '/', removing")
-            return v[:-1]
-        else:
-            return v
-
 
 class Settings(BaseSettings):
     icat: IcatSettings

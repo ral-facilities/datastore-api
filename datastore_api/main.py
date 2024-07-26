@@ -398,7 +398,7 @@ def get_status(
     statuses = fts3_client.status(job_id=job_ids)
     new_tags = []
     for status in statuses:
-        new_tags.append({"Key": status.job_id, "Value": status.job_state})
+        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
     S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
     return StatusResponse(status=statuses)
 
@@ -427,8 +427,8 @@ def get_complete(
     job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
     statuses = fts3_client.status(job_id=job_ids)
     for status in statuses:
-        new_tags.append({"Key": status.job_id, "Value": status.job_state})
-        state_counter.check_state(state=status.job_state, job_id=status.job_id)
+        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
+        state_counter.check_state(state=status["job_state"], job_id=status["job_id"])
     S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
     complete = state_counter.state in (
         JobState.canceled,
@@ -464,7 +464,7 @@ def get_percentage(
     statuses = fts3_client.status(job_id=job_ids)
     new_tags = []
     for status in statuses:
-        new_tags.append({"Key": status.job_id, "Value": status.job_state})
+        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
         files_total += len(status["files"])
         for file in status["files"]:
             if file["file_state"] in (TransferState.finished, TransferState.failed):
