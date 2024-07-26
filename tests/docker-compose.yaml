@@ -92,7 +92,6 @@ services:
       - "9001:9001"
     networks:
       network:
-        ipv4_address: 172.20.0.10
 
   # Script that inits minio with a bucket and an object
   mc:
@@ -119,6 +118,3 @@ volumes:
 # docker run --network=tests_doi_test_network doi-mint-api pytest -c tests/pytest.ini
 networks:
   network:
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16

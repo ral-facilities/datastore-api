@@ -468,7 +468,7 @@ class TestRestore:
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
         sources = [f"root://archive:1094//{path}?copy_mode=push"]
         destinations = [
-            f"s3s://172.20.0.10:9000/{bucket_name}/{path}",
+            f"s3s://127.0.0.1:9000/{bucket_name}/{path}",
         ]
         job = fts_job(
             sources=sources,
