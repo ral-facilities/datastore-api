@@ -503,36 +503,3 @@ class TestCancel:
         content = json.loads(test_response.content)
         assert test_response.status_code == 400, content
         assert content == {"detail": "Archival jobs cannot be cancelled"}
-
-
-# class TestGetData:
-#     def test_get_data(
-#         self,
-#         test_client: TestClient,
-#         mocker: MockerFixture,
-#         session_id: session_id,
-#         submit: MagicMock,
-#         facility: Entity,
-#         investigation_type: Entity,
-#         facility_cycle: Entity,
-#         instrument: Entity,
-#         investigation: Entity,
-#         functional_icat_client: IcatClient,
-#         # restore_ids: str,
-#     ):
-#         path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
-#         sources = [f"root://idc:1094/{path}", f"root://udc:1094/{path}"]
-#         destinations = [f"root://archive:1094/{path}"]
-#         job = fts_job(
-#             sources=sources,
-#             destinations=destinations,
-#             archive_timeout=28800,
-#         )
-#         headers = {"Authorization": f"Bearer {session_id}"}
-#         test_response = test_client.get(
-#             "/data?job_ids=1&job_ids=2",
-#             headers=headers,
-#         )
-#         content = json.loads(test_response.content)
-#         assert test_response.status_code == 200, content
-#         assert content == {"state": "SUBMITTED"}

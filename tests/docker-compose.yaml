@@ -104,6 +104,8 @@ services:
       /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
       /usr/bin/mc mb myminio/miniotestbucket;
       /usr/bin/echo "test" | mc pipe myminio/miniotestbucket/test;
+      /usr/bin/echo "test2" | mc pipe myminio/miniotestbucket/test2;
+      /usr/bin/echo "test3" | mc pipe myminio/miniotestbucket/test3;
       exit 0;
       "
     networks:

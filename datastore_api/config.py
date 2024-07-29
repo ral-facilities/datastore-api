@@ -4,7 +4,7 @@ import logging
 import os
 from typing import Any
 
-from pydantic import BaseModel, BaseSettings, validator
+from pydantic import BaseModel, BaseSettings, HttpUrl, validator
 
 from datastore_api.utils import load_yaml
 
@@ -53,7 +53,7 @@ class FunctionalUser(IcatUser):
 
 
 class IcatSettings(BaseModel):
-    url: str
+    url: HttpUrl
     check_cert: bool = True
     admin_users: list[IcatUser] = []
     functional_user: FunctionalUser
@@ -71,7 +71,7 @@ class VerifyChecksum(StrEnum):
 
 
 class Fts3Settings(BaseModel):
-    endpoint: str
+    endpoint: HttpUrl
     instrument_data_cache: str
     user_data_cache: str
     tape_archive: str
@@ -129,20 +129,9 @@ class Fts3Settings(BaseModel):
 
 
 class S3Settings(BaseModel):
-    endpoint: str
+    endpoint: HttpUrl
     access_key: str
     secret_key: str
-
-    @validator("endpoint")
-    def _validate_s3_endpoint(cls, v: str) -> str:
-        if v.endswith("//"):
-            LOGGER.warn(f"S3 Endpoint {v} did contain second '//', removing")
-            return v[:-2]
-        elif v.endswith("/"):
-            LOGGER.warn(f"S3 Endpoint {v} did end with trailing '/', removing")
-            return v[:-1]
-        else:
-            return v
 
 
 class Settings(BaseSettings):

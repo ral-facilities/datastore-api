@@ -14,6 +14,7 @@ from tests.fixtures import (
     investigation_metadata,
     mock_fts3_settings,
     submit,
+    tag_bucket,
 )
 
 
@@ -28,7 +29,13 @@ FILES = [
         "dest_surl": "mock://test.cern.ch/swnx/jznu/laso?size_post=1048576&time=2",
     },
 ]
-STATUSES = [{"job_state": "FINISHEDDIRTY", "files": FILES}]
+STATUSES = [
+    {
+        "job_id": "00000000-0000-0000-0000-000000000000",
+        "job_state": "FINISHEDDIRTY",
+        "files": FILES,
+    },
+]
 
 
 @pytest.fixture(scope="function")
@@ -136,14 +143,15 @@ class TestMain:
             "/data/miniotestbucket",
             headers=headers,
         )
-
-        url = mock_fts3_settings.s3.endpoint
         key = mock_fts3_settings.s3.access_key
-
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
+        assert len(content) == 3
         assert "test" in content
-        assert f"{url}/miniotestbucket/test?AWSAccessKeyId={key}" in content["test"]
+        assert (
+            f"http://127.0.0.1:9000/miniotestbucket/test?AWSAccessKeyId={key}"
+            in content["test"]
+        )
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
@@ -164,6 +172,35 @@ class TestMain:
     def test_percentage(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/job/1/percentage", headers=headers)
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"percentage_complete": 100.0}
+
+    def test_download_status(self, test_client: TestClient, tag_bucket: None):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get("/status/miniotestbucket", headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"status": STATUSES}
+
+    def test_download_complete(self, test_client: TestClient, tag_bucket: None):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get(
+            "/status/miniotestbucket/complete",
+            headers=headers,
+        )
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"complete": True}
+
+    def test_download_percentage(self, test_client: TestClient, tag_bucket: None):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get(
+            "/status/miniotestbucket/percentage",
+            headers=headers,
+        )
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert content == {"percentage_complete": 100.0}
