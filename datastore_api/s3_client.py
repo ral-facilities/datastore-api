@@ -27,20 +27,22 @@ class S3Client:
             aws_secret_access_key=self.settings.secret_key,
         )
 
-    # TODO: expiration? / what region should be default?
-    def create_bucket(self) -> dict:
+    def create_bucket(self, bucket_name: str = None) -> dict:
         """Creates a new s3 storage bucket
         https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-example-creating-buckets.html
         https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/create_bucket.html
 
         Args:
-            bucket_name (str): Name for the bucket
-
+            bucket_name (str, optional): The name of the bucket to create.
+                If None, or a bucket with this name already exists
+                a random UUID4 name will be generated.
+                Defaults to None.
         Returns:
             dict: a dictionary with 'Location', which is the forward slash
                 followed by the name of the bucket
         """
-        bucket_name = str(uuid4())
+        if not bucket_name:
+            bucket_name = str(uuid4())
         try:
             bucket = self.client.create_bucket(Bucket=bucket_name)
         except self.client.exceptions.BucketAlreadyOwnedByYou:
@@ -94,7 +96,8 @@ class S3Client:
 
         Args:
             bucket_name (str): Name of the bucket.
-            max_keys (int): Maximum number of objects in response.
+            max_keys (int, optional): Maximum number of objects in response.
+                Defaults to 1000.
 
         Returns:
             list[str]: List of object names

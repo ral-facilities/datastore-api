@@ -9,7 +9,9 @@ from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest, Investigation
 from datastore_api.models.restore import RestoreRequest
+from datastore_api.s3_client import S3Client
 from tests.fixtures import (
+    bucket_creation,
     bucket_deletion,
     investigation_metadata,
     mock_fts3_settings,
@@ -212,6 +214,20 @@ class TestMain:
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert content == {"state": "CANCELED"}
+
+    def test_delete_bucket(
+        self,
+        test_client: TestClient,
+        bucket_creation: str,
+        bucket_deletion: None,
+    ):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.delete(
+            f"/delete_bucket/{bucket_creation}",
+            headers=headers,
+        )
+        assert test_response.status_code == 200
+        assert bucket_creation not in S3Client().list_buckets()
 
     def test_version(self, test_client: TestClient):
         test_response = test_client.get("/version")

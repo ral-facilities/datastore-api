@@ -14,6 +14,7 @@ from datastore_api.config import (
     FunctionalUser,
     get_settings,
     IcatSettings,
+    S3Settings,
     Settings,
 )
 from datastore_api.icat_client import IcatClient
@@ -185,6 +186,16 @@ def functional_icat_client(
         *icat_client.get_entities(entity="Datafile", equals={"name": "datafile"}),
     ]
     icat_client.client.deleteMany(beans)
+
+
+@pytest.fixture(scope="function")
+def s3_settings(mock_fts3_settings: Settings):
+    return mock_fts3_settings.s3
+
+
+@pytest.fixture(scope="function")
+def s3_client(s3_settings: S3Settings, mocker: MockerFixture):
+    return S3Client()
 
 
 @pytest.fixture(scope="function")
@@ -371,6 +382,12 @@ def investigation_tear_down(
     )
     if investigation is not None:
         delete(icat_client=functional_icat_client, entity=investigation)
+
+
+@pytest.fixture(scope="function")
+def bucket_creation() -> Generator[str, None, None]:
+    bucket = S3Client().create_bucket()
+    yield bucket["Location"][1:]
 
 
 @pytest.fixture(scope="function")
