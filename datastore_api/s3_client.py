@@ -93,7 +93,8 @@ class S3Client:
         """Lists objects in a S3 bucket
 
         Args:
-            bucket_name (str): Name of the bucket
+            bucket_name (str): Name of the bucket.
+            max_keys (int): Maximum number of objects in response.
 
         Returns:
             list[str]: List of object names

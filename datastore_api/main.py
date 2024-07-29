@@ -12,12 +12,13 @@ from datastore_api.investigation_archiver import InvestigationArchiver
 from datastore_api.lifespan import lifespan, StateCounter
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
 from datastore_api.models.job import (
+    complete_job_states,
     CancelResponse,
     CompleteResponse,
+    complete_transfer_states,
     JobState,
     PercentageResponse,
     StatusResponse,
-    TransferState,
 )
 from datastore_api.models.login import LoginRequest, LoginResponse
 from datastore_api.models.restore import (
@@ -340,13 +341,9 @@ def complete(job_id: str, fts3_client: Fts3ClientDependency) -> CompleteResponse
         CompleteResponse: Completeness of the requested job.
     """
     status = fts3_client.status(job_id=job_id)
-    complete_states = (
-        JobState.finished,
-        JobState.finished_dirty,
-        JobState.failed,
-        JobState.canceled,
+    return CompleteResponse(
+        complete=status[0]["job_state"] in complete_job_states,
     )
-    return CompleteResponse(complete=status[0]["job_state"] in complete_states)
 
 
 @app.get(
@@ -369,7 +366,7 @@ def percentage(job_id: str, fts3_client: Fts3ClientDependency) -> PercentageResp
     status = fts3_client.status(job_id=job_id)
     files_total = len(status[0]["files"])
     for file in status[0]["files"]:
-        if file["file_state"] in (TransferState.finished, TransferState.failed):
+        if file["file_state"] in complete_transfer_states:
             files_complete += 1
 
     return PercentageResponse(percentage_complete=100 * files_complete / files_total)
@@ -430,13 +427,9 @@ def get_complete(
         new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
         state_counter.check_state(state=status["job_state"], job_id=status["job_id"])
     S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
-    complete = state_counter.state in (
-        JobState.canceled,
-        JobState.failed,
-        JobState.finished,
-        JobState.finished_dirty,
+    return CompleteResponse(
+        complete=state_counter.state in complete_job_states,
     )
-    return CompleteResponse(complete=complete)
 
 
 @app.get(
@@ -467,7 +460,7 @@ def get_percentage(
         new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
         files_total += len(status["files"])
         for file in status["files"]:
-            if file["file_state"] in (TransferState.finished, TransferState.failed):
+            if file["file_state"] in complete_transfer_states:
                 files_complete += 1
     S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
     return PercentageResponse(percentage_complete=100 * files_complete / files_total)
