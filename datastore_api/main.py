@@ -12,10 +12,10 @@ from datastore_api.investigation_archiver import InvestigationArchiver
 from datastore_api.lifespan import lifespan, StateCounter
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
 from datastore_api.models.job import (
-    complete_job_states,
     CancelResponse,
-    CompleteResponse,
+    complete_job_states,
     complete_transfer_states,
+    CompleteResponse,
     JobState,
     PercentageResponse,
     StatusResponse,
