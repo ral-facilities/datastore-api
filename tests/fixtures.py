@@ -55,9 +55,9 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
         # pass a readable file to satisfy the validator and mock requests to FTS.
         fts3_settings = Fts3Settings(
             endpoint="https://fts-test01.gridpp.rl.ac.uk:8446",
-            instrument_data_cache="root://idc:1094//",
-            user_data_cache="root://udc:1094//",
-            tape_archive="root://archive:1094//",
+            instrument_data_cache="root://idc.ac.uk:1094//",
+            restored_data_cache="root://rdc.ac.uk:1094//",
+            tape_archive="root://archive.ac.uk:1094//",
             x509_user_cert=__file__,
             x509_user_key=__file__,
         )
@@ -88,9 +88,9 @@ def investigation_metadata(mocker: MockerFixture):
         # pass a readable file to satisfy the validator and mock requests to FTS.
         fts3_settings = Fts3Settings(
             endpoint="https://fts-test01.gridpp.rl.ac.uk:8446",
-            instrument_data_cache="root://idc:1094//",
-            user_data_cache="root://udc:1094//",
-            tape_archive="root://archive:1094//",
+            instrument_data_cache="root://idc.ac.uk:1094//",
+            restored_data_cache="root://rdc.ac.uk:1094//",
+            tape_archive="root://archive.ac.uk:1094//",
             x509_user_cert=__file__,
             x509_user_key=__file__,
         )

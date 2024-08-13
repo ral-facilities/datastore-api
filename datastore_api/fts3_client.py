@@ -21,7 +21,7 @@ class Fts3Client:
             ukey=fts_settings.x509_user_key,
         )
         self.instrument_data_cache = fts_settings.instrument_data_cache
-        self.user_data_cache = fts_settings.user_data_cache
+        self.restored_data_cache = fts_settings.restored_data_cache
         self.tape_archive = fts_settings.tape_archive
         self.retry = fts_settings.retry
         self.verify_checksum = fts_settings.verify_checksum
@@ -38,23 +38,23 @@ class Fts3Client:
             dict[str, list]: Transfer dict for moving `path` to tape.
         """
         source = f"{self.instrument_data_cache}{path}"
-        alternate_source = f"{self.user_data_cache}{path}"
+        alternate_source = f"{self.restored_data_cache}{path}"
         destination = f"{self.tape_archive}{path}"
         transfer = fts3.new_transfer(source=source, destination=destination)
         transfer["sources"].append(alternate_source)
         return transfer
 
     def restore(self, path: str) -> dict[str, list]:
-        """Returns a transfer dict moving `path` from tape to the UDC.
+        """Returns a transfer dict moving `path` from tape to the RDC.
 
         Args:
             path (str): Path of the file to be moved.
 
         Returns:
-            dict[str, list]: Transfer dict for moving `path` to the UDC.
+            dict[str, list]: Transfer dict for moving `path` to the RDC.
         """
         source = f"{self.tape_archive}{path}"
-        destination = f"{self.user_data_cache}{path}"
+        destination = f"{self.restored_data_cache}{path}"
         return fts3.new_transfer(source=source, destination=destination)
 
     def submit(self, transfers: list[dict[str, list]], stage: bool = False) -> str:

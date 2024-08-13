@@ -197,8 +197,8 @@ class TestArchive:
         UUID4(content["job_ids"][0])
 
         path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
-        sources = [f"root://idc:1094/{path}", f"root://udc:1094/{path}"]
-        destinations = [f"root://archive:1094/{path}"]
+        sources = [f"root://idc.ac.uk:1094/{path}", f"root://rdc.ac.uk:1094/{path}"]
+        destinations = [f"root://archive.ac.uk:1094/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
@@ -299,8 +299,8 @@ class TestArchive:
         UUID4(content["job_ids"][0])
 
         path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
-        sources = [f"root://idc:1094/{path}", f"root://udc:1094/{path}"]
-        destinations = [f"root://archive:1094/{path}"]
+        sources = [f"root://idc.ac.uk:1094/{path}", f"root://rdc.ac.uk:1094/{path}"]
+        destinations = [f"root://archive.ac.uk:1094/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
@@ -395,8 +395,8 @@ class TestRestore:
         UUID4(content["job_ids"][0])
 
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
-        sources = [f"root://archive:1094//{path}"]
-        destinations = [f"root://udc:1094//{path}"]
+        sources = [f"root://archive.ac.uk:1094//{path}"]
+        destinations = [f"root://rdc.ac.uk:1094//{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
