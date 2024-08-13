@@ -5,9 +5,9 @@ from datastore_api.investigation_archiver import InvestigationArchiver
 from datastore_api.models.archive import ArchiveRequest
 from datastore_api.models.icat import Investigation, InvestigationTypeIdentifier
 from tests.fixtures import (
+    archive_request,
     archive_request_parameters,
     archive_request_sample,
-    archive_request,
     icat_client,
     icat_client_empty_search,
     icat_settings,
