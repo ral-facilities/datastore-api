@@ -144,12 +144,15 @@ def restore(
         RestoreResponse: FTS job_id for restore transfer.
     """
     icat_client = IcatClient(session_id=session_id)
-    paths = icat_client.get_paths(
+    datafile_entities = icat_client.get_unique_datafiles(
         investigation_ids=restore_request.investigation_ids,
         dataset_ids=restore_request.dataset_ids,
         datafile_ids=restore_request.datafile_ids,
     )
-    restore_controller = RestoreController(fts3_client=fts3_client, paths=paths)
+    restore_controller = RestoreController(
+        fts3_client=fts3_client,
+        datafile_entities=datafile_entities,
+    )
     restore_controller.create_fts_jobs()
 
     message = "Submitted FTS restore jobs for %s transfers with ids %s"

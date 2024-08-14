@@ -25,20 +25,22 @@ STATUS = {"job_state": "FINISHEDDIRTY", "files": FILES}
 
 @pytest.fixture(scope="function")
 def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
-    icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
-    icat_client = icat_client_mock.return_value
-    icat_client.settings = mock_fts3_settings.icat
-    icat_client.login.return_value = SESSION_ID
-    icat_client.get_paths.return_value = ["path/to/data"]
-    icat_client.check_job_id.return_value = None
-
+    datafile = mocker.MagicMock(name="datafile")
     dataset = mocker.MagicMock(name="dataset")
     dataset_parameter_state = mocker.MagicMock(name="dataset_parameter_state")
     dataset_parameter_state.type.name = "Archival state"
     dataset_parameter_job_ids = mocker.MagicMock(name="dataset_parameter_job_ids")
     dataset_parameter_job_ids.type.name = "Archival ids"
     dataset.parameters = [dataset_parameter_state, dataset_parameter_job_ids]
-    icat_client.new_dataset.return_value = dataset, ["path/to/data"]
+    dataset.datafiles = [datafile]
+
+    icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
+    icat_client = icat_client_mock.return_value
+    icat_client.settings = mock_fts3_settings.icat
+    icat_client.login.return_value = SESSION_ID
+    icat_client.get_unique_datafiles.return_value = [datafile]
+    icat_client.check_job_id.return_value = None
+    icat_client.new_dataset.return_value = dataset
 
     mocker.patch("datastore_api.fts3_client.fts3.Context")
 
