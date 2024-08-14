@@ -489,6 +489,7 @@ def investigation(
     datafile = functional_icat_client.client.new(
         obj="Datafile",
         name="datafile",
+        location="instrument/20XX/name-visitId/type/dataset/datafile",
     )
     dataset = functional_icat_client.client.new(
         obj="Dataset",

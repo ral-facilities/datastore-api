@@ -147,6 +147,15 @@ class Fts3Settings(BaseModel):
             "files and not the value."
         ),
     )
+    supported_checksums: list[str] = Field(
+        default=[],
+        description=(
+            "List of checksum mechanisms supported by the storage endpoints. If "
+            "`verify_checksum` is not 'none', then this must include at least one "
+            "mechanism."
+        ),
+        example=["ADLER32"],
+    )
     bring_online: int = Field(
         default=28800,
         description=(
@@ -163,7 +172,7 @@ class Fts3Settings(BaseModel):
     )
 
     @validator("x509_user_cert", always=True)
-    def _validate_x509(cls, v: str, values: dict) -> str:
+    def _validate_x509(cls, v: str | None, values: dict) -> str:
         if v is not None:
             x509_user_key = values.get("x509_user_key", None)
             return Fts3Settings._validate_x509_cert(v, x509_user_key)
@@ -182,18 +191,17 @@ class Fts3Settings(BaseModel):
 
         path = url.path
         if path is None:
-            LOGGER.warn("FTS endpoint '%s' missing path, setting to '//'", v)
+            LOGGER.warning("FTS endpoint '%s' missing path, setting to '//'", v)
             path = "//"
         else:
             if not path.startswith("//"):
-                LOGGER.warn(
-                    "FTS endpoint '%s' path did not start with '//', appending",
-                    v,
-                )
+                msg = "FTS endpoint '%s' path did not start with '//', appending"
+                LOGGER.warning(msg, v)
                 path = f"/{path}"
 
             if not path.endswith("/"):
-                LOGGER.warn("FTS endpoint '%s' path did not end with '/', appending", v)
+                msg = "FTS endpoint '%s' path did not end with '/', appending"
+                LOGGER.warning(msg, v)
                 path = f"{path}/"
 
         return RootUrl.build(
@@ -230,6 +238,16 @@ class Fts3Settings(BaseModel):
             raise ValueError("x509_user_proxy exists but is not readable")
 
         return x509_user_proxy
+
+    @validator("supported_checksums", always=True)
+    def _validate_supported_checksums(cls, v: list[str], values: dict) -> list[str]:
+        if values["verify_checksum"] != VerifyChecksum.NONE and not v:
+            raise ValueError(
+                "At least one checksum mechanism needs to be provided if "
+                "`verify_checksum` is not 'none'",
+            )
+
+        return v
 
 
 class Settings(BaseSettings):

@@ -76,7 +76,6 @@ def fts_job(
             {
                 "sources": sources,
                 "destinations": destinations,
-                "checksum": "ADLER32",
                 "selection_strategy": "auto",
             },
         ],

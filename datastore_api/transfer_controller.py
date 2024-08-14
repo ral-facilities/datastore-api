@@ -17,7 +17,7 @@ class TransferController(ABC):
             fts3_client (Fts3Client): The Fts3Client to use for transfers and jobs.
         """
         self.fts3_client = fts3_client
-        self.paths = []
+        self.datafile_entities = []
         self.transfers = []
         self.job_ids = []
         self.stage = False
@@ -27,15 +27,15 @@ class TransferController(ABC):
         """Iterates over `self.paths`, creating and submitting transfers to FTS as
         needed.
         """
-        for path in self.paths:
-            transfer = self._transfer(path)
+        for datafile_entity in self.datafile_entities:
+            transfer = self._transfer(datafile_entity)
             self.transfers.append(transfer)
             self._submit(minimum_transfers=1000)
 
         self._submit()
 
     @abstractmethod
-    def _transfer(self, path: str) -> dict[str, list]: ...
+    def _transfer(self, datafile_entity: Entity) -> dict[str, list]: ...
 
     def _submit(self, minimum_transfers: int = 1) -> None:
         """Submits any pending `self.transfers`.
@@ -56,27 +56,31 @@ class TransferController(ABC):
 class RestoreController(TransferController):
     """Controller for restoring paths to disk cache, regardless of origin."""
 
-    def __init__(self, fts3_client: Fts3Client, paths: list[str]) -> None:
+    def __init__(
+        self,
+        fts3_client: Fts3Client,
+        datafile_entities: list[Entity],
+    ) -> None:
         """Initialises the controller with the Fts3Client and paths to use.
 
         Args:
             fts3_client (Fts3Client): The Fts3Client to use for transfers and jobs.
-            paths (list[str]): File paths to restore.
+            datafile_entities (list[Entity]): Datafiles to restore.
         """
         super().__init__(fts3_client)
-        self.paths = paths
+        self.datafile_entities = datafile_entities
         self.stage = True
 
-    def _transfer(self, path: str) -> dict[str, list]:
-        """Returns a transfer dict moving `path` from tape to the RDC.
+    def _transfer(self, datafile_entity: Entity) -> dict[str, list]:
+        """Returns a transfer dict moving `datafile_entity` from tape to the RDC.
 
         Args:
-            path (str): Path of the file to be moved.
+            datafile_entity (Entity): Path of the file to be moved.
 
         Returns:
             dict[str, list]: Transfer dict for moving `path` to the RDC.
         """
-        return self.fts3_client.restore(path)
+        return self.fts3_client.restore(datafile_entity)
 
 
 class DatasetArchiver(TransferController):
@@ -102,7 +106,7 @@ class DatasetArchiver(TransferController):
             investigation_entity (Entity): ICAT Investigation entity.
         """
         super().__init__(fts3_client)
-        dataset_entity, paths = icat_client.new_dataset(
+        dataset_entity = icat_client.new_dataset(
             facility_name=facility_name,
             investigation_path=investigation_path,
             dataset=dataset,
@@ -110,7 +114,7 @@ class DatasetArchiver(TransferController):
         )
         self.icat_client = icat_client
         self.dataset_entity = dataset_entity
-        self.paths = paths
+        self.datafile_entities = dataset_entity.datafiles
 
     def create_fts_jobs(self) -> None:
         """Iterates over `self.paths`, creating and submitting transfers to FTS as
@@ -126,7 +130,7 @@ class DatasetArchiver(TransferController):
                 parameter.stringValue = joined_job_ids
                 return
 
-    def _transfer(self, path: str) -> dict[str, list]:
+    def _transfer(self, datafile_entity: Entity) -> dict[str, list]:
         """Returns a transfer dict moving `path` from one of the caches to tape.
 
         Args:
@@ -135,4 +139,4 @@ class DatasetArchiver(TransferController):
         Returns:
             dict[str, list]: Transfer dict for moving `path` to tape.
         """
-        return self.fts3_client.archive(path)
+        return self.fts3_client.archive(datafile_entity)

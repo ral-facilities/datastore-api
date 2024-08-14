@@ -147,3 +147,12 @@ class TestFts3Settings:
             Fts3Settings._validate_storage_endpoint(endpoint)
 
         assert error in e.exconly()
+
+    def test_validate_supported_checksums(self):
+        with pytest.raises(ValueError) as e:
+            Fts3Settings._validate_supported_checksums([], {"verify_checksum": "both"})
+
+        assert e.exconly() == (
+            "ValueError: At least one checksum mechanism needs to be provided if "
+            "`verify_checksum` is not 'none'"
+        )

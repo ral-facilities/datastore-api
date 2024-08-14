@@ -33,6 +33,8 @@ class TestInvestigationArchiver:
         """
         fts3_client = mocker.MagicMock(name="fts3_client")
         fts3_client.submit.return_value = "0"
+        dataset = mocker.MagicMock(name="dataset")
+        dataset.datafiles = [mocker.MagicMock(name="datafile")]
 
         investigation_archiver = InvestigationArchiver(
             icat_client,
@@ -43,7 +45,7 @@ class TestInvestigationArchiver:
             investigation=archive_request.investigation_identifier,
             datasets=[archive_request.dataset],
         )
-        icat_client.client.new.return_value = mocker.MagicMock(name="dataset")
+        icat_client.client.new.return_value = dataset
 
         mock_investigation = mocker.MagicMock(name="investigation")
         mock_investigation.id = None
@@ -61,7 +63,6 @@ class TestInvestigationArchiver:
                 **archive_request.investigation_identifier.dict(),
             ),
         )
-        dataset = mocker.MagicMock(name="dataset")
         icat_client_empty_search.client.new.return_value = dataset
 
         icat_cache_mock = mocker.MagicMock(wraps=IcatCache)
