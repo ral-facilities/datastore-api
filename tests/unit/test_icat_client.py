@@ -1,14 +1,29 @@
 from fastapi import HTTPException
+from icat.entity import Entity
 import pytest
 from pytest_mock import MockerFixture
 
 from datastore_api.icat_client import IcatClient
+from datastore_api.models.icat import Sample
 from datastore_api.models.login import Credentials, LoginRequest
 from tests.fixtures import (
+    archive_request_parameters,
+    archive_request_sample,
+    dataset_type,
+    facility,
+    facility_cycle,
+    functional_icat_client,
     icat_client,
     icat_client_empty_search,
     icat_settings,
+    instrument,
+    investigation,
+    investigation_type,
     mock_fts3_settings,
+    parameter_type_date_time,
+    parameter_type_numeric,
+    parameter_type_string,
+    sample_type,
     SESSION_ID,
     submit,
 )
@@ -135,3 +150,29 @@ class TestIcatClient:
 
         err = "fastapi.exceptions.HTTPException: 400: Archival jobs cannot be cancelled"
         assert e.exconly() == err
+
+    def test_extract_sample(
+        self,
+        functional_icat_client: IcatClient,
+        investigation: Entity,
+        sample_type: Entity,
+        parameter_type_date_time: Entity,
+        parameter_type_numeric: Entity,
+        parameter_type_string: Entity,
+        archive_request_sample: Sample,
+    ):
+        sample_entity = functional_icat_client._extract_sample(
+            "facility",
+            investigation,
+            archive_request_sample,
+        )
+        new_sample_id = sample_entity.id
+
+        sample_entity = functional_icat_client._extract_sample(
+            "facility",
+            investigation,
+            archive_request_sample,
+        )
+        existing_sample_id = sample_entity.id
+
+        assert new_sample_id == existing_sample_id

@@ -4,7 +4,7 @@ import logging
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
-from icat.entities import Entity
+from icat.entity import Entity
 
 from datastore_api.fts3_client import get_fts3_client
 from datastore_api.icat_client import IcatClient

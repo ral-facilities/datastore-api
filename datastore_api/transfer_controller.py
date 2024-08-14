@@ -4,7 +4,7 @@ from icat.entity import Entity
 
 from datastore_api.fts3_client import Fts3Client
 from datastore_api.icat_client import IcatClient
-from datastore_api.models.archive import Dataset, Investigation
+from datastore_api.models.icat import Dataset
 
 
 class TransferController(ABC):
@@ -86,7 +86,8 @@ class DatasetArchiver(TransferController):
         self,
         icat_client: IcatClient,
         fts3_client: Fts3Client,
-        investigation: Investigation,
+        facility_name: str,
+        investigation_path: str,
         dataset: Dataset,
         investigation_entity: Entity,
     ) -> None:
@@ -102,7 +103,8 @@ class DatasetArchiver(TransferController):
         """
         super().__init__(fts3_client)
         dataset_entity, paths = icat_client.new_dataset(
-            investigation=investigation,
+            facility_name=facility_name,
+            investigation_path=investigation_path,
             dataset=dataset,
             investigation_entity=investigation_entity,
         )
