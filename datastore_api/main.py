@@ -105,19 +105,18 @@ def archive(
     """
     icat_client = IcatClient(session_id=session_id)
     icat_client.authorise_admin()
-    beans = []
-    job_ids = []
-    for investigation in archive_request.investigations:
-        investigation_archiver = InvestigationArchiver(
-            icat_client=icat_client,
-            fts3_client=fts3_client,
-            investigation=investigation,
-        )
-        investigation_archiver.archive_datasets()
-        beans.extend(investigation_archiver.beans)
-        job_ids.extend(investigation_archiver.job_ids)
+    investigation_archiver = InvestigationArchiver(
+        icat_client=icat_client,
+        fts3_client=fts3_client,
+        facility_name=archive_request.facility_identifier.name,
+        facility_cycle_name=archive_request.facility_cycle_identifier.name,
+        instrument_name=archive_request.instrument_identifier.name,
+        investigation=archive_request.investigation_identifier,
+        datasets=[archive_request.dataset],
+    )
+    investigation_archiver.archive_datasets()
 
-    icat_client.create_many(beans=beans)
+    icat_client.create_many(beans=investigation_archiver.beans)
 
     LOGGER.info(
         "Submitted FTS archival jobs for %s transfers with ids %s",
@@ -129,20 +128,20 @@ def archive(
 
 
 @app.post(
-    "/restore/udc",
+    "/restore/rdc",
     response_description="The FTS job id for the requested transfer",
     summary=(
-        "Submit a request to restore experimental data to the UDC, "
+        "Submit a request to restore experimental data to the RDC, "
         "creating an FTS transfer"
     ),
     tags=["Restore"],
 )
-def restore_udc(
+def restore_rdc(
     restore_request: RestoreRequest,
     session_id: SessionIdDependency,
     fts3_client: Fts3ClientDependency,
 ) -> RestoreResponse:
-    """Submit a request to restore experimental data to the UDC,
+    """Submit a request to restore experimental data to the RDC,
     creating an FTS transfer.
     \f
     Args:
@@ -154,15 +153,15 @@ def restore_udc(
         RestoreResponse: FTS job_id for restore transfer.
     """
     icat_client = IcatClient(session_id=session_id)
-    paths = icat_client.get_paths(
+    datafile_entities = icat_client.get_unique_datafiles(
         investigation_ids=restore_request.investigation_ids,
         dataset_ids=restore_request.dataset_ids,
         datafile_ids=restore_request.datafile_ids,
     )
     restore_controller = RestoreController(
         fts3_client=fts3_client,
-        paths=paths,
-        destination_cache=fts3_client.user_data_cache,
+        destination_cache=fts3_client.restored_data_cache,
+        datafile_entities=datafile_entities,
     )
     restore_controller.create_fts_jobs()
 
@@ -199,7 +198,7 @@ def restore_download(
         RestoreResponse: FTS job_id for download transfer.
     """
     icat_client = IcatClient(session_id=session_id)
-    paths = icat_client.get_paths(
+    datafile_entities = icat_client.get_unique_datafiles(
         investigation_ids=download_request.investigation_ids,
         dataset_ids=download_request.dataset_ids,
         datafile_ids=download_request.datafile_ids,
@@ -209,7 +208,7 @@ def restore_download(
 
     download_controller = RestoreController(
         fts3_client=fts3_client,
-        paths=paths,
+        datafile_entities=datafile_entities,
         destination_cache=f"{fts3_client.download_cache}{bucket['Location']}/",
         strict_copy=True,
     )

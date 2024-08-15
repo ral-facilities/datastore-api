@@ -7,13 +7,15 @@ from pytest_mock import mocker, MockerFixture
 
 from datastore_api.config import Settings
 from datastore_api.main import app
-from datastore_api.models.archive import ArchiveRequest, Investigation
+from datastore_api.models.archive import ArchiveRequest
 from datastore_api.models.restore import RestoreRequest
 from datastore_api.s3_client import S3Client
 from tests.fixtures import (
+    archive_request,
+    archive_request_parameters,
+    archive_request_sample,
     bucket_creation,
     bucket_deletion,
-    investigation_metadata,
     mock_fts3_settings,
     submit,
     tag_bucket,
@@ -42,20 +44,22 @@ STATUSES = [
 
 @pytest.fixture(scope="function")
 def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
-    icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
-    icat_client = icat_client_mock.return_value
-    icat_client.settings = mock_fts3_settings.icat
-    icat_client.login.return_value = SESSION_ID
-    icat_client.get_paths.return_value = ["path/to/data"]
-    icat_client.check_job_id.return_value = None
-
+    datafile = mocker.MagicMock(name="datafile")
     dataset = mocker.MagicMock(name="dataset")
     dataset_parameter_state = mocker.MagicMock(name="dataset_parameter_state")
     dataset_parameter_state.type.name = "Archival state"
     dataset_parameter_job_ids = mocker.MagicMock(name="dataset_parameter_job_ids")
     dataset_parameter_job_ids.type.name = "Archival ids"
     dataset.parameters = [dataset_parameter_state, dataset_parameter_job_ids]
-    icat_client.new_dataset.return_value = dataset, ["path/to/data"]
+    dataset.datafiles = [datafile]
+
+    icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
+    icat_client = icat_client_mock.return_value
+    icat_client.settings = mock_fts3_settings.icat
+    icat_client.login.return_value = SESSION_ID
+    icat_client.get_unique_datafiles.return_value = [datafile]
+    icat_client.check_job_id.return_value = None
+    icat_client.new_dataset.return_value = dataset
 
     mocker.patch("datastore_api.fts3_client.fts3.Context")
 
@@ -83,9 +87,8 @@ class TestMain:
     def test_archive(
         self,
         test_client: TestClient,
-        investigation_metadata: Investigation,
+        archive_request: ArchiveRequest,
     ):
-        archive_request = ArchiveRequest(investigations=[investigation_metadata])
         json_body = json.loads(archive_request.json())
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)
@@ -96,12 +99,12 @@ class TestMain:
         assert len(content["job_ids"]) == 1
         UUID4(content["job_ids"][0])
 
-    def test_restore_to_udc(self, test_client: TestClient):
+    def test_restore_to_rdc(self, test_client: TestClient):
         restore_request = RestoreRequest(investigation_ids=[0])
         json_body = json.loads(restore_request.json())
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post(
-            "/restore/udc",
+            "/restore/rdc",
             headers=headers,
             json=json_body,
         )

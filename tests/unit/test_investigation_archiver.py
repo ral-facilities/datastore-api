@@ -2,12 +2,15 @@ from pytest_mock import mocker, MockerFixture
 
 from datastore_api.icat_client import get_icat_cache, IcatCache, IcatClient
 from datastore_api.investigation_archiver import InvestigationArchiver
-from datastore_api.models.archive import Investigation
+from datastore_api.models.archive import ArchiveRequest
+from datastore_api.models.icat import Investigation, InvestigationTypeIdentifier
 from tests.fixtures import (
+    archive_request,
+    archive_request_parameters,
+    archive_request_sample,
     icat_client,
     icat_client_empty_search,
     icat_settings,
-    investigation_metadata,
     mock_fts3_settings,
     submit,
 )
@@ -18,7 +21,7 @@ class TestInvestigationArchiver:
         self,
         icat_client: IcatClient,
         icat_client_empty_search: IcatClient,
-        investigation_metadata: Investigation,
+        archive_request: ArchiveRequest,
         mocker: MockerFixture,
     ):
         """Since we're asserting on the use of the IcatCache, we cannot assert that
@@ -30,13 +33,19 @@ class TestInvestigationArchiver:
         """
         fts3_client = mocker.MagicMock(name="fts3_client")
         fts3_client.submit.return_value = "0"
+        dataset = mocker.MagicMock(name="dataset")
+        dataset.datafiles = [mocker.MagicMock(name="datafile")]
 
         investigation_archiver = InvestigationArchiver(
             icat_client,
             fts3_client,
-            investigation_metadata,
+            facility_name=archive_request.facility_identifier.name,
+            instrument_name=archive_request.instrument_identifier.name,
+            facility_cycle_name=archive_request.facility_cycle_identifier.name,
+            investigation=archive_request.investigation_identifier,
+            datasets=[archive_request.dataset],
         )
-        icat_client.client.new.return_value = mocker.MagicMock(name="dataset")
+        icat_client.client.new.return_value = dataset
 
         mock_investigation = mocker.MagicMock(name="investigation")
         mock_investigation.id = None
@@ -44,9 +53,16 @@ class TestInvestigationArchiver:
         investigation_archiver_empty_search = InvestigationArchiver(
             icat_client_empty_search,
             fts3_client,
-            investigation_metadata,
+            facility_name=archive_request.facility_identifier.name,
+            investigation=Investigation(
+                title="title",
+                investigationType=InvestigationTypeIdentifier(name="type"),
+                facilityCycle=archive_request.facility_cycle_identifier,
+                instrument=archive_request.instrument_identifier,
+                datasets=[archive_request.dataset],
+                **archive_request.investigation_identifier.dict(),
+            ),
         )
-        dataset = mocker.MagicMock(name="dataset")
         icat_client_empty_search.client.new.return_value = dataset
 
         icat_cache_mock = mocker.MagicMock(wraps=IcatCache)
@@ -56,18 +72,17 @@ class TestInvestigationArchiver:
 
         investigation_archiver.archive_datasets()
 
+        mock_call = mocker.call(facility_name="facility")
         assert investigation_archiver.job_ids == ["0"]
         assert len(investigation_archiver.beans) == 1
         assert "name='dataset'" in str(investigation_archiver.beans[0])
         icat_cache_mock.assert_called_once_with(facility_name="facility")
-        mock_call = mocker.call(facility_name="facility")
         get_icat_cache_mock.assert_has_calls([mock_call] * 2)
 
         investigation_archiver_empty_search.archive_datasets()
 
         assert investigation_archiver_empty_search.job_ids == ["0"]
         assert len(investigation_archiver_empty_search.beans) == 1
-        investigation_bean = investigation_archiver_empty_search.beans[0]
-        assert "name='investigation'" in str(investigation_bean)
+        assert "name='dataset'" in str(investigation_archiver.beans[0])
         icat_cache_mock.assert_called_once_with(facility_name="facility")
-        get_icat_cache_mock.assert_has_calls([mock_call] * 4)
+        get_icat_cache_mock.assert_has_calls([mock_call] * 2)

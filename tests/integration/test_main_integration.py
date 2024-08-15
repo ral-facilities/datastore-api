@@ -14,20 +14,18 @@ from pytest_mock import MockerFixture
 from datastore_api.config import Settings
 from datastore_api.icat_client import get_icat_cache, IcatClient
 from datastore_api.main import app
-from datastore_api.models.archive import (
-    ArchiveRequest,
-    Datafile,
-    Dataset,
-    DatasetType,
-    Facility,
-    FacilityCycle,
-    Instrument,
+from datastore_api.models.archive import ArchiveRequest
+from datastore_api.models.icat import (
     Investigation,
-    InvestigationType,
+    InvestigationTypeIdentifier,
 )
 from datastore_api.models.restore import RestoreRequest
 from tests.fixtures import (
+    archive_request,
+    archive_request_parameters,
+    archive_request_sample,
     bucket_deletion,
+    datafile_format,
     dataset_type,
     dataset_with_job_id,
     facility,
@@ -38,10 +36,15 @@ from tests.fixtures import (
     investigation_tear_down,
     investigation_type,
     mock_fts3_settings,
+    parameter_type_date_time,
     parameter_type_job_ids,
+    parameter_type_numeric,
     parameter_type_state,
+    parameter_type_string,
+    sample_type,
     SESSION_ID,
     submit,
+    technique,
 )
 
 log = logging.getLogger("tests")
@@ -75,7 +78,6 @@ def fts_job(
             {
                 "sources": sources,
                 "destinations": destinations,
-                "checksum": "ADLER32",
                 "selection_strategy": "auto",
             },
         ],
@@ -83,7 +85,7 @@ def fts_job(
         "params": {
             "verify_checksum": "none",
             "reuse": None,
-            "spacetoken": None,
+            "destination_spacetoken": None,
             "bring_online": bring_online,
             "dst_file_report": False,
             "archive_timeout": archive_timeout,
@@ -165,29 +167,15 @@ class TestArchive:
         investigation: Entity,
         parameter_type_state: Entity,
         parameter_type_job_ids: Entity,
+        parameter_type_string: Entity,
+        parameter_type_numeric: Entity,
+        parameter_type_date_time: Entity,
+        sample_type: Entity,
+        technique: Entity,
+        datafile_format: Entity,
+        archive_request: ArchiveRequest,
     ):
         get_icat_cache.cache_clear()
-        dataset = Dataset(
-            name="dataset1",
-            datasetType=DatasetType(name="type"),
-            datafiles=[Datafile(name="datafile")],
-        )
-        investigation_metadata = Investigation(
-            name="name",
-            visitId="visitId",
-            title="title",
-            summary="summary",
-            doi="doi",
-            startDate=datetime.now(),
-            endDate=datetime.now(),
-            releaseDate=datetime.now(),
-            facility=Facility(name="facility"),
-            investigationType=InvestigationType(name="type"),
-            instrument=Instrument(name="instrument"),
-            facilityCycle=FacilityCycle(name="20XX"),
-            datasets=[dataset],
-        )
-        archive_request = ArchiveRequest(investigations=[investigation_metadata])
         json_body = json.loads(archive_request.json())
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)
@@ -199,8 +187,8 @@ class TestArchive:
         UUID4(content["job_ids"][0])
 
         path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
-        sources = [f"root://idc:1094/{path}", f"root://udc:1094/{path}"]
-        destinations = [f"root://archive:1094/{path}"]
+        sources = [f"root://idc.ac.uk:1094/{path}", f"root://rdc.ac.uk:1094/{path}"]
+        destinations = [f"root://archive.ac.uk:1094/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
@@ -219,7 +207,13 @@ class TestArchive:
                 "investigationInstruments.instrument",
                 "investigationFacilityCycles.facilityCycle",
                 "datasets.type",
-                "datasets.datafiles",
+                "datasets.sample.type",
+                "datasets.sample.parameters.type",
+                "datasets.datasetTechniques.technique",
+                "datasets.datasetInstruments.instrument",
+                "datasets.parameters.type",
+                "datasets.datafiles.datafileFormat",
+                "datasets.datafiles.parameters.type",
             ],
         )
         investigations = icat_client.client.search(query=query)
@@ -247,12 +241,68 @@ class TestArchive:
         assert investigation_entity.type.name == "type"
         assert investigation_instruments[0].instrument.name == "instrument"
         assert investigation_cycles[0].facilityCycle.name == "20XX"
+
         assert investigation_entity.datasets[0].name == "dataset"
         assert investigation_entity.datasets[0].type.name == "type"
         assert investigation_entity.datasets[0].datafiles[0].name == "datafile"
-        assert investigation_entity.datasets[1].name == "dataset1"
-        assert investigation_entity.datasets[1].type.name == "type"
-        assert investigation_entity.datasets[1].datafiles[0].name == "datafile"
+
+        dataset = investigation_entity.datasets[1]
+        parameters = sorted(dataset.parameters, key=lambda x: x.type.name)
+        sample_parameters = sorted(dataset.sample.parameters, key=lambda x: x.type.name)
+        dataset_location = "instrument/20XX/name-visitId/type/dataset1"
+        assert dataset.name == "dataset1"
+        assert dataset.location == dataset_location
+        assert dataset.type.name == "type"
+        assert dataset.sample.name == "sample"
+        assert dataset.sample.type.name == "carbon"
+        assert dataset.sample.type.molecularFormula == "C"
+        assert len(sample_parameters) == 3
+        assert sample_parameters[0].type.name == "date_time"
+        assert sample_parameters[0].dateTimeValue is not None
+        assert sample_parameters[1].type.name == "numeric"
+        assert sample_parameters[1].numericValue == 0
+        assert sample_parameters[1].error == 0
+        assert sample_parameters[1].rangeBottom == -1
+        assert sample_parameters[1].rangeTop == 1
+        assert sample_parameters[2].type.name == "string"
+        assert sample_parameters[2].stringValue == "stringValue"
+        assert len(dataset.datasetInstruments) == 1
+        assert dataset.datasetInstruments[0].instrument.name == "instrument"
+        assert len(dataset.datasetTechniques) == 1
+        assert dataset.datasetTechniques[0].technique.name == "technique"
+        assert len(parameters) == 5
+        assert parameters[0].type.name == "Archival ids"
+        assert parameters[0].stringValue is not None
+        assert parameters[1].type.name == "Archival state"
+        assert parameters[1].stringValue == "SUBMITTED"
+        assert parameters[2].type.name == "date_time"
+        assert parameters[2].dateTimeValue is not None
+        assert parameters[3].type.name == "numeric"
+        assert parameters[3].numericValue == 0
+        assert parameters[3].error == 0
+        assert parameters[3].rangeBottom == -1
+        assert parameters[3].rangeTop == 1
+        assert parameters[4].type.name == "string"
+        assert parameters[4].stringValue == "stringValue"
+
+        datafile = investigation_entity.datasets[1].datafiles[0]
+        parameters = sorted(datafile.parameters, key=lambda x: x.type.name)
+        assert datafile.name == "datafile"
+        assert datafile.location == dataset_location + "/datafile"
+        assert datafile.datafileFormat.name == "txt"
+        assert datafile.datafileFormat.version == "0"
+        assert len(parameters) == 4
+        assert parameters[0].type.name == "Archival state"
+        assert parameters[0].stringValue == "SUBMITTED"
+        assert parameters[1].type.name == "date_time"
+        assert parameters[1].dateTimeValue is not None
+        assert parameters[2].type.name == "numeric"
+        assert parameters[2].numericValue == 0
+        assert parameters[2].error == 0
+        assert parameters[2].rangeBottom == -1
+        assert parameters[2].rangeTop == 1
+        assert parameters[3].type.name == "string"
+        assert parameters[3].stringValue == "stringValue"
 
     def test_archive_new_investigation(
         self,
@@ -266,30 +316,28 @@ class TestArchive:
         instrument: Entity,
         parameter_type_state: Entity,
         parameter_type_job_ids: Entity,
+        parameter_type_string: Entity,
+        parameter_type_numeric: Entity,
+        parameter_type_date_time: Entity,
+        sample_type: Entity,
+        technique: Entity,
+        datafile_format: Entity,
         investigation_tear_down: None,
+        archive_request: ArchiveRequest,
     ):
         get_icat_cache.cache_clear()
-        dataset = Dataset(
-            name="dataset1",
-            datasetType=DatasetType(name="type"),
-            datafiles=[Datafile(name="datafile")],
-        )
-        investigation_metadata = Investigation(
-            name="name",
-            visitId="visitId",
+        archive_request.investigation_identifier = Investigation(
             title="title",
             summary="summary",
-            doi="doi",
             startDate=datetime.now(),
             endDate=datetime.now(),
             releaseDate=datetime.now(),
-            facility=Facility(name="facility"),
-            investigationType=InvestigationType(name="type"),
-            instrument=Instrument(name="instrument"),
-            facilityCycle=FacilityCycle(name="20XX"),
-            datasets=[dataset],
+            investigationType=InvestigationTypeIdentifier(name="type"),
+            facilityCycle=archive_request.facility_cycle_identifier,
+            instrument=archive_request.instrument_identifier,
+            datasets=[archive_request.dataset],
+            **archive_request.investigation_identifier.dict(),
         )
-        archive_request = ArchiveRequest(investigations=[investigation_metadata])
         json_body = json.loads(archive_request.json())
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)
@@ -301,8 +349,8 @@ class TestArchive:
         UUID4(content["job_ids"][0])
 
         path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
-        sources = [f"root://idc:1094/{path}", f"root://udc:1094/{path}"]
-        destinations = [f"root://archive:1094/{path}"]
+        sources = [f"root://idc.ac.uk:1094/{path}", f"root://rdc.ac.uk:1094/{path}"]
+        destinations = [f"root://archive.ac.uk:1094/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
@@ -362,7 +410,7 @@ class TestRestore:
             pytest.param("datafile_ids"),
         ],
     )
-    def test_restore_udc(
+    def test_restore_rdc(
         self,
         submit: MagicMock,
         session_id: str,
@@ -389,7 +437,7 @@ class TestRestore:
         json_body = json.loads(restore_request.json())
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post(
-            "/restore/udc",
+            "/restore/rdc",
             headers=headers,
             json=json_body,
         )
@@ -401,8 +449,8 @@ class TestRestore:
         UUID4(content["job_ids"][0])
 
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
-        sources = [f"root://archive:1094//{path}"]
-        destinations = [f"root://udc:1094//{path}"]
+        sources = [f"root://archive.ac.uk:1094//{path}"]
+        destinations = [f"root://rdc.ac.uk:1094//{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
@@ -466,7 +514,7 @@ class TestRestore:
 
         bucket_name = content["bucket_name"]
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
-        sources = [f"root://archive:1094//{path}?copy_mode=push"]
+        sources = [f"root://archive.ac.uk:1094//{path}?copy_mode=push"]
         destinations = [
             f"s3s://127.0.0.1:9000/{bucket_name}/{path}",
         ]
