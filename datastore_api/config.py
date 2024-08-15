@@ -5,10 +5,10 @@ import os
 from typing import Any
 
 from pydantic import (
-    AnyHttpUrl,
     BaseModel,
     BaseSettings,
     Field,
+    HttpUrl,
     parse_obj_as,
     stricturl,
     validator,
@@ -35,7 +35,7 @@ class FunctionalUser(IcatUser):
 
 
 class IcatSettings(BaseModel):
-    url: AnyHttpUrl = Field(
+    url: HttpUrl = Field(
         description="Url to use for the ICAT server",
         example="https://localhost:8181",
     )
@@ -94,7 +94,7 @@ class VerifyChecksum(StrEnum):
 
 
 class Fts3Settings(BaseModel):
-    endpoint: AnyHttpUrl = Field(
+    endpoint: HttpUrl = Field(
         description="Url to use for the FTS server",
         example="https://localhost:8446",
     )
@@ -250,9 +250,16 @@ class Fts3Settings(BaseModel):
         return v
 
 
+class S3Settings(BaseModel):
+    endpoint: HttpUrl = Field(description="Url to use for the S3 storage")
+    access_key: str = Field(description="The ID for this access key")
+    secret_key: str = Field(description="The secret key used to sign requests")
+
+
 class Settings(BaseSettings):
     icat: IcatSettings = Field(description="Settings to connect to an ICAT instance")
     fts3: Fts3Settings = Field(description="Settings to connect to an FTS3 instance")
+    s3: S3Settings = Field(description="Settings to connect to an S3 instance")
 
     class Config:
         @classmethod

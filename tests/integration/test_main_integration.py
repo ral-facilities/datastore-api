@@ -24,6 +24,7 @@ from tests.fixtures import (
     archive_request,
     archive_request_parameters,
     archive_request_sample,
+    bucket_deletion,
     datafile_format,
     dataset_type,
     dataset_with_job_id,
@@ -70,6 +71,7 @@ def fts_job(
     destinations: list[str],
     bring_online: int = -1,
     archive_timeout: int = -1,
+    strict_copy: bool = False,
 ) -> dict:
     return {
         "files": [
@@ -97,7 +99,7 @@ def fts_job(
             "retry": -1,
             "retry_delay": 0,
             "priority": None,
-            "strict_copy": False,
+            "strict_copy": strict_copy,
             "max_time_in_queue": None,
             "timeout": None,
             "id_generator": "standard",
@@ -408,7 +410,7 @@ class TestRestore:
             pytest.param("datafile_ids"),
         ],
     )
-    def test_restore(
+    def test_restore_rdc(
         self,
         submit: MagicMock,
         session_id: str,
@@ -434,7 +436,11 @@ class TestRestore:
 
         json_body = json.loads(restore_request.json())
         headers = {"Authorization": f"Bearer {session_id}"}
-        test_response = test_client.post("/restore", headers=headers, json=json_body)
+        test_response = test_client.post(
+            "/restore/rdc",
+            headers=headers,
+            json=json_body,
+        )
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
@@ -449,6 +455,74 @@ class TestRestore:
             sources=sources,
             destinations=destinations,
             bring_online=28800,
+        )
+        submit.assert_called_once_with(context=ANY, job=job)
+
+    @pytest.mark.parametrize(
+        ["restore_ids"],
+        [
+            pytest.param("investigation_ids"),
+            pytest.param("dataset_ids"),
+            pytest.param("datafile_ids"),
+        ],
+    )
+    def test_restore_download(
+        self,
+        submit: MagicMock,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+        functional_icat_client: IcatClient,
+        test_client: TestClient,
+        restore_ids: str,
+        bucket_deletion: None,
+    ):
+        if restore_ids == "investigation_ids":
+            restore_request = RestoreRequest(
+                investigation_ids=[investigation.id],
+            )
+        elif restore_ids == "dataset_ids":
+            equals = {"investigation.id": investigation.id}
+            dataset = functional_icat_client.get_single_entity("Dataset", equals)
+            restore_request = RestoreRequest(
+                dataset_ids=[dataset.id],
+            )
+        elif restore_ids == "datafile_ids":
+            equals = {"dataset.investigation.id": investigation.id}
+            datafile = functional_icat_client.get_single_entity("Datafile", equals)
+            restore_request = RestoreRequest(
+                datafile_ids=[datafile.id],
+            )
+
+        json_body = json.loads(restore_request.json())
+        headers = {"Authorization": f"Bearer {session_id}"}
+        test_response = test_client.post(
+            "/restore/download",
+            headers=headers,
+            json=json_body,
+        )
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        assert "bucket_name" in content
+        UUID4(content["job_ids"][0])
+        UUID4(content["bucket_name"])
+
+        bucket_name = content["bucket_name"]
+        path = "instrument/20XX/name-visitId/type/dataset/datafile"
+        sources = [f"root://archive.ac.uk:1094//{path}?copy_mode=push"]
+        destinations = [
+            f"s3s://127.0.0.1:9000/{bucket_name}/{path}",
+        ]
+        job = fts_job(
+            sources=sources,
+            destinations=destinations,
+            bring_online=28800,
+            strict_copy=True,
         )
         submit.assert_called_once_with(context=ANY, job=job)
 

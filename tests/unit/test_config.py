@@ -17,7 +17,7 @@ class TestFts3Settings:
         x509_user_key = x509_user_key_path.as_posix()
 
         settings = Fts3Settings(
-            endpoint="https://localhost:8446",
+            endpoint="https://fts.ac.uk:8446",
             instrument_data_cache="root://idc.ac.uk:1094//",
             restored_data_cache="root://rdc.ac.uk:1094//",
             tape_archive="root://archive.ac.uk:1094//",
@@ -33,7 +33,7 @@ class TestFts3Settings:
         x509_user_proxy_path.write_text("proxy")
         x509_user_proxy = x509_user_proxy_path.as_posix()
         settings = Fts3Settings(
-            endpoint="https://localhost:8446",
+            endpoint="https://fts.ac.uk:8446",
             instrument_data_cache="root://idc.ac.uk:1094//",
             restored_data_cache="root://rdc.ac.uk:1094//",
             tape_archive="root://archive.ac.uk:1094//",

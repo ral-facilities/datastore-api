@@ -15,3 +15,8 @@ fts3:
   tape_archive: root://archive:1094//
   x509_user_cert: hostcert.pem
   x509_user_key: hostkey.pem
+  
+s3:
+  endpoint: http://127.0.0.1:9000
+  access_key: minioadmin
+  secret_key: minioadmin

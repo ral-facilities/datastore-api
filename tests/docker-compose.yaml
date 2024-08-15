@@ -75,6 +75,45 @@ services:
   #   networks:
   #     - doi_test_network
 
+  
+  # The minio instance that simulates s3 buckets for download functionality
+  # UI available at http://localhost:9000
+  minio:
+    image: quay.io/minio/minio
+    container_name: minio
+    command: server /data --console-address ":9001"
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    networks:
+      network:
+
+  # Script that inits minio with a bucket and an object
+  mc:
+    image: minio/mc
+    container_name: mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc mb myminio/miniotestbucket;
+      /usr/bin/echo "test" | mc pipe myminio/miniotestbucket/test;
+      /usr/bin/echo "test2" | mc pipe myminio/miniotestbucket/test2;
+      /usr/bin/echo "test3" | mc pipe myminio/miniotestbucket/test3;
+      exit 0;
+      "
+    networks:
+      - network
+
+volumes:
+  minio_data:
+
 # beware: the actual network name created by Docker will be
 # <project_name>_doi_test_network, where <project_name> is
 # derived from the directory name. In this case test_doi_test_network.

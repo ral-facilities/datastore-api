@@ -10,11 +10,12 @@ from datastore_api.models.icat import Dataset
 class TransferController(ABC):
     """ABC for controlling and batching requests to the Fts3Client."""
 
-    def __init__(self, fts3_client: Fts3Client) -> None:
+    def __init__(self, fts3_client: Fts3Client, strict_copy: bool = False) -> None:
         """Initialises the controller with the Fts3Client to use.
 
         Args:
             fts3_client (Fts3Client): The Fts3Client to use for transfers and jobs.
+            strict_copy (bool): Should be True for transfers to S3 endpoints.
         """
         self.fts3_client = fts3_client
         self.datafile_entities = []
@@ -22,6 +23,7 @@ class TransferController(ABC):
         self.job_ids = []
         self.stage = False
         self.total_transfers = 0
+        self.strict_copy = strict_copy
 
     def create_fts_jobs(self) -> None:
         """Iterates over `self.paths`, creating and submitting transfers to FTS as
@@ -47,29 +49,40 @@ class TransferController(ABC):
                 the request. Defaults to 1.
         """
         if len(self.transfers) >= minimum_transfers:
-            job_id = self.fts3_client.submit(self.transfers, self.stage)
+            job_id = self.fts3_client.submit(
+                self.transfers,
+                self.stage,
+                self.strict_copy,
+            )
             self.job_ids.append(job_id)
             self.total_transfers += len(self.transfers)
             self.transfers = []
 
 
 class RestoreController(TransferController):
-    """Controller for restoring paths to disk cache, regardless of origin."""
+    """Controller for restoring paths to disk or download cache,
+    regardless of origin.
+    """
 
     def __init__(
         self,
         fts3_client: Fts3Client,
+        destination_cache: str,
         datafile_entities: list[Entity],
+        strict_copy: bool = False,
     ) -> None:
         """Initialises the controller with the Fts3Client and paths to use.
 
         Args:
             fts3_client (Fts3Client): The Fts3Client to use for transfers and jobs.
+            destination_cache (str): Cache to restore file to
             datafile_entities (list[Entity]): Datafiles to restore.
+            strict_copy (bool): Should be True for transfers to S3 endpoints.
         """
-        super().__init__(fts3_client)
+        super().__init__(fts3_client, strict_copy)
         self.datafile_entities = datafile_entities
         self.stage = True
+        self.destination_cache = destination_cache
 
     def _transfer(self, datafile_entity: Entity) -> dict[str, list]:
         """Returns a transfer dict moving `datafile_entity` from tape to the RDC.
@@ -80,7 +93,7 @@ class RestoreController(TransferController):
         Returns:
             dict[str, list]: Transfer dict for moving `path` to the RDC.
         """
-        return self.fts3_client.restore(datafile_entity)
+        return self.fts3_client.restore(datafile_entity, self.destination_cache)
 
 
 class DatasetArchiver(TransferController):

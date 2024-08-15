@@ -14,6 +14,7 @@ from datastore_api.config import (
     FunctionalUser,
     get_settings,
     IcatSettings,
+    S3Settings,
     Settings,
 )
 from datastore_api.icat_client import IcatClient
@@ -36,6 +37,7 @@ from datastore_api.models.icat import (
     StringParameter,
     TechniqueIdentifier,
 )
+from datastore_api.s3_client import S3Client
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -74,7 +76,7 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
 
         mocker.patch("datastore_api.fts3_client.fts3.Context")
 
-    for module in {"fts3_client", "icat_client", "models.icat"}:
+    for module in {"fts3_client", "icat_client", "s3_client", "models.icat"}:
         get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
         get_settings_mock.return_value = settings
 
@@ -228,6 +230,16 @@ def functional_icat_client(
         *icat_client.get_entities(entity="Datafile", equals={"name": "datafile"}),
     ]
     icat_client.client.deleteMany(beans)
+
+
+@pytest.fixture(scope="function")
+def s3_settings(mock_fts3_settings: Settings):
+    return mock_fts3_settings.s3
+
+
+@pytest.fixture(scope="function")
+def s3_client(s3_settings: S3Settings, mocker: MockerFixture):
+    return S3Client()
 
 
 @pytest.fixture(scope="function")
@@ -532,6 +544,27 @@ def investigation_tear_down(
     )
     if investigation is not None:
         delete(icat_client=functional_icat_client, entity=investigation)
+
+
+@pytest.fixture(scope="function")
+def bucket_creation() -> Generator[str, None, None]:
+    bucket = S3Client().create_bucket()
+    yield bucket["Location"][1:]
+
+
+@pytest.fixture(scope="function")
+def bucket_deletion() -> Generator[None, None, None]:
+    yield None
+
+    for bucket in S3Client().list_buckets():
+        if bucket != "miniotestbucket":
+            S3Client().delete_bucket(bucket)
+
+
+@pytest.fixture(scope="function")
+def tag_bucket() -> Generator[None, None, None]:
+    tags = [{"Key": "00000000-0000-0000-0000-000000000000", "Value": "STAGING"}]
+    S3Client().tag_bucket(bucket_name="miniotestbucket", tags=tags)
 
 
 @pytest.fixture(scope="function")

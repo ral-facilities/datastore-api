@@ -3,11 +3,13 @@ import logging
 
 import fts3.rest.client.easy as fts3
 from icat.entity import Entity
+from pydantic import stricturl
 
 from datastore_api.config import get_settings, VerifyChecksum
 
 
 LOGGER = logging.getLogger(__name__)
+S3sUrl = stricturl(allowed_schemes={"s3s"})
 
 
 class Fts3Client:
@@ -15,20 +17,29 @@ class Fts3Client:
 
     def __init__(self) -> None:
         """Initialise the client."""
-        fts_settings = get_settings().fts3
+        settings = get_settings()
         self.context = fts3.Context(
-            endpoint=fts_settings.endpoint,
-            ucert=fts_settings.x509_user_cert,
-            ukey=fts_settings.x509_user_key,
+            endpoint=settings.fts3.endpoint,
+            ucert=settings.fts3.x509_user_cert,
+            ukey=settings.fts3.x509_user_key,
         )
-        self.instrument_data_cache = fts_settings.instrument_data_cache
-        self.restored_data_cache = fts_settings.restored_data_cache
-        self.tape_archive = fts_settings.tape_archive
-        self.retry = fts_settings.retry
-        self.verify_checksum = fts_settings.verify_checksum
-        self.supported_checksums = fts_settings.supported_checksums
-        self.bring_online = fts_settings.bring_online
-        self.archive_timeout = fts_settings.archive_timeout
+        self.instrument_data_cache = settings.fts3.instrument_data_cache
+        self.restored_data_cache = settings.fts3.restored_data_cache
+        self.tape_archive = settings.fts3.tape_archive
+        # https://fts3-docs.web.cern.ch/fts3-docs/docs/s3_support.html#submitting-s3-transfers
+        self.download_cache = S3sUrl.build(
+            scheme="s3s",
+            user=settings.s3.endpoint.user,
+            password=settings.s3.endpoint.password,
+            host=settings.s3.endpoint.host,
+            port=settings.s3.endpoint.port,
+            path=settings.s3.endpoint.path,
+        )
+        self.retry = settings.fts3.retry
+        self.verify_checksum = settings.fts3.verify_checksum
+        self.supported_checksums = settings.fts3.supported_checksums
+        self.bring_online = settings.fts3.bring_online
+        self.archive_timeout = settings.fts3.archive_timeout
 
     def archive(self, datafile_entity: Entity) -> dict[str, list]:
         """Returns a transfer dict moving `path` from one of the caches to tape.
@@ -51,17 +62,25 @@ class Fts3Client:
         transfer["sources"].append(alternate_source)
         return transfer
 
-    def restore(self, datafile_entity: Entity) -> dict[str, list]:
-        """Returns a transfer dict moving `path` from tape to the RDC.
+    def restore(
+        self,
+        datafile_entity: Entity,
+        destination_cache: str,
+    ) -> dict[str, list]:
+        """Returns a transfer dict moving `path` from tape to another storage endpoint.
 
         Args:
             datafile_entity (Entity): Datafile to be moved.
+            destination_cache (str): URL of the destination cache.
 
         Returns:
             dict[str, list]: Transfer dict for moving `path` to the RDC.
         """
         source = f"{self.tape_archive}{datafile_entity.location}"
-        destination = f"{self.restored_data_cache}{datafile_entity.location}"
+        if destination_cache.startswith("s3s://"):
+            source += "?copy_mode=push"
+
+        destination = f"{destination_cache}{datafile_entity.location}"
         checksum = self._validate_checksum(datafile_entity.checksum)
         return fts3.new_transfer(
             source=source,
@@ -115,7 +134,12 @@ class Fts3Client:
         else:
             return None
 
-    def submit(self, transfers: list[dict[str, list]], stage: bool = False) -> str:
+    def submit(
+        self,
+        transfers: list[dict[str, list]],
+        stage: bool = False,
+        strict_copy: bool = False,
+    ) -> str:
         """Submit a single FTS job for the `transfers`.
 
         Args:
@@ -134,24 +158,32 @@ class Fts3Client:
             verify_checksum=self.verify_checksum.value,
             bring_online=self.bring_online if stage else -1,
             archive_timeout=self.archive_timeout if not stage else -1,
+            strict_copy=strict_copy,
         )
         return fts3.submit(context=self.context, job=job)
 
-    def status(self, job_id: str, list_files: bool = False) -> dict:
-        """Get full status dict (including state) for an FTS job.
+    def status(
+        self,
+        job_id: str | list[str],
+        list_files: bool = False,
+    ) -> list[dict]:
+        """Get full status dicts (including state) for one or more FTS jobs.
 
         Args:
-            job_id (str): UUID4 for an FTS job.
+            job_id (str or list): UUID4 for an FTS job.
             list_files (bool, optional):
                 If True, will return the list of individual file statuses.
                 Defaults to False.
 
         Returns:
-            dict: FTS status dict for `job_id`.
+            list[dict]: FTS status dicts for `job_id`.
         """
-        return fts3.get_job_status(
+        if type(job_id) is str:
+            job_id = list(job_id)
+
+        return fts3.get_jobs_statuses(
             context=self.context,
-            job_id=job_id,
+            job_ids=job_id,
             list_files=list_files,
         )
 

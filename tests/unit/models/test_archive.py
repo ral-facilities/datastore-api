@@ -76,7 +76,7 @@ class TestArchive:
         # pass a readable file to satisfy the validator.
         get_settings_mock = mocker.patch("datastore_api.models.icat.get_settings")
         fts3_settings = Fts3Settings(
-            endpoint="https://localhost:8446",
+            endpoint="https://fts.ac.uk:8446",
             instrument_data_cache="root://idc.ac.uk:1094//",
             restored_data_cache="root://rdc.ac.uk:1094//",
             tape_archive="root://archive.ac.uk:1094//",
