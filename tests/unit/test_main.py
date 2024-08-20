@@ -66,6 +66,9 @@ def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
     fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.submit")
     fts_submit_mock.return_value = SESSION_ID
 
+    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
+    fts_status_mock.return_value = STATUSES[0]
+
     fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_jobs_statuses")
     fts_status_mock.return_value = STATUSES
 

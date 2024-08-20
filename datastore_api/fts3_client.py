@@ -166,13 +166,35 @@ class Fts3Client:
 
     def status(
         self,
-        job_id: str | list[str],
+        job_id: str,
         list_files: bool = False,
     ) -> list[dict]:
-        """Get full status dicts (including state) for one or more FTS jobs.
+        """Get full status dict (including state) for an FTS job.
 
         Args:
-            job_id (str or list): UUID4 for an FTS job.
+            job_id (list[str]): UUID4 for an FTS job.
+            list_files (bool, optional):
+                If True, will return the list of individual file statuses.
+                Defaults to False.
+
+        Returns:
+            dict: FTS status dict for `job_id`.
+        """
+        return fts3.get_job_status(
+            context=self.context,
+            job_id=job_id,
+            list_files=list_files,
+        )
+
+    def statuses(
+        self,
+        job_ids: list[str],
+        list_files: bool = False,
+    ) -> list[dict]:
+        """Get full status dicts (including state) for FTS jobs.
+
+        Args:
+            job_ids (list[str]): UUID4s for FTS jobs.
             list_files (bool, optional):
                 If True, will return the list of individual file statuses.
                 Defaults to False.
@@ -180,14 +202,16 @@ class Fts3Client:
         Returns:
             list[dict]: FTS status dicts for `job_id`.
         """
-        if type(job_id) is str:
-            job_id = list(job_id)
-
-        return fts3.get_jobs_statuses(
+        statuses = fts3.get_jobs_statuses(
             context=self.context,
-            job_ids=job_id,
+            job_ids=job_ids,
             list_files=list_files,
         )
+        # FTS will actually return a single dict if a length 1 list is provided
+        if isinstance(statuses, dict):
+            return [statuses]
+        else:
+            return statuses
 
     def cancel(self, job_id: str) -> str:
         """Cancel an FTS job.

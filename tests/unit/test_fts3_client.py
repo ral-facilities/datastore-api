@@ -2,7 +2,7 @@ import pytest
 
 from datastore_api.config import Settings, VerifyChecksum
 from datastore_api.fts3_client import Fts3Client
-from tests.fixtures import mock_fts3_settings, submit
+from tests.fixtures import mock_fts3_settings, SESSION_ID, submit
 
 
 class TestFts3Client:
@@ -36,3 +36,8 @@ class TestFts3Client:
         fts3_client.verify_checksum = verify_checksum
         checksum = fts3_client._validate_checksum(checksum)
         assert checksum == expected
+
+    def test_statuses(self, mock_fts3_settings: Settings):
+        fts3_client = Fts3Client()
+        statuses = fts3_client.statuses([SESSION_ID])
+        assert isinstance(statuses, list)

@@ -145,7 +145,7 @@ class TestLifespan:
         mocker: MockerFixture,
     ):
         get_fts3_client_mock = mocker.patch("datastore_api.lifespan.get_fts3_client")
-        get_fts3_client_mock.return_value.status.return_value = statuses
+        get_fts3_client_mock.return_value.statuses.return_value = statuses
 
         type_job_ids = functional_icat_client.settings.parameter_type_job_ids
         type_job_state = functional_icat_client.settings.parameter_type_job_state
@@ -162,11 +162,9 @@ class TestLifespan:
             parameters=parameters,
         )
 
-        calls = [
-            call(job_id=["0", "1", "2"], list_files=True),
-        ]
+        calls = [call(job_ids=["0", "1", "2"], list_files=True)]
 
-        get_fts3_client_mock.return_value.status.assert_has_calls(calls)
+        get_fts3_client_mock.return_value.statuses.assert_has_calls(calls)
 
         parameter = functional_icat_client.get_single_entity(
             entity="DatasetParameter",

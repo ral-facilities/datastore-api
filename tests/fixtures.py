@@ -76,12 +76,16 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
 
         mocker.patch("datastore_api.fts3_client.fts3.Context")
 
+        fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
+        fts_status_mock.return_value = {"status": {}}
+
     for module in {"fts3_client", "icat_client", "s3_client", "models.icat"}:
         get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
         get_settings_mock.return_value = settings
 
-    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
-    fts_status_mock.return_value = {"key": "value"}
+    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_jobs_statuses")
+    # This represents a single status dict, which is returned if a single job_id is used
+    fts_status_mock.return_value = {"status": {}}
 
     fts_cancel_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
     fts_cancel_mock.return_value = "CANCELED"

@@ -320,7 +320,7 @@ def status(job_id: str, fts3_client: Fts3ClientDependency) -> StatusResponse:
         StatusResponse: Details of the requested job.
     """
     status = fts3_client.status(job_id=job_id)
-    return StatusResponse(status=status[0])
+    return StatusResponse(status=status)
 
 
 @app.get(
@@ -340,9 +340,7 @@ def complete(job_id: str, fts3_client: Fts3ClientDependency) -> CompleteResponse
         CompleteResponse: Completeness of the requested job.
     """
     status = fts3_client.status(job_id=job_id)
-    return CompleteResponse(
-        complete=status[0]["job_state"] in complete_job_states,
-    )
+    return CompleteResponse(complete=status["job_state"] in complete_job_states)
 
 
 @app.get(
@@ -363,8 +361,8 @@ def percentage(job_id: str, fts3_client: Fts3ClientDependency) -> PercentageResp
     """
     files_complete = 0
     status = fts3_client.status(job_id=job_id)
-    files_total = len(status[0]["files"])
-    for file in status[0]["files"]:
+    files_total = len(status["files"])
+    for file in status["files"]:
         if file["file_state"] in complete_transfer_states:
             files_complete += 1
 
@@ -391,7 +389,7 @@ def get_status(
         StatusResponse: List of job statuses relating to the specified bucket.
     """
     job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
-    statuses = fts3_client.status(job_id=job_ids)
+    statuses = fts3_client.statuses(job_ids=job_ids)
     new_tags = []
     for status in statuses:
         new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
@@ -421,7 +419,7 @@ def get_complete(
     state_counter = StateCounter()
     new_tags = []
     job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
-    statuses = fts3_client.status(job_id=job_ids)
+    statuses = fts3_client.statuses(job_ids=job_ids)
     for status in statuses:
         new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
         state_counter.check_state(state=status["job_state"], job_id=status["job_id"])
@@ -453,7 +451,7 @@ def get_percentage(
     files_complete = 0
     files_total = 0
     job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
-    statuses = fts3_client.status(job_id=job_ids)
+    statuses = fts3_client.statuses(job_ids=job_ids)
     new_tags = []
     for status in statuses:
         new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})

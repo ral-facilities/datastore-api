@@ -135,7 +135,7 @@ def update_jobs(icat_client: IcatClient, parameters: list[Entity]) -> list[Entit
     for parameter in parameters:
         state_counter = StateCounter()
         job_ids = parameter.stringValue.split(",")
-        statuses = get_fts3_client().status(job_id=job_ids, list_files=True)
+        statuses = get_fts3_client().statuses(job_ids=job_ids, list_files=True)
         for status in statuses:
             state_counter.check_state(
                 state=status["job_state"],
