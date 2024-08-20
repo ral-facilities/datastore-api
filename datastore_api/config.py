@@ -4,12 +4,21 @@ import logging
 import os
 from typing import Any
 
-from pydantic import BaseModel, BaseSettings, validator
+from pydantic import (
+    BaseModel,
+    BaseSettings,
+    Field,
+    HttpUrl,
+    parse_obj_as,
+    stricturl,
+    validator,
+)
 
 from datastore_api.utils import load_yaml
 
 
 LOGGER = logging.getLogger(__name__)
+RootUrl = stricturl(allowed_schemes={"root"})
 
 
 def yaml_config_settings_source(settings: BaseSettings) -> dict[str, Any]:
@@ -17,23 +26,64 @@ def yaml_config_settings_source(settings: BaseSettings) -> dict[str, Any]:
 
 
 class IcatUser(BaseModel):
-    auth: str
-    username: str
+    auth: str = Field(description="ICAT authentication mechanism.", example="simple")
+    username: str = Field(description="ICAT username.", example="root")
 
 
 class FunctionalUser(IcatUser):
-    password: str
+    password: str = Field(description="ICAT password.", example="pw")
 
 
 class IcatSettings(BaseModel):
-    url: str
-    check_cert: bool = True
-    admin_users: list[IcatUser] = []
-    functional_user: FunctionalUser
-    embargo_period_years: int = 2
-    parameter_type_job_ids: str = "Archival ids"
-    parameter_type_job_state: str = "Archival state"
-    embargo_types: list[str] = []
+    url: HttpUrl = Field(
+        description="Url to use for the ICAT server",
+        example="https://localhost:8181",
+    )
+    check_cert: bool = Field(
+        description=(
+            "Whether the server's SSL certificate should be verified if connecting to "
+            "ICAT with HTTPS."
+        ),
+        example="https://localhost:8181",
+    )
+    admin_users: list[IcatUser] = Field(
+        default=[],
+        description=(
+            "List of ICAT users who should be allowed to perform admin actions."
+        ),
+    )
+    functional_user: FunctionalUser = Field(
+        description=(
+            "ICAT user to use when performing functional actions not associated with a "
+            "normal user, such as regular polling of the catalogue."
+        ),
+    )
+    embargo_period_years: int = Field(
+        default=2,
+        description=(
+            "Number of years to apply to the `releaseDate` if Investigations are "
+            "created without one set."
+        ),
+    )
+    parameter_type_job_ids: str = Field(
+        default="Archival ids",
+        description=(
+            "ICAT ParameterType.name to identify how to record FTS archival ids."
+        ),
+    )
+    parameter_type_job_state: str = Field(
+        default="Archival state",
+        description=(
+            "ICAT ParameterType.name to identify how to record FTS archival state."
+        ),
+    )
+    embargo_types: list[str] = Field(
+        default=[],
+        description=(
+            "List of ICAT InvestigationType.name that indicate the release date should "
+            "not be set."
+        ),
+    )
 
 
 class VerifyChecksum(StrEnum):
@@ -44,20 +94,85 @@ class VerifyChecksum(StrEnum):
 
 
 class Fts3Settings(BaseModel):
-    endpoint: str
-    instrument_data_cache: str
-    user_data_cache: str
-    tape_archive: str
-    x509_user_proxy: str = None
-    x509_user_key: str = None
-    x509_user_cert: str = None
-    retry: int = -1
-    verify_checksum: VerifyChecksum = VerifyChecksum.NONE
-    bring_online: int = 28800  # 8 hours
-    archive_timeout: int = 28800  # 8 hours
+    endpoint: HttpUrl = Field(
+        description="Url to use for the FTS server",
+        example="https://localhost:8446",
+    )
+    instrument_data_cache: RootUrl = Field(
+        description="Url for the destination of raw, instrument data pre-archival",
+        example="root://localhost:1094//",
+    )
+    tape_archive: RootUrl = Field(
+        description="Url for the destination of archived data",
+        example="root://localhost:1094//",
+    )
+    restored_data_cache: RootUrl = Field(
+        description="Url for the destination of restored data post-archival",
+        example="root://localhost:1094//",
+    )
+    x509_user_proxy: str = Field(
+        default=None,
+        description=(
+            "Filepath to X509 user proxy. Not required if `x509_user_cert` and "
+            "`x509_user_key` are both set."
+        ),
+        example="/tmp/x509up_u00000",
+    )
+    x509_user_key: str = Field(
+        default=None,
+        description=(
+            "Filepath to X509 user key. Not required if `x509_user_proxy` is set."
+        ),
+        example="hostkey.pem",
+    )
+    x509_user_cert: str = Field(
+        default=None,
+        description=(
+            "Filepath to X509 user cert. Not required if `x509_user_proxy` is set."
+        ),
+        example="hostcert.pem",
+    )
+    retry: int = Field(
+        default=-1,
+        description=(
+            "Number of retries for transfers where <0 is no retries and 0 is server "
+            "default."
+        ),
+    )
+    verify_checksum: VerifyChecksum = Field(
+        default=VerifyChecksum.NONE,
+        description=(
+            "Whether to verify checksums at 'source', 'destination', 'both' or 'none'. "
+            "If 'both', then only the checksum mechanism needs to be provided with the "
+            "files and not the value."
+        ),
+    )
+    supported_checksums: list[str] = Field(
+        default=[],
+        description=(
+            "List of checksum mechanisms supported by the storage endpoints. If "
+            "`verify_checksum` is not 'none', then this must include at least one "
+            "mechanism."
+        ),
+        example=["ADLER32"],
+    )
+    bring_online: int = Field(
+        default=28800,
+        description=(
+            "Number of seconds to wait for an archived file to be staged for "
+            "restoration. The default (28800 seconds) is 8 hours."
+        ),
+    )
+    archive_timeout: int = Field(
+        default=28800,
+        description=(
+            "Number of seconds to wait for an file to be archived. "
+            "The default (28800 seconds) is 8 hours."
+        ),
+    )
 
     @validator("x509_user_cert", always=True)
-    def _validate_x509(cls, v: str, values: dict) -> str:
+    def _validate_x509(cls, v: str | None, values: dict) -> str:
         if v is not None:
             x509_user_key = values.get("x509_user_key", None)
             return Fts3Settings._validate_x509_cert(v, x509_user_key)
@@ -66,32 +181,37 @@ class Fts3Settings(BaseModel):
             x509_user_proxy = values.get("x509_user_proxy", None)
             return Fts3Settings._validate_x509_proxy(x509_user_proxy)
 
-    @validator("instrument_data_cache", "user_data_cache", "tape_archive")
-    def _validate_endpoint(cls, v: str) -> str:
-        double_slash_count = v.count("//")
-        message = f"FTS endpoint {v} did contain second '//', appending"
-        error_message = (
-            f"FTS endpoint {v} did not contain '//' twice in the form:\n"
-            "protocol://hostname//path/to/root/dir/"
-        )
-        if double_slash_count == 2:
-            if v.endswith("/"):
-                return v
-            else:
-                message = f"FTS endpoint {v} did not end with trailing '/', appending"
-                LOGGER.warn(message)
-                return f"{v}/"
-        elif double_slash_count == 1:
-            if v.endswith("//"):
-                raise ValueError(error_message)
-            elif v.endswith("/"):
-                LOGGER.warn(message)
-                return f"{v}/"
-            else:
-                LOGGER.warn(message)
-                return f"{v}//"
+    @validator("instrument_data_cache", "restored_data_cache", "tape_archive")
+    def _validate_storage_endpoint(cls, v: str) -> RootUrl:
+        url = parse_obj_as(RootUrl, v)
+        if url.query is not None:
+            raise ValueError("Url query not supported for FTS endpoint")
+        if url.fragment is not None:
+            raise ValueError("Url fragment not supported for FTS endpoint")
+
+        path = url.path
+        if path is None:
+            LOGGER.warning("FTS endpoint '%s' missing path, setting to '//'", v)
+            path = "//"
         else:
-            raise ValueError(error_message)
+            if not path.startswith("//"):
+                msg = "FTS endpoint '%s' path did not start with '//', appending"
+                LOGGER.warning(msg, v)
+                path = f"/{path}"
+
+            if not path.endswith("/"):
+                msg = "FTS endpoint '%s' path did not end with '/', appending"
+                LOGGER.warning(msg, v)
+                path = f"{path}/"
+
+        return RootUrl.build(
+            scheme=url.scheme,
+            user=url.user,
+            password=url.password,
+            host=url.host,
+            port=url.port,
+            path=path,
+        )
 
     @staticmethod
     def _validate_x509_cert(x509_user_cert: str, x509_user_key: str | None) -> str:
@@ -119,10 +239,27 @@ class Fts3Settings(BaseModel):
 
         return x509_user_proxy
 
+    @validator("supported_checksums", always=True)
+    def _validate_supported_checksums(cls, v: list[str], values: dict) -> list[str]:
+        if values["verify_checksum"] != VerifyChecksum.NONE and not v:
+            raise ValueError(
+                "At least one checksum mechanism needs to be provided if "
+                "`verify_checksum` is not 'none'",
+            )
+
+        return v
+
+
+class S3Settings(BaseModel):
+    endpoint: HttpUrl = Field(description="Url to use for the S3 storage")
+    access_key: str = Field(description="The ID for this access key")
+    secret_key: str = Field(description="The secret key used to sign requests")
+
 
 class Settings(BaseSettings):
-    icat: IcatSettings
-    fts3: Fts3Settings
+    icat: IcatSettings = Field(description="Settings to connect to an ICAT instance")
+    fts3: Fts3Settings = Field(description="Settings to connect to an FTS3 instance")
+    s3: S3Settings = Field(description="Settings to connect to an S3 instance")
 
     class Config:
         @classmethod

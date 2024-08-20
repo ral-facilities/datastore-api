@@ -19,7 +19,7 @@ jobs:
 
       # Do this early to minimise how long we wait for the health check later on
       - name: Docker compose up
-        run: docker-compose -f tests/docker-compose.yaml up -d
+        run: docker compose -f tests/docker-compose.yaml up -d
 
       - name: Install python-ldap dependencies
         run: |
@@ -72,7 +72,7 @@ jobs:
         run: nox -s integration_tests
 
       - name: Docker compose down
-        run: docker-compose -f tests/docker-compose.yaml down
+        run: docker compose -f tests/docker-compose.yaml down
 
       - name: Upload code coverage report
         uses: codecov/codecov-action@v4

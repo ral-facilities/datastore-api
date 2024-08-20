@@ -4,38 +4,40 @@ from icat.entity import Entity
 
 from datastore_api.fts3_client import Fts3Client
 from datastore_api.icat_client import IcatClient
-from datastore_api.models.archive import Dataset, Investigation
+from datastore_api.models.icat import Dataset
 
 
 class TransferController(ABC):
     """ABC for controlling and batching requests to the Fts3Client."""
 
-    def __init__(self, fts3_client: Fts3Client) -> None:
+    def __init__(self, fts3_client: Fts3Client, strict_copy: bool = False) -> None:
         """Initialises the controller with the Fts3Client to use.
 
         Args:
             fts3_client (Fts3Client): The Fts3Client to use for transfers and jobs.
+            strict_copy (bool): Should be True for transfers to S3 endpoints.
         """
         self.fts3_client = fts3_client
-        self.paths = []
+        self.datafile_entities = []
         self.transfers = []
         self.job_ids = []
         self.stage = False
         self.total_transfers = 0
+        self.strict_copy = strict_copy
 
     def create_fts_jobs(self) -> None:
         """Iterates over `self.paths`, creating and submitting transfers to FTS as
         needed.
         """
-        for path in self.paths:
-            transfer = self._transfer(path)
+        for datafile_entity in self.datafile_entities:
+            transfer = self._transfer(datafile_entity)
             self.transfers.append(transfer)
             self._submit(minimum_transfers=1000)
 
         self._submit()
 
     @abstractmethod
-    def _transfer(self, path: str) -> dict[str, list]: ...
+    def _transfer(self, datafile_entity: Entity) -> dict[str, list]: ...
 
     def _submit(self, minimum_transfers: int = 1) -> None:
         """Submits any pending `self.transfers`.
@@ -47,36 +49,51 @@ class TransferController(ABC):
                 the request. Defaults to 1.
         """
         if len(self.transfers) >= minimum_transfers:
-            job_id = self.fts3_client.submit(self.transfers, self.stage)
+            job_id = self.fts3_client.submit(
+                self.transfers,
+                self.stage,
+                self.strict_copy,
+            )
             self.job_ids.append(job_id)
             self.total_transfers += len(self.transfers)
             self.transfers = []
 
 
 class RestoreController(TransferController):
-    """Controller for restoring paths to disk cache, regardless of origin."""
+    """Controller for restoring paths to disk or download cache,
+    regardless of origin.
+    """
 
-    def __init__(self, fts3_client: Fts3Client, paths: list[str]) -> None:
+    def __init__(
+        self,
+        fts3_client: Fts3Client,
+        destination_cache: str,
+        datafile_entities: list[Entity],
+        strict_copy: bool = False,
+    ) -> None:
         """Initialises the controller with the Fts3Client and paths to use.
 
         Args:
             fts3_client (Fts3Client): The Fts3Client to use for transfers and jobs.
-            paths (list[str]): File paths to restore.
+            destination_cache (str): Cache to restore file to
+            datafile_entities (list[Entity]): Datafiles to restore.
+            strict_copy (bool): Should be True for transfers to S3 endpoints.
         """
-        super().__init__(fts3_client)
-        self.paths = paths
+        super().__init__(fts3_client, strict_copy)
+        self.datafile_entities = datafile_entities
         self.stage = True
+        self.destination_cache = destination_cache
 
-    def _transfer(self, path: str) -> dict[str, list]:
-        """Returns a transfer dict moving `path` from tape to the UDC.
+    def _transfer(self, datafile_entity: Entity) -> dict[str, list]:
+        """Returns a transfer dict moving `datafile_entity` from tape to the RDC.
 
         Args:
-            path (str): Path of the file to be moved.
+            datafile_entity (Entity): Path of the file to be moved.
 
         Returns:
-            dict[str, list]: Transfer dict for moving `path` to the UDC.
+            dict[str, list]: Transfer dict for moving `path` to the RDC.
         """
-        return self.fts3_client.restore(path)
+        return self.fts3_client.restore(datafile_entity, self.destination_cache)
 
 
 class DatasetArchiver(TransferController):
@@ -86,7 +103,8 @@ class DatasetArchiver(TransferController):
         self,
         icat_client: IcatClient,
         fts3_client: Fts3Client,
-        investigation: Investigation,
+        facility_name: str,
+        investigation_path: str,
         dataset: Dataset,
         investigation_entity: Entity,
     ) -> None:
@@ -101,14 +119,15 @@ class DatasetArchiver(TransferController):
             investigation_entity (Entity): ICAT Investigation entity.
         """
         super().__init__(fts3_client)
-        dataset_entity, paths = icat_client.new_dataset(
-            investigation=investigation,
+        dataset_entity = icat_client.new_dataset(
+            facility_name=facility_name,
+            investigation_path=investigation_path,
             dataset=dataset,
             investigation_entity=investigation_entity,
         )
         self.icat_client = icat_client
         self.dataset_entity = dataset_entity
-        self.paths = paths
+        self.datafile_entities = dataset_entity.datafiles
 
     def create_fts_jobs(self) -> None:
         """Iterates over `self.paths`, creating and submitting transfers to FTS as
@@ -124,7 +143,7 @@ class DatasetArchiver(TransferController):
                 parameter.stringValue = joined_job_ids
                 return
 
-    def _transfer(self, path: str) -> dict[str, list]:
+    def _transfer(self, datafile_entity: Entity) -> dict[str, list]:
         """Returns a transfer dict moving `path` from one of the caches to tape.
 
         Args:
@@ -133,4 +152,4 @@ class DatasetArchiver(TransferController):
         Returns:
             dict[str, list]: Transfer dict for moving `path` to tape.
         """
-        return self.fts3_client.archive(path)
+        return self.fts3_client.archive(datafile_entity)

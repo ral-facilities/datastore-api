@@ -13,6 +13,14 @@ class JobState(StrEnum):
     canceled = "CANCELED"
 
 
+complete_job_states = (
+    JobState.finished,
+    JobState.finished_dirty,
+    JobState.failed,
+    JobState.canceled,
+)
+
+
 class TransferState(StrEnum):
     staging = "STAGING"
     on_hold_staging = "ON_HOLD_STAGING"
@@ -28,8 +36,15 @@ class TransferState(StrEnum):
     canceled = "CANCELED"
 
 
+complete_transfer_states = (
+    TransferState.finished,
+    TransferState.failed,
+    TransferState.canceled,
+)
+
+
 class StatusResponse(BaseModel):
-    status: dict  # TODO
+    status: dict | list[dict]  # TODO
 
 
 class CompleteResponse(BaseModel):

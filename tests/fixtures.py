@@ -14,19 +14,30 @@ from datastore_api.config import (
     FunctionalUser,
     get_settings,
     IcatSettings,
+    S3Settings,
     Settings,
 )
 from datastore_api.icat_client import IcatClient
-from datastore_api.models.archive import (
+from datastore_api.models.archive import ArchiveRequest
+from datastore_api.models.icat import (
     Datafile,
+    DatafileFormatIdentifier,
     Dataset,
-    DatasetType,
-    Facility,
-    FacilityCycle,
-    Instrument,
-    Investigation,
-    InvestigationType,
+    DatasetTypeIdentifier,
+    DateTimeParameter,
+    FacilityCycleIdentifier,
+    FacilityIdentifier,
+    InstrumentIdentifier,
+    InvestigationIdentifier,
+    NumericParameter,
+    Parameter,
+    ParameterTypeIdentifier,
+    Sample,
+    SampleTypeIdentifier,
+    StringParameter,
+    TechniqueIdentifier,
 )
+from datastore_api.s3_client import S3Client
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -55,9 +66,9 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
         # pass a readable file to satisfy the validator and mock requests to FTS.
         fts3_settings = Fts3Settings(
             endpoint="https://fts-test01.gridpp.rl.ac.uk:8446",
-            instrument_data_cache="root://idc:1094//",
-            user_data_cache="root://udc:1094//",
-            tape_archive="root://archive:1094//",
+            instrument_data_cache="root://idc.ac.uk:1094//",
+            restored_data_cache="root://rdc.ac.uk:1094//",
+            tape_archive="root://archive.ac.uk:1094//",
             x509_user_cert=__file__,
             x509_user_key=__file__,
         )
@@ -65,7 +76,7 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
 
         mocker.patch("datastore_api.fts3_client.fts3.Context")
 
-    for module in {"fts3_client", "icat_client", "models.archive"}:
+    for module in {"fts3_client", "icat_client", "s3_client", "models.icat"}:
         get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
         get_settings_mock.return_value = settings
 
@@ -79,45 +90,80 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
 
 
 @pytest.fixture(scope="function")
-def investigation_metadata(mocker: MockerFixture):
+def archive_request_parameters() -> list[Parameter]:
+    string_type = ParameterTypeIdentifier(name="string", units="")
+    numeric_type = ParameterTypeIdentifier(name="numeric", units="")
+    date_time_type = ParameterTypeIdentifier(name="date_time", units="")
+    return [
+        StringParameter(stringValue="stringValue", parameter_type=string_type),
+        NumericParameter(
+            numericValue=0,
+            error=0,
+            rangeBottom=-1,
+            rangeTop=1,
+            parameter_type=numeric_type,
+        ),
+        DateTimeParameter(dateTimeValue=datetime.now(), parameter_type=date_time_type),
+    ]
+
+
+@pytest.fixture(scope="function")
+def archive_request_sample(archive_request_parameters: list[Parameter]) -> Sample:
+    sample_type = SampleTypeIdentifier(name="carbon", molecularFormula="C")
+    return Sample(
+        name="sample",
+        sample_type=sample_type,
+        parameters=archive_request_parameters,
+    )
+
+
+@pytest.fixture(scope="function")
+def archive_request(
+    archive_request_parameters: list[Parameter],
+    archive_request_sample: Sample,
+    mocker: MockerFixture,
+) -> ArchiveRequest:
     try:
-        settings = get_settings()
+        get_settings()
     except ValidationError:
         # Assume the issue is that we do not have the cert to communicate with FTS.
         # This will be the case for GHA workflows, in which case,
         # pass a readable file to satisfy the validator and mock requests to FTS.
         fts3_settings = Fts3Settings(
             endpoint="https://fts-test01.gridpp.rl.ac.uk:8446",
-            instrument_data_cache="root://idc:1094//",
-            user_data_cache="root://udc:1094//",
-            tape_archive="root://archive:1094//",
+            instrument_data_cache="root://idc.ac.uk:1094//",
+            restored_data_cache="root://rdc.ac.uk:1094//",
+            tape_archive="root://archive.ac.uk:1094//",
             x509_user_cert=__file__,
             x509_user_key=__file__,
         )
         settings = Settings(fts3=fts3_settings)
 
-        get_settings_mock = mocker.patch("datastore_api.models.archive.get_settings")
+        get_settings_mock = mocker.patch("datastore_api.models.icat.get_settings")
         get_settings_mock.return_value = settings
 
-    dataset = Dataset(
-        name="dataset",
-        datasetType=DatasetType(name="type"),
-        datafiles=[Datafile(name="datafile")],
+    investigation_identifier = InvestigationIdentifier(name="name", visitId="visitId")
+    datafile = Datafile(
+        name="datafile",
+        datafileFormat=DatafileFormatIdentifier(name="txt", version="0"),
+        parameters=archive_request_parameters,
     )
-    return Investigation(
-        name="name",
-        visitId="visitId",
-        title="title",
-        summary="summary",
-        doi="doi",
-        startDate=datetime.now(),
-        endDate=datetime.now(),
-        releaseDate=datetime.now(),
-        facility=Facility(name="facility"),
-        investigationType=InvestigationType(name="type"),
-        instrument=Instrument(name="instrument"),
-        facilityCycle=FacilityCycle(name="20XX"),
-        datasets=[dataset],
+    dataset = Dataset(
+        name="dataset1",
+        datasetType=DatasetTypeIdentifier(name="type"),
+        datafiles=[datafile],
+        sample=archive_request_sample,
+        parameters=archive_request_parameters,
+        datasetTechniques=[TechniqueIdentifier(name="technique")],
+        datasetInstruments=[InstrumentIdentifier(name="instrument")],
+    )
+
+    return ArchiveRequest(
+        facility_identifier=FacilityIdentifier(name="facility"),
+        instrument_identifier=InstrumentIdentifier(name="instrument"),
+        facility_cycle_identifier=FacilityCycleIdentifier(name="20XX"),
+        investigation_identifier=investigation_identifier,
+        dataset=dataset,
     )
 
 
@@ -187,6 +233,16 @@ def functional_icat_client(
 
 
 @pytest.fixture(scope="function")
+def s3_settings(mock_fts3_settings: Settings):
+    return mock_fts3_settings.s3
+
+
+@pytest.fixture(scope="function")
+def s3_client(s3_settings: S3Settings, mocker: MockerFixture):
+    return S3Client()
+
+
+@pytest.fixture(scope="function")
 def facility(functional_icat_client: IcatClient) -> Generator[Entity, None, None]:
     facility = create(
         icat_client=functional_icat_client,
@@ -197,6 +253,24 @@ def facility(functional_icat_client: IcatClient) -> Generator[Entity, None, None
     yield facility
 
     delete(icat_client=functional_icat_client, entity=facility)
+
+
+@pytest.fixture(scope="function")
+def datafile_format(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    datafile_format = create(
+        icat_client=functional_icat_client,
+        entity="DatafileFormat",
+        name="txt",
+        version="0",
+        facility=facility,
+    )
+
+    yield datafile_format
+
+    delete(icat_client=functional_icat_client, entity=datafile_format)
 
 
 @pytest.fixture(scope="function")
@@ -309,6 +383,105 @@ def parameter_type_job_ids(
 
 
 @pytest.fixture(scope="function")
+def parameter_type_string(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    parameter_type = create(
+        icat_client=functional_icat_client,
+        entity="ParameterType",
+        name="string",
+        facility=facility,
+        units="",
+        valueType="STRING",
+        applicableToDataset=True,
+        applicableToDatafile=True,
+        applicableToSample=True,
+    )
+
+    yield parameter_type
+
+    delete(icat_client=functional_icat_client, entity=parameter_type)
+
+
+@pytest.fixture(scope="function")
+def parameter_type_numeric(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    parameter_type = create(
+        icat_client=functional_icat_client,
+        entity="ParameterType",
+        name="numeric",
+        facility=facility,
+        units="",
+        valueType="NUMERIC",
+        applicableToDataset=True,
+        applicableToDatafile=True,
+        applicableToSample=True,
+    )
+
+    yield parameter_type
+
+    delete(icat_client=functional_icat_client, entity=parameter_type)
+
+
+@pytest.fixture(scope="function")
+def parameter_type_date_time(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    parameter_type = create(
+        icat_client=functional_icat_client,
+        entity="ParameterType",
+        name="date_time",
+        facility=facility,
+        units="",
+        valueType="DATE_AND_TIME",
+        applicableToDataset=True,
+        applicableToDatafile=True,
+        applicableToSample=True,
+    )
+
+    yield parameter_type
+
+    delete(icat_client=functional_icat_client, entity=parameter_type)
+
+
+@pytest.fixture(scope="function")
+def sample_type(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    sample_type = create(
+        icat_client=functional_icat_client,
+        entity="SampleType",
+        name="carbon",
+        facility=facility,
+        molecularFormula="C",
+    )
+
+    yield sample_type
+
+    delete(icat_client=functional_icat_client, entity=sample_type)
+
+
+@pytest.fixture(scope="function")
+def technique(
+    functional_icat_client: IcatClient,
+) -> Generator[Entity, None, None]:
+    technique = create(
+        icat_client=functional_icat_client,
+        entity="Technique",
+        name="technique",
+    )
+
+    yield technique
+
+    delete(icat_client=functional_icat_client, entity=technique)
+
+
+@pytest.fixture(scope="function")
 def investigation(
     functional_icat_client: IcatClient,
     facility: Entity,
@@ -328,6 +501,7 @@ def investigation(
     datafile = functional_icat_client.client.new(
         obj="Datafile",
         name="datafile",
+        location="instrument/20XX/name-visitId/type/dataset/datafile",
     )
     dataset = functional_icat_client.client.new(
         obj="Dataset",
@@ -370,6 +544,27 @@ def investigation_tear_down(
     )
     if investigation is not None:
         delete(icat_client=functional_icat_client, entity=investigation)
+
+
+@pytest.fixture(scope="function")
+def bucket_creation() -> Generator[str, None, None]:
+    bucket = S3Client().create_bucket()
+    yield bucket["Location"][1:]
+
+
+@pytest.fixture(scope="function")
+def bucket_deletion() -> Generator[None, None, None]:
+    yield None
+
+    for bucket in S3Client().list_buckets():
+        if bucket != "miniotestbucket":
+            S3Client().delete_bucket(bucket)
+
+
+@pytest.fixture(scope="function")
+def tag_bucket() -> Generator[None, None, None]:
+    tags = [{"Key": "00000000-0000-0000-0000-000000000000", "Value": "STAGING"}]
+    S3Client().tag_bucket(bucket_name="miniotestbucket", tags=tags)
 
 
 @pytest.fixture(scope="function")

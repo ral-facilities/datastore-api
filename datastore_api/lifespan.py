@@ -5,7 +5,7 @@ from typing import AsyncGenerator
 from urllib.error import URLError
 
 from fastapi import FastAPI
-from icat.entities import Entity
+from icat.entity import Entity
 
 from datastore_api.fts3_client import get_fts3_client
 from datastore_api.icat_client import IcatClient
@@ -135,9 +135,12 @@ def update_jobs(icat_client: IcatClient, parameters: list[Entity]) -> list[Entit
     for parameter in parameters:
         state_counter = StateCounter()
         job_ids = parameter.stringValue.split(",")
-        for job_id in job_ids:
-            status = get_fts3_client().status(job_id=job_id, list_files=True)
-            state_counter.check_state(state=status["job_state"], job_id=job_id)
+        statuses = get_fts3_client().status(job_id=job_ids, list_files=True)
+        for status in statuses:
+            state_counter.check_state(
+                state=status["job_state"],
+                job_id=status["job_id"],
+            )
             for file_status in status["files"]:
                 source_surl = file_status["source_surl"]
                 file_path = source_surl.split("//")[-1].split("?")[0]

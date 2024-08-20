@@ -99,9 +99,10 @@ class TestLifespan:
                                 ),
                             },
                         ],
+                        "job_id": "0",
                     },
-                    {"job_state": "CANCELLED", "files": []},
-                    {"job_state": "SUBMITTED", "files": []},
+                    {"job_state": "CANCELLED", "files": [], "job_id": "1"},
+                    {"job_state": "SUBMITTED", "files": [], "job_id": "2"},
                 ],
                 "0,2",
                 "SUBMITTED",
@@ -120,9 +121,10 @@ class TestLifespan:
                                 ),
                             },
                         ],
+                        "job_id": "0",
                     },
-                    {"job_state": "FINISHED", "files": []},
-                    {"job_state": "FINISHEDDIRTY", "files": []},
+                    {"job_state": "FINISHED", "files": [], "job_id": "1"},
+                    {"job_state": "FINISHEDDIRTY", "files": [], "job_id": "2"},
                 ],
                 "0,1,2",
                 "FINISHEDDIRTY",
@@ -143,7 +145,7 @@ class TestLifespan:
         mocker: MockerFixture,
     ):
         get_fts3_client_mock = mocker.patch("datastore_api.lifespan.get_fts3_client")
-        get_fts3_client_mock.return_value.status.side_effect = statuses
+        get_fts3_client_mock.return_value.status.return_value = statuses
 
         type_job_ids = functional_icat_client.settings.parameter_type_job_ids
         type_job_state = functional_icat_client.settings.parameter_type_job_state
@@ -161,10 +163,9 @@ class TestLifespan:
         )
 
         calls = [
-            call(job_id="0", list_files=True),
-            call(job_id="1", list_files=True),
-            call(job_id="2", list_files=True),
+            call(job_id=["0", "1", "2"], list_files=True),
         ]
+
         get_fts3_client_mock.return_value.status.assert_has_calls(calls)
 
         parameter = functional_icat_client.get_single_entity(
