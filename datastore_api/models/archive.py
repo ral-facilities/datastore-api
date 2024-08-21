@@ -19,4 +19,4 @@ class ArchiveRequest(BaseModel):
 
 
 class ArchiveResponse(BaseModel):
-    job_ids: list[str] = Field(example=["00000000-0000-0000-0000-000000000000"])
+    job_ids: list[str] = Field(examples=[["00000000-0000-0000-0000-000000000000"]])

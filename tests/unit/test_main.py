@@ -1,7 +1,7 @@
 import json
+from uuid import UUID
 
 from fastapi.testclient import TestClient
-from pydantic import UUID4
 import pytest
 from pytest_mock import mocker, MockerFixture
 
@@ -92,7 +92,7 @@ class TestMain:
         test_client: TestClient,
         archive_request: ArchiveRequest,
     ):
-        json_body = json.loads(archive_request.json())
+        json_body = json.loads(archive_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)
 
@@ -100,11 +100,11 @@ class TestMain:
         assert test_response.status_code == 200, content
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
-        UUID4(content["job_ids"][0])
+        UUID(content["job_ids"][0], version=4)
 
     def test_restore_to_rdc(self, test_client: TestClient):
         restore_request = RestoreRequest(investigation_ids=[0])
-        json_body = json.loads(restore_request.json())
+        json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post(
             "/restore/rdc",
@@ -116,7 +116,7 @@ class TestMain:
         assert test_response.status_code == 200, content
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
-        UUID4(content["job_ids"][0])
+        UUID(content["job_ids"][0], version=4)
 
     def test_restore_to_download(
         self,
@@ -126,7 +126,7 @@ class TestMain:
         restore_request = RestoreRequest(
             investigation_ids=[0],
         )
-        json_body = json.loads(restore_request.json())
+        json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post(
             "/restore/download",
@@ -138,8 +138,8 @@ class TestMain:
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
         assert "bucket_name" in content
-        UUID4(content["job_ids"][0])
-        UUID4(content["bucket_name"])
+        UUID(content["job_ids"][0], version=4)
+        UUID(content["bucket_name"], version=4)
 
     def test_get_data(
         self,

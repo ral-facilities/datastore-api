@@ -3,11 +3,11 @@ import json
 import logging
 from typing import Generator
 from unittest.mock import ANY, MagicMock
+from uuid import UUID
 
 from fastapi.testclient import TestClient
 from icat.entity import Entity
 from icat.query import Query
-from pydantic import UUID4
 import pytest
 from pytest_mock import MockerFixture
 
@@ -176,7 +176,7 @@ class TestArchive:
         archive_request: ArchiveRequest,
     ):
         get_icat_cache.cache_clear()
-        json_body = json.loads(archive_request.json())
+        json_body = json.loads(archive_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)
 
@@ -184,7 +184,7 @@ class TestArchive:
         assert test_response.status_code == 200, content
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
-        UUID4(content["job_ids"][0])
+        UUID(content["job_ids"][0], version=4)
 
         path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
         sources = [f"root://idc.ac.uk:1094/{path}"]
@@ -342,9 +342,9 @@ class TestArchive:
             facilityCycle=archive_request.facility_cycle_identifier,
             instrument=archive_request.instrument_identifier,
             datasets=[archive_request.dataset],
-            **archive_request.investigation_identifier.dict(),
+            **archive_request.investigation_identifier.model_dump(),
         )
-        json_body = json.loads(archive_request.json())
+        json_body = json.loads(archive_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post("/archive", headers=headers, json=json_body)
 
@@ -352,7 +352,7 @@ class TestArchive:
         assert test_response.status_code == 200, content
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
-        UUID4(content["job_ids"][0])
+        UUID(content["job_ids"][0], version=4)
 
         path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
         sources = [f"root://idc.ac.uk:1094/{path}"]
@@ -446,7 +446,7 @@ class TestRestore:
             datafile = functional_icat_client.get_single_entity("Datafile", equals)
             restore_request = RestoreRequest(datafile_ids=[datafile.id])
 
-        json_body = json.loads(restore_request.json())
+        json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post(
             "/restore/rdc",
@@ -458,7 +458,7 @@ class TestRestore:
         assert test_response.status_code == 200, content
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
-        UUID4(content["job_ids"][0])
+        UUID(content["job_ids"][0], version=4)
 
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
         sources = [f"root://archive.ac.uk:1094//{path}"]
@@ -515,7 +515,7 @@ class TestRestore:
                 datafile_ids=[datafile.id],
             )
 
-        json_body = json.loads(restore_request.json())
+        json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post(
             "/restore/download",
@@ -527,8 +527,8 @@ class TestRestore:
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
         assert "bucket_name" in content
-        UUID4(content["job_ids"][0])
-        UUID4(content["bucket_name"])
+        UUID(content["job_ids"][0], version=4)
+        UUID(content["bucket_name"], version=4)
 
         bucket_name = content["bucket_name"]
         path = "instrument/20XX/name-visitId/type/dataset/datafile"

@@ -5,6 +5,9 @@ from pytest_mock import MockerFixture
 
 from datastore_api.config import Fts3Settings, Settings
 from datastore_api.models.icat import (
+    Datafile,
+    Dataset,
+    DatasetTypeIdentifier,
     FacilityCycleIdentifier,
     FacilityIdentifier,
     InstrumentIdentifier,
@@ -85,20 +88,31 @@ class TestArchive:
         )
         get_settings_mock.return_value = Settings(fts3=fts3_settings)
 
+        dates = {}
+        if start_date is not None:
+            dates["startDate"] = start_date
+        if end_date is not None:
+            dates["endDate"] = end_date
+        if release_date is not None:
+            dates["releaseDate"] = release_date
+
+        dataset = Dataset(
+            name="name",
+            datasetType=DatasetTypeIdentifier(name="type"),
+            datafiles=[Datafile(name="name")],
+        )
         investigation = Investigation(
             name="name",
             visitId="visitId",
             title="title",
             summary="summary",
             doi="doi",
-            startDate=start_date,
-            endDate=end_date,
-            releaseDate=release_date,
             facility=FacilityIdentifier(name="facility"),
             investigationType=InvestigationTypeIdentifier(name=investigation_type),
             instrument=InstrumentIdentifier(name="instrument"),
             facilityCycle=FacilityCycleIdentifier(name="20XX"),
-            datasets=[],
+            datasets=[dataset],
+            **dates,
         )
 
         assert investigation.releaseDate == expected_release_date

@@ -3,13 +3,18 @@ from enum import StrEnum
 from typing import Annotated, Any
 
 from annotated_types import Len
-from pydantic import BaseModel, constr, Field, validator
+from pydantic import (
+    BaseModel,
+    Field,
+    model_validator,
+    StringConstraints,
+)
 
 from datastore_api.config import get_settings
 
 
-ShortStr = constr(max_length=255)
-LongStr = constr(max_length=4000)
+ShortStr = Annotated[str, StringConstraints(max_length=255)]
+LongStr = Annotated[str, StringConstraints(max_length=4000)]
 
 
 class ParameterValueType(StrEnum):
@@ -19,23 +24,23 @@ class ParameterValueType(StrEnum):
 
 
 class FacilityIdentifier(BaseModel):
-    name: ShortStr = Field(example="facility")
+    name: ShortStr = Field(examples=["facility"])
 
 
 class InstrumentIdentifier(BaseModel):
-    name: ShortStr = Field(example="instrument")
+    name: ShortStr = Field(examples=["instrument"])
 
 
 class FacilityCycleIdentifier(BaseModel):
-    name: ShortStr = Field(example="20XX")
+    name: ShortStr = Field(examples=["20XX"])
 
 
 class DatasetTypeIdentifier(BaseModel):
-    name: ShortStr = Field(example="scan")
+    name: ShortStr = Field(examples=["scan"])
 
 
 class InvestigationTypeIdentifier(BaseModel):
-    name: ShortStr = Field(example="type")
+    name: ShortStr = Field(examples=["type"])
 
 
 class ParameterTypeIdentifier(BaseModel):
@@ -60,7 +65,7 @@ class BaseParameter(BaseModel):
         Returns:
             dict[str, Any]: Dictionary of fields, excluding None values.
         """
-        return self.dict(exclude={"parameter_type"}, exclude_none=True)
+        return self.model_dump(exclude={"parameter_type"}, exclude_none=True)
 
 
 class StringParameter(BaseParameter):
@@ -106,7 +111,7 @@ class Sample(BaseModel):
         Returns:
             dict[str, Any]: Dictionary of fields, excluding None values.
         """
-        return self.dict(exclude={"sample_type", "parameters"}, exclude_none=True)
+        return self.model_dump(exclude={"sample_type", "parameters"}, exclude_none=True)
 
 
 class TechniqueIdentifier(BaseModel):
@@ -129,9 +134,9 @@ class DatafileFormat(DatafileFormatIdentifier):
 
 
 class Datafile(BaseModel):
-    name: ShortStr = Field(example="file_0000.nxs")
-    description: ShortStr = Field(default=None, example="Description")
-    doi: ShortStr = Field(default=None, example="10.00000/00000")
+    name: ShortStr = Field(examples=["file_0000.nxs"])
+    description: ShortStr = Field(default=None, examples=["Description"])
+    doi: ShortStr = Field(default=None, examples=["10.00000/00000"])
     fileSize: int = None
     checksum: ShortStr = None
     datafileCreateTime: datetime = None
@@ -148,14 +153,15 @@ class Datafile(BaseModel):
         Returns:
             dict[str, Any]: Dictionary of fields, excluding None values.
         """
-        return self.dict(exclude={"datafileFormat", "parameters"}, exclude_none=True)
+        exclude = {"datafileFormat", "parameters"}
+        return self.model_dump(exclude=exclude, exclude_none=True)
 
 
 class Dataset(BaseModel):
-    name: ShortStr = Field(example="scan_0000")
+    name: ShortStr = Field(examples=["scan_0000"])
     complete: bool = True
-    description: ShortStr = Field(default=None, example="Description")
-    doi: ShortStr = Field(default=None, example="10.00000/00000")
+    description: ShortStr = Field(default=None, examples=["Description"])
+    doi: ShortStr = Field(default=None, examples=["10.00000/00000"])
     startDate: datetime = None
     endDate: datetime = None
 
@@ -164,7 +170,7 @@ class Dataset(BaseModel):
     datafiles: Annotated[list[Datafile], Len(min_length=1)]
     sample: Sample = None
     parameters: list[Parameter] = []
-    datasetTechniques: list[Technique] = []
+    datasetTechniques: list[TechniqueIdentifier] = []
     datasetInstruments: list[InstrumentIdentifier] = []
 
     def excluded_dict(self) -> dict[str, Any]:
@@ -183,7 +189,7 @@ class Dataset(BaseModel):
             "datasetTechniques",
             "datasetInstruments",
         }
-        return self.dict(exclude=exclude, exclude_none=True)
+        return self.model_dump(exclude=exclude, exclude_none=True)
 
 
 class InvestigationIdentifier(BaseModel):
@@ -191,8 +197,8 @@ class InvestigationIdentifier(BaseModel):
     constraints.
     """
 
-    name: ShortStr = Field(example="ABC123")
-    visitId: ShortStr = Field(example="1")
+    name: ShortStr = Field(examples=["ABC123"])
+    visitId: ShortStr = Field(examples=["1"])
 
 
 class Investigation(InvestigationIdentifier):
@@ -203,33 +209,36 @@ class Investigation(InvestigationIdentifier):
     datasets: Annotated[list[Dataset], Len(min_length=1)]
 
     # Attributes
-    title: ShortStr = Field(example="Title")
-    summary: LongStr = Field(default=None, example="Summary")
-    doi: ShortStr = Field(default=None, example="10.00000/00000")
+    title: ShortStr = Field(examples=["Title"])
+    summary: LongStr = Field(default=None, examples=["Summary"])
+    doi: ShortStr = Field(default=None, examples=["10.00000/00000"])
     startDate: datetime = None
     endDate: datetime = None
     releaseDate: datetime = None
 
-    @validator("releaseDate")
-    def define_release_date(cls, v: datetime | None, values: dict) -> datetime:
-        if values["investigationType"].name in get_settings().icat.embargo_types:
-            return None
+    @model_validator(mode="after")
+    def define_release_date(self) -> "Investigation":
+        if self.investigationType.name in get_settings().icat.embargo_types:
+            self.releaseDate = None
+            return self
+        elif self.releaseDate is not None:
+            return self
 
-        if v is not None:
-            return v
-
-        if "endDate" in values and values["endDate"] is not None:
-            date = values["endDate"]
-        elif "startDate" in values and values["startDate"] is not None:
-            date = values["startDate"]
+        if self.endDate is not None:
+            date = self.endDate
+        elif self.startDate is not None:
+            date = self.startDate
         else:
             date = datetime.today()
-        return datetime(
+
+        self.releaseDate = datetime(
             year=date.year + get_settings().icat.embargo_period_years,
             month=date.month,
             day=date.day,
             tzinfo=date.tzinfo,
         )
+
+        return self
 
     def excluded_dict(self) -> dict[str, Any]:
         """Utility function for excluding fields which should not be passed to ICAT for
@@ -246,4 +255,4 @@ class Investigation(InvestigationIdentifier):
             "facilityCycle",
             "datasets",
         }
-        return self.dict(exclude=exclude, exclude_none=True)
+        return self.model_dump(exclude=exclude, exclude_none=True)

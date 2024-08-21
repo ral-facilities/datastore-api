@@ -60,7 +60,7 @@ class TestInvestigationArchiver:
                 facilityCycle=archive_request.facility_cycle_identifier,
                 instrument=archive_request.instrument_identifier,
                 datasets=[archive_request.dataset],
-                **archive_request.investigation_identifier.dict(),
+                **archive_request.investigation_identifier.model_dump(),
             ),
         )
         icat_client_empty_search.client.new.return_value = dataset
