@@ -23,11 +23,10 @@ from pydantic_settings import (
 
 
 LOGGER = logging.getLogger(__name__)
+EndpointUrl = Annotated[Url, UrlConstraints(allowed_schemes={"root", "https", "davs"})]
 
 
 def validate_endpoint_url_str(url_str: str):
-    url_constraints = UrlConstraints(allowed_schemes={"root", "https", "davs"})
-    EndpointUrl = Annotated[Url, url_constraints]
     type_adapter = TypeAdapter(EndpointUrl)
     type_adapter.validate_python(url_str)
 
