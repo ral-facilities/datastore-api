@@ -2,6 +2,7 @@ from icat.entity import Entity
 import pytest
 from pytest_mock import MockerFixture
 
+from datastore_api.config import Fts3Settings
 from datastore_api.models.dataset import (
     DatasetStatusListFilesResponse,
     DatasetStatusResponse,
@@ -25,15 +26,15 @@ from tests.fixtures import (
 
 
 class TestStateController:
-    def test_init(self):
+    def test_init(self, mock_fts3_settings: Fts3Settings):
         state_controller = StateController(session_id=SESSION_ID)
         assert state_controller.icat_client.client.sessionId == SESSION_ID
 
-    def test_get_dataset_job_ids(self):
+    def test_get_dataset_job_ids(self, mock_fts3_settings: Fts3Settings):
         state_controller = StateController()
         assert state_controller.get_dataset_job_ids(dataset_id=1) == []
 
-    def test_get_dataset_datafile_states(self):
+    def test_get_dataset_datafile_states(self, mock_fts3_settings: Fts3Settings):
         state_controller = StateController()
         assert state_controller.get_datafile_states(dataset_id=1) == []
 
