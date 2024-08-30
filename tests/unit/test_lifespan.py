@@ -11,9 +11,9 @@ from datastore_api.lifespan import (
     lifespan,
     LOGGER,
     poll_fts,
-    StateCounter,
-    update_jobs,
 )
+from datastore_api.state_controller import StateController
+from datastore_api.state_counter import StateCounter
 from tests.fixtures import (
     dataset_type,
     dataset_with_job_id,
@@ -45,15 +45,14 @@ class TestLifespan:
         mock_fts3_settings: Settings,
         mocker: MockerFixture,
     ):
-        icat_client = IcatClient()
-        icat_client.login_functional()
+        state_controller = StateController()
         delete_many = mocker.patch.object(
-            icat_client.client,
+            state_controller.icat_client.client,
             "deleteMany",
-            wraps=icat_client.client.deleteMany,
+            wraps=state_controller.icat_client.client.deleteMany,
         )
 
-        poll_fts(icat_client)
+        poll_fts(state_controller)
 
         delete_many.assert_called_once_with([])
 
@@ -62,21 +61,23 @@ class TestLifespan:
         mock_fts3_settings: Settings,
         mocker: MockerFixture,
     ):
-        icat_client = IcatClient()
-        icat_client.login_functional()
+        state_controller = StateController()
         delete_many = mocker.patch.object(
-            icat_client.client,
+            state_controller.icat_client.client,
             "deleteMany",
-            wraps=icat_client.client.deleteMany,
+            wraps=state_controller.icat_client.client.deleteMany,
         )
 
         error = mocker.patch.object(LOGGER, "error", wraps=LOGGER.error)
 
         update_jobs_mock = mocker.MagicMock()
         update_jobs_mock.side_effect = URLError("test")
-        mocker.patch("datastore_api.lifespan.update_jobs", update_jobs_mock)
+        mocker.patch(
+            "datastore_api.state_controller.StateController.update_jobs",
+            update_jobs_mock,
+        )
 
-        poll_fts(icat_client)
+        poll_fts(state_controller)
 
         delete_many.assert_not_called()
         error.assert_called_once_with(
@@ -85,7 +86,7 @@ class TestLifespan:
         )
 
     @pytest.mark.parametrize(
-        ["statuses", "job_ids", "state", "file_state", "to_delete"],
+        ["statuses", "job_ids", "state", "file_state"],
         [
             pytest.param(
                 [
@@ -107,7 +108,6 @@ class TestLifespan:
                 "0,2",
                 "SUBMITTED",
                 "SUBMITTED",
-                0,
             ),
             pytest.param(
                 [
@@ -126,10 +126,9 @@ class TestLifespan:
                     {"job_state": "FINISHED", "files": [], "job_id": "1"},
                     {"job_state": "FINISHEDDIRTY", "files": [], "job_id": "2"},
                 ],
-                "0,1,2",
+                "",
                 "FINISHEDDIRTY",
                 "FAILED",
-                1,
             ),
         ],
     )
@@ -138,13 +137,13 @@ class TestLifespan:
         statuses: list[dict[str, str]],
         job_ids: str,
         state: str,
-        file_state,
-        to_delete: int,
+        file_state: str,
         dataset_with_job_id: Entity,
         functional_icat_client: IcatClient,
         mocker: MockerFixture,
     ):
-        get_fts3_client_mock = mocker.patch("datastore_api.lifespan.get_fts3_client")
+        module = "datastore_api.state_controller.get_fts3_client"
+        get_fts3_client_mock = mocker.patch(module)
         get_fts3_client_mock.return_value.statuses.return_value = statuses
 
         type_job_ids = functional_icat_client.settings.parameter_type_job_ids
@@ -157,10 +156,9 @@ class TestLifespan:
             includes="1",
         )
 
-        beans_to_delete = update_jobs(
-            icat_client=functional_icat_client,
-            parameters=parameters,
-        )
+        state_controller = StateController()
+        state_controller.icat_client = functional_icat_client
+        state_counters = state_controller.update_jobs(parameters=parameters)
 
         calls = [call(job_ids=["0", "1", "2"], list_files=True)]
 
@@ -171,7 +169,10 @@ class TestLifespan:
             equals=equals_job_ids,
             allow_empty=True,
         )
-        assert parameter.stringValue == job_ids
+        if job_ids:
+            assert parameter.stringValue == job_ids
+        else:
+            assert parameter is None
 
         parameter = functional_icat_client.get_single_entity(
             entity="DatasetParameter",
@@ -187,7 +188,9 @@ class TestLifespan:
         )
         assert parameter.stringValue == file_state
 
-        assert len(beans_to_delete) == to_delete
+        assert len(state_counters) == 1
+        assert state_counters[0].state == state
+        assert ",".join(state_counters[0].job_ids) == job_ids
 
 
 class TestStateCounter:

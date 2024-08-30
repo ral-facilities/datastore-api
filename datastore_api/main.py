@@ -9,8 +9,9 @@ from datastore_api.auth import validate_session_id
 from datastore_api.fts3_client import Fts3Client, get_fts3_client
 from datastore_api.icat_client import IcatClient
 from datastore_api.investigation_archiver import InvestigationArchiver
-from datastore_api.lifespan import lifespan, StateCounter
+from datastore_api.lifespan import lifespan
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
+from datastore_api.models.dataset import DatasetStatusResponse
 from datastore_api.models.job import (
     CancelResponse,
     complete_job_states,
@@ -28,6 +29,8 @@ from datastore_api.models.restore import (
 )
 from datastore_api.models.version import VersionResponse
 from datastore_api.s3_client import S3Client
+from datastore_api.state_controller import StateController
+from datastore_api.state_counter import StateCounter
 from datastore_api.transfer_controller import RestoreController
 
 
@@ -273,11 +276,47 @@ def get_data(
 )
 def delete_bucket(bucket_name: str) -> None:
     """Delete an S3 bucket with its content
-
+    \f
     Args:
         bucket_name (str): Name of the bucket to delete
     """
     S3Client().delete_bucket(bucket_name=bucket_name)
+
+
+@app.get(
+    "/dataset/{dataset_id}",
+    response_description="JSON describing the status of the requested Dataset",
+    summary="Get details of a previously archived Dataset",
+    tags=["Dataset"],
+)
+def dataset_status(
+    session_id: SessionIdDependency,
+    dataset_id: str,
+    list_files: bool = True,
+) -> DatasetStatusResponse:
+    """Get details of a previously archived Dataset
+    \f
+    Args:
+        session_id (SessionIdDependency): ICAT sessionId.
+        dataset_id (str): ICAT Dataset id.
+        list_files (bool, optional): Include details of Datafiles. Defaults to True.
+
+    Returns:
+        DatasetStatusResponse: Details of the Dataset (and Datafile) state(s).
+    """
+    state_controller = StateController(session_id=session_id)
+    parameters = state_controller.get_dataset_job_ids(dataset_id=dataset_id)
+    if parameters:
+        state_controller_functional = StateController()
+        return state_controller_functional.get_update_dataset_status(
+            parameters=parameters,
+            list_files=list_files,
+        )
+    else:
+        return state_controller.get_dataset_status(
+            dataset_id=dataset_id,
+            list_files=list_files,
+        )
 
 
 @app.delete(
@@ -309,17 +348,22 @@ def cancel(job_id: str, fts3_client: Fts3ClientDependency) -> CancelResponse:
     summary="Get details of a job previously submitted to FTS",
     tags=["Job"],
 )
-def status(job_id: str, fts3_client: Fts3ClientDependency) -> StatusResponse:
+def status(
+    fts3_client: Fts3ClientDependency,
+    job_id: str,
+    list_files: bool = True,
+) -> StatusResponse:
     """Get details of a job previously submitted to FTS.
     \f
     Args:
-        job_id (str): FTS id for a submitted job.
         fts3_client (Fts3Client): Cached client for calls to FTS.
+        job_id (str): FTS id for a submitted job.
+        list_files (bool, optional): Include details of Datafiles. Defaults to True.
 
     Returns:
         StatusResponse: Details of the requested job.
     """
-    status = fts3_client.status(job_id=job_id)
+    status = fts3_client.status(job_id=job_id, list_files=list_files)
     return StatusResponse(status=status)
 
 

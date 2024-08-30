@@ -14,7 +14,7 @@ Before starting, ensure:
 
 ### Create high level ICAT entities
 ```bash
-icatingest.py -i datastore_api/scripts/metadata/generic/example.yaml -f YAML --duplicate IGNORE --url http://localhost:18080 --no-check-certificate --auth simple --user root --pass pw
+icatingest.py -i datastore_api/scripts/metadata/epac/example.yaml -f YAML --duplicate IGNORE --url http://localhost:18080 --no-check-certificate --auth simple --user root --pass pw
 ```
 
 ### Create files in IDC
