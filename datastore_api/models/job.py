@@ -6,7 +6,9 @@ from pydantic import BaseModel
 class JobState(StrEnum):
     staging = "STAGING"
     submitted = "SUBMITTED"
+    ready = "READY"
     active = "ACTIVE"
+    archiving = "ARCHIVING"
     finished = "FINISHED"
     finished_dirty = "FINISHEDDIRTY"
     failed = "FAILED"
@@ -22,11 +24,10 @@ complete_job_states = (
 
 
 class TransferState(StrEnum):
+    new = "NEW"
     staging = "STAGING"
-    on_hold_staging = "ON_HOLD_STAGING"
     started = "STARTED"
     submitted = "SUBMITTED"
-    on_hold = "ON_HOLD"
     not_used = "NOT_USED"
     ready = "READY"
     active = "ACTIVE"
@@ -34,12 +35,14 @@ class TransferState(StrEnum):
     finished = "FINISHED"
     failed = "FAILED"
     canceled = "CANCELED"
+    defunct = "DEFUNCT"
 
 
 complete_transfer_states = (
     TransferState.finished,
     TransferState.failed,
     TransferState.canceled,
+    TransferState.defunct,
 )
 
 
