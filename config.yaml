@@ -1,5 +1,5 @@
 icat:
-  url: https://127.0.0.1:8181
+  url: https://icat_payara_container:8181
   check_cert: False
   functional_user:
     auth: simple
