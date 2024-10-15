@@ -185,6 +185,7 @@ class TestFts3Settings:
     def test_validate_supported_checksums(self, mock_fts3_settings: Settings):
         fts3_settings_dict = mock_fts3_settings.fts3.model_dump(exclude_none=True)
         fts3_settings_dict["verify_checksum"] = "both"
+        fts3_settings_dict["supported_checksums"] = []
         with pytest.raises(ValueError) as e:
             Fts3Settings(**fts3_settings_dict)
 

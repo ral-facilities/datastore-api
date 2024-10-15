@@ -404,7 +404,7 @@ def percentage(job_id: str, fts3_client: Fts3ClientDependency) -> PercentageResp
         PercentageResponse: Percentage of individual transfers that are completed.
     """
     files_complete = 0
-    status = fts3_client.status(job_id=job_id)
+    status = fts3_client.status(job_id=job_id, list_files=True)
     files_total = len(status["files"])
     for file in status["files"]:
         if file["file_state"] in complete_transfer_states:

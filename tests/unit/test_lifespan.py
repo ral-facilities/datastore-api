@@ -12,6 +12,7 @@ from datastore_api.lifespan import (
     LOGGER,
     poll_fts,
 )
+from datastore_api.models.job import JobState, TransferState
 from datastore_api.state_controller import StateController
 from datastore_api.state_counter import StateCounter
 from tests.fixtures import (
@@ -91,10 +92,10 @@ class TestLifespan:
             pytest.param(
                 [
                     {
-                        "job_state": "SUBMITTED",
+                        "job_state": JobState.submitted,
                         "files": [
                             {
-                                "file_state": "SUBMITTED",
+                                "file_state": TransferState.submitted,
                                 "source_surl": (
                                     "root://idc:8446//instrument/20XX/name-visitId/dataset/datafile?query"
                                 ),
@@ -102,20 +103,20 @@ class TestLifespan:
                         ],
                         "job_id": "0",
                     },
-                    {"job_state": "CANCELLED", "files": [], "job_id": "1"},
-                    {"job_state": "SUBMITTED", "files": [], "job_id": "2"},
+                    {"job_state": JobState.canceled, "files": [], "job_id": "1"},
+                    {"job_state": JobState.submitted, "files": [], "job_id": "2"},
                 ],
                 "0,2",
-                "SUBMITTED",
-                "SUBMITTED",
+                JobState.submitted,
+                JobState.submitted,
             ),
             pytest.param(
                 [
                     {
-                        "job_state": "FAILED",
+                        "job_state": JobState.failed,
                         "files": [
                             {
-                                "file_state": "FAILED",
+                                "file_state": TransferState.failed,
                                 "source_surl": (
                                     "root://idc:8446//instrument/20XX/name-visitId/dataset/datafile?query"
                                 ),
@@ -123,12 +124,12 @@ class TestLifespan:
                         ],
                         "job_id": "0",
                     },
-                    {"job_state": "FINISHED", "files": [], "job_id": "1"},
-                    {"job_state": "FINISHEDDIRTY", "files": [], "job_id": "2"},
+                    {"job_state": JobState.finished, "files": [], "job_id": "1"},
+                    {"job_state": JobState.finished_dirty, "files": [], "job_id": "2"},
                 ],
                 "",
-                "FINISHEDDIRTY",
-                "FAILED",
+                JobState.finished_dirty,
+                JobState.failed,
             ),
         ],
     )

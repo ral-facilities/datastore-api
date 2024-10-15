@@ -56,11 +56,12 @@ jobs:
           key: nox-tests-${{ hashFiles('poetry.lock') }}
 
       - name: Wait for minio to contain test bucket/objects
+        id: minio_check
         run: |
-          until docker ps --filter "name=minio" --format "{{.Status}}" | grep -q "(healthy)"; do
+          until docker exec minio /usr/bin/mc ls data/miniotestbucket | grep -q test3; do
             sleep 1
           done
-        timeout-minutes: 3
+        timeout-minutes: 1
 
       - name: Run Nox unit_tests
         run: nox -s unit_tests -- --cov --cov-report=xml
@@ -85,6 +86,17 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Dump minio logs
+        if: failure() && steps.minio_check.outcome == 'failure'
+        run: |
+          docker exec minio /usr/bin/mc ls data/miniotestbucket;
+          docker logs minio;
+
+      - name: Dump mc logs
+        if: failure() && steps.minio_check.outcome == 'failure'
+        run: |
+          docker logs mc;
 
 
   linting:

@@ -33,8 +33,10 @@ xrdfs $INSTRUMENT_DATA_CACHE mkdir -p /EA1/2025/ABC123-1/scan/scan_0000
 xrdcp tmpfile ${INSTRUMENT_DATA_CACHE}EA1/2025/ABC123-1/scan/scan_0000/file_0000.nxs
 xrdcp tmpfile ${INSTRUMENT_DATA_CACHE}EA1/2025/ABC123-1/scan/scan_0000/file_0001.nxs
 xrdcp tmpfile ${INSTRUMENT_DATA_CACHE}EA1/2025/ABC123-1/scan/scan_0000/file_0002.nxs
-xrdcp tmpfile ${INSTRUMENT_DATA_CACHE}EA1/2025/ABC123-1/scan/scan_0000/file_0003.nxs
+# xrdcp tmpfile ${INSTRUMENT_DATA_CACHE}EA1/2025/ABC123-1/scan/scan_0000/file_0003.nxs
 ```
+
+Note that we have commented out the final file, in order to simulate a problem with the transfer. This can be commented back in to show a fully successful transfer.
 
 ### [Optional: OpenAPI] Login to Datastore API
 We have the option of using either the OpenAPI docs or command-line scripts to send requests to the API. If using the former, use the default credentials at http://127.0.0.1:8000/docs#/Login/login_login_post.
@@ -96,3 +98,23 @@ Restore requests will not result in any changes to the ICAT metadata, but we can
 ```bash
 xrdfs $USER_DATA_CACHE ls /EA1/2025/ABC123-1/scan/scan_0000
 ```
+
+## Clean up
+Once completed, the following commands can be used to "reset" the files and metadata created as part of the demo.
+
+```bash
+xrdfs ${INSTRUMENT_DATA_CACHE} rm /EA1/2025/ABC123-1/scan/scan_0000/file_0000.nxs
+xrdfs ${INSTRUMENT_DATA_CACHE} rm /EA1/2025/ABC123-1/scan/scan_0000/file_0001.nxs
+xrdfs ${INSTRUMENT_DATA_CACHE} rm /EA1/2025/ABC123-1/scan/scan_0000/file_0002.nxs
+xrdfs ${INSTRUMENT_DATA_CACHE} rm /EA1/2025/ABC123-1/scan/scan_0000/file_0003.nxs
+xrdfs ${TAPE_ARCHIVE} rm /${TAPE_ROOT_DIR}EA1/2025/ABC123-1/scan/scan_0000/file_0000.nxs
+xrdfs ${TAPE_ARCHIVE} rm /${TAPE_ROOT_DIR}EA1/2025/ABC123-1/scan/scan_0000/file_0001.nxs
+xrdfs ${TAPE_ARCHIVE} rm /${TAPE_ROOT_DIR}EA1/2025/ABC123-1/scan/scan_0000/file_0002.nxs
+xrdfs ${TAPE_ARCHIVE} rm /${TAPE_ROOT_DIR}EA1/2025/ABC123-1/scan/scan_0000/file_0003.nxs
+xrdfs ${USER_DATA_CACHE} rm /EA1/2025/ABC123-1/scan/scan_0000/file_0000.nxs
+xrdfs ${USER_DATA_CACHE} rm /EA1/2025/ABC123-1/scan/scan_0000/file_0001.nxs
+xrdfs ${USER_DATA_CACHE} rm /EA1/2025/ABC123-1/scan/scan_0000/file_0002.nxs
+xrdfs ${USER_DATA_CACHE} rm /EA1/2025/ABC123-1/scan/scan_0000/file_0003.nxs
+```
+
+Finally, delete the Dataset via the icatadmin UI (this will cascade and delete the Datafiles and Parameters, but leave the Investigation and higher level entities intact).
