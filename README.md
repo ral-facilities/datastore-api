@@ -25,7 +25,7 @@ To develop the API Python development tools will need to be installed. The exact
 sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-setuptools openldap-devel swig gcc openssl-devel xrootd-client
 ```
 
-Before running the API, create the `config.yaml` and `logging.ini` config files. A sample configuration can be copied from the `config.yaml.example` and `logging.ini.example` files.
+Configuration is handled via the `config.yaml` and `logging.ini` config files.
 
 ### Poetry
 [Poetry](https://python-poetry.org/) is used to manage the dependencies of this API. Note that to prevent conflicts Poetry should not be installed in the environment used for the project dependencies; [different recommended installation methods are possible](https://python-poetry.org/docs/#installing-with-the-official-installer). _(Note that pipx may not install the latest version)_
