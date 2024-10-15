@@ -8,6 +8,7 @@ from pydantic import (
     BaseModel,
     BaseSettings,
     Field,
+    AnyUrl,
     HttpUrl,
     parse_obj_as,
     stricturl,
@@ -35,7 +36,7 @@ class FunctionalUser(IcatUser):
 
 
 class IcatSettings(BaseModel):
-    url: HttpUrl = Field(
+    url: AnyUrl = Field(
         description="Url to use for the ICAT server",
         example="https://localhost:8181",
     )
