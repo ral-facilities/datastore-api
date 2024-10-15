@@ -3,13 +3,11 @@ import logging
 
 import fts3.rest.client.easy as fts3
 from icat.entity import Entity
-from pydantic import stricturl
 
 from datastore_api.config import get_settings, VerifyChecksum
 
 
 LOGGER = logging.getLogger(__name__)
-S3sUrl = stricturl(allowed_schemes={"s3s"})
 
 
 LOGGER = logging.getLogger(__name__)
@@ -30,14 +28,7 @@ class Fts3Client:
         self.restored_data_cache = settings.fts3.restored_data_cache
         self.tape_archive = settings.fts3.tape_archive
         # https://fts3-docs.web.cern.ch/fts3-docs/docs/s3_support.html#submitting-s3-transfers
-        self.download_cache = S3sUrl.build(
-            scheme="s3s",
-            user=settings.s3.endpoint.user,
-            password=settings.s3.endpoint.password,
-            host=settings.s3.endpoint.host,
-            port=settings.s3.endpoint.port,
-            path=settings.s3.endpoint.path,
-        )
+        self.download_cache = "s3s://" + settings.s3.endpoint.split("://")[1]
         self.retry = settings.fts3.retry
         self.verify_checksum = settings.fts3.verify_checksum
         self.supported_checksums = settings.fts3.supported_checksums

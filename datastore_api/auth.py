@@ -1,6 +1,7 @@
+from uuid import UUID
+
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import UUID4
 
 security = HTTPBearer()
 
@@ -23,7 +24,7 @@ def validate_session_id(
     session_id = credentials.credentials
     # check it's a UUID
     try:
-        UUID4(session_id)
+        UUID(session_id, version=4)
     except ValueError as e:
         raise HTTPException(status_code=401, detail="value not a valid UUID") from e
 

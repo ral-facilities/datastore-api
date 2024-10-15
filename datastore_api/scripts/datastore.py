@@ -37,7 +37,7 @@ def archive():
 
     elif args.request == "restore":
         restore_response = requests.post(
-            url=f"{args.url}/archive",
+            url=f"{args.url}/restore/rdc",
             headers=headers,
             json=request_json,
         )

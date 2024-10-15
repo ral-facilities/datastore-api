@@ -12,7 +12,7 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-22.04
 
-    name: Python ${{ matrix.python-version }} Tests
+    name: Tests
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,10 +55,17 @@ jobs:
           path: /home/runner/work/datastore-api/datastore-api/.nox/tests*
           key: nox-tests-${{ hashFiles('poetry.lock') }}
 
+      - name: Wait for minio to contain test bucket/objects
+        run: |
+          until docker ps --filter "name=minio" --format "{{.Status}}" | grep -q "(healthy)"; do
+            sleep 1
+          done
+        timeout-minutes: 3
+
       - name: Run Nox unit_tests
         run: nox -s unit_tests -- --cov --cov-report=xml
 
-      - name: Wait for container to start
+      - name: Wait for ICAT container to start
         run: |
           until docker ps --filter "name=icat_payara_container" --format "{{.Status}}" | grep -q "(healthy)"; do
             sleep 1

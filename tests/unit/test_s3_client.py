@@ -1,4 +1,4 @@
-from pydantic import UUID4
+from uuid import UUID
 
 from datastore_api.s3_client import S3Client
 from tests.fixtures import (
@@ -17,14 +17,14 @@ class TestS3Client:
         response = s3_client.create_bucket()
         bucket_name = response["Location"][1:]
         assert bucket_name
-        UUID4(bucket_name)
+        UUID(bucket_name, version=4)
         assert bucket_name in s3_client.list_buckets()
 
         # Test for bucket with existing name
         response = s3_client.create_bucket(bucket_name="miniotestbucket")
         bucket_name = response["Location"][1:]
         assert bucket_name != "miniotestbucket"
-        UUID4(bucket_name)
+        UUID(bucket_name, version=4)
         assert bucket_name in s3_client.list_buckets()
 
     def test_delete_bucket(self, s3_client: S3Client, bucket_creation: str):

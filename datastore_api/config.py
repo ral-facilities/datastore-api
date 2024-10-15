@@ -2,49 +2,85 @@ from enum import StrEnum
 from functools import lru_cache
 import logging
 import os
-from typing import Any
+from typing import Annotated, Tuple, Type
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
-    BaseSettings,
     Field,
     HttpUrl,
-    parse_obj_as,
-    stricturl,
-    validator,
+    model_validator,
+    TypeAdapter,
+    UrlConstraints,
 )
-
-from datastore_api.utils import load_yaml
+from pydantic_core import Url
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+    YamlConfigSettingsSource,
+)
 
 
 LOGGER = logging.getLogger(__name__)
-EndpointUrl = stricturl(allowed_schemes={"root", "https", "davs"})
+EndpointUrl = Annotated[Url, UrlConstraints(allowed_schemes={"root", "https", "davs"})]
 
 
-def yaml_config_settings_source(settings: BaseSettings) -> dict[str, Any]:
-    return load_yaml("config.yaml", settings.__config__.env_file_encoding)
+def validate_endpoint_url_str(url_str: str):
+    type_adapter = TypeAdapter(EndpointUrl)
+    type_adapter.validate_python(url_str)
+
+    url = EndpointUrl(url_str)
+    if url.query is not None:
+        raise ValueError("Url query not supported for FTS endpoint")
+    if url.fragment is not None:
+        raise ValueError("Url fragment not supported for FTS endpoint")
+
+    if url.path is None:
+        msg = f"FTS endpoint {url} path not set"
+        raise ValueError(msg)
+
+    if not url.path.startswith("//"):
+        msg = f"FTS endpoint {url} path did not start with '//'"
+        raise ValueError(msg)
+
+    if not url.path.endswith("/"):
+        msg = f"FTS endpoint {url} path did not end with '/'"
+        raise ValueError(msg)
+
+    return url_str
+
+
+def validate_url_str(url_str: str, url_type: type = HttpUrl) -> str:
+    type_adapter = TypeAdapter(url_type)
+    type_adapter.validate_python(url_str)
+    return url_str
+
+
+HttpUrlStr = Annotated[str, AfterValidator(validate_url_str)]
+EndpointUrlStr = Annotated[str, AfterValidator(validate_endpoint_url_str)]
 
 
 class IcatUser(BaseModel):
-    auth: str = Field(description="ICAT authentication mechanism.", example="simple")
-    username: str = Field(description="ICAT username.", example="root")
+    auth: str = Field(description="ICAT authentication mechanism.", examples=["simple"])
+    username: str = Field(description="ICAT username.", examples=["root"])
 
 
 class FunctionalUser(IcatUser):
-    password: str = Field(description="ICAT password.", example="pw")
+    password: str = Field(description="ICAT password.", examples=["pw"])
 
 
 class IcatSettings(BaseModel):
-    url: HttpUrl = Field(
+    url: HttpUrlStr = Field(
         description="Url to use for the ICAT server",
-        example="https://localhost:8181",
+        examples=["https://localhost:8181"],
     )
     check_cert: bool = Field(
         description=(
             "Whether the server's SSL certificate should be verified if connecting to "
             "ICAT with HTTPS."
         ),
-        example="https://localhost:8181",
+        examples=["https://localhost:8181"],
     )
     admin_users: list[IcatUser] = Field(
         default=[],
@@ -94,21 +130,21 @@ class VerifyChecksum(StrEnum):
 
 
 class Fts3Settings(BaseModel):
-    endpoint: HttpUrl = Field(
+    endpoint: HttpUrlStr = Field(
         description="Url to use for the FTS server",
-        example="https://localhost:8446",
+        examples=["https://localhost:8446"],
     )
-    instrument_data_cache: EndpointUrl = Field(
+    instrument_data_cache: EndpointUrlStr = Field(
         description="Url for the destination of raw, instrument data pre-archival",
-        example="root://localhost:1094//",
+        examples=["root://localhost:1094//"],
     )
-    tape_archive: EndpointUrl = Field(
+    tape_archive: EndpointUrlStr = Field(
         description="Url for the destination of archived data",
-        example="root://localhost:1094//",
+        examples=["root://localhost:1094//"],
     )
-    restored_data_cache: EndpointUrl = Field(
+    restored_data_cache: EndpointUrlStr = Field(
         description="Url for the destination of restored data post-archival",
-        example="root://localhost:1094//",
+        examples=["root://localhost:1094//"],
     )
     x509_user_proxy: str = Field(
         default=None,
@@ -116,21 +152,21 @@ class Fts3Settings(BaseModel):
             "Filepath to X509 user proxy. Not required if `x509_user_cert` and "
             "`x509_user_key` are both set."
         ),
-        example="/tmp/x509up_u00000",
+        examples=["/tmp/x509up_u00000"],
     )
     x509_user_key: str = Field(
         default=None,
         description=(
             "Filepath to X509 user key. Not required if `x509_user_proxy` is set."
         ),
-        example="hostkey.pem",
+        examples=["hostkey.pem"],
     )
     x509_user_cert: str = Field(
         default=None,
         description=(
             "Filepath to X509 user cert. Not required if `x509_user_proxy` is set."
         ),
-        example="hostcert.pem",
+        examples=["hostcert.pem"],
     )
     retry: int = Field(
         default=-1,
@@ -154,7 +190,7 @@ class Fts3Settings(BaseModel):
             "`verify_checksum` is not 'none', then this must include at least one "
             "mechanism."
         ),
-        example=["ADLER32"],
+        examples=[["ADLER32"]],
     )
     bring_online: int = Field(
         default=28800,
@@ -171,87 +207,43 @@ class Fts3Settings(BaseModel):
         ),
     )
 
-    @validator("x509_user_cert", always=True)
-    def _validate_x509(cls, v: str | None, values: dict) -> str:
-        if v is not None:
-            x509_user_key = values.get("x509_user_key", None)
-            return Fts3Settings._validate_x509_cert(v, x509_user_key)
-        else:
-            values["x509_user_key"] = None
-            x509_user_proxy = values.get("x509_user_proxy", None)
-            return Fts3Settings._validate_x509_proxy(x509_user_proxy)
-
-    @validator("instrument_data_cache", "restored_data_cache", "tape_archive")
-    def _validate_storage_endpoint(cls, v: str) -> EndpointUrl:
-        url = parse_obj_as(EndpointUrl, v)
-        if url.query is not None:
-            raise ValueError("Url query not supported for FTS endpoint")
-        if url.fragment is not None:
-            raise ValueError("Url fragment not supported for FTS endpoint")
-
-        path = url.path
-        if path is None:
-            LOGGER.warning("FTS endpoint '%s' missing path, setting to '//'", v)
-            path = "//"
-        else:
-            if not path.startswith("//"):
-                msg = "FTS endpoint '%s' path did not start with '//', appending"
-                LOGGER.warning(msg, v)
-                path = f"/{path}"
-
-            if not path.endswith("/"):
-                msg = "FTS endpoint '%s' path did not end with '/', appending"
-                LOGGER.warning(msg, v)
-                path = f"{path}/"
-
-        return EndpointUrl.build(
-            scheme=url.scheme,
-            user=url.user,
-            password=url.password,
-            host=url.host,
-            port=url.port,
-            path=path,
-        )
-
     @staticmethod
-    def _validate_x509_cert(x509_user_cert: str, x509_user_key: str | None) -> str:
-        if x509_user_key is None:
-            raise ValueError("x509_user_key not set")
-        elif not os.path.exists(x509_user_cert):
-            raise ValueError("x509_user_cert set but doesn't exist")
-        elif not os.access(x509_user_cert, os.R_OK):
-            raise ValueError("x509_user_cert exists but is not readable")
-        elif not os.path.exists(x509_user_key):
-            raise ValueError("x509_user_key set but doesn't exist")
-        elif not os.access(x509_user_key, os.R_OK):
-            raise ValueError("x509_user_key exists but is not readable")
+    def _validate_x509_file(setting: str, x509_file: str) -> None:
+        if not os.path.exists(x509_file):
+            raise ValueError(f"{setting} set but doesn't exist")
+        elif not os.access(x509_file, os.R_OK):
+            raise ValueError(f"{setting} exists but is not readable")
 
-        return x509_user_cert
+    @model_validator(mode="after")
+    def _validate_model(self) -> "Fts3Settings":
+        if self.x509_user_cert is not None:
+            if self.x509_user_key is not None:
+                Fts3Settings._validate_x509_file("x509_user_cert", self.x509_user_cert)
+                Fts3Settings._validate_x509_file("x509_user_key", self.x509_user_key)
+            else:
+                raise ValueError("x509_user_key not set")
+        else:
+            if self.x509_user_proxy is not None:
+                Fts3Settings._validate_x509_file(
+                    setting="x509_user_proxy",
+                    x509_file=self.x509_user_proxy,
+                )
+                self.x509_user_key = None
+                self.x509_user_cert = self.x509_user_proxy
+            else:
+                raise ValueError("Neither x509_user_cert nor x509_user_proxy set")
 
-    @staticmethod
-    def _validate_x509_proxy(x509_user_proxy: str | None) -> str:
-        if x509_user_proxy is None:
-            raise ValueError("Neither x509_user_cert nor x509_user_proxy set")
-        elif not os.path.exists(x509_user_proxy):
-            raise ValueError("x509_user_proxy set but doesn't exist")
-        elif not os.access(x509_user_proxy, os.R_OK):
-            raise ValueError("x509_user_proxy exists but is not readable")
-
-        return x509_user_proxy
-
-    @validator("supported_checksums", always=True)
-    def _validate_supported_checksums(cls, v: list[str], values: dict) -> list[str]:
-        if values["verify_checksum"] != VerifyChecksum.NONE and not v:
+        if self.verify_checksum != VerifyChecksum.NONE and not self.supported_checksums:
             raise ValueError(
                 "At least one checksum mechanism needs to be provided if "
                 "`verify_checksum` is not 'none'",
             )
 
-        return v
+        return self
 
 
 class S3Settings(BaseModel):
-    endpoint: HttpUrl = Field(description="Url to use for the S3 storage")
+    endpoint: HttpUrlStr = Field(description="Url to use for the S3 storage")
     access_key: str = Field(description="The ID for this access key")
     secret_key: str = Field(description="The secret key used to sign requests")
 
@@ -261,15 +253,24 @@ class Settings(BaseSettings):
     fts3: Fts3Settings = Field(description="Settings to connect to an FTS3 instance")
     s3: S3Settings = Field(description="Settings to connect to an S3 instance")
 
-    class Config:
-        @classmethod
-        def customise_sources(cls, init_settings, env_settings, file_secret_settings):
-            return (
-                init_settings,
-                env_settings,
-                yaml_config_settings_source,
-                file_secret_settings,
-            )
+    model_config = SettingsConfigDict(yaml_file="config.yaml")
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: Type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> Tuple[PydanticBaseSettingsSource, ...]:
+        return (
+            init_settings,
+            env_settings,
+            dotenv_settings,
+            YamlConfigSettingsSource(settings_cls),
+            file_secret_settings,
+        )
 
 
 @lru_cache

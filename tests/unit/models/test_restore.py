@@ -13,10 +13,4 @@ class TestRestore:
                 datafile_ids=[],
             )
 
-        expected_message = (
-            "pydantic.error_wrappers.ValidationError: "
-            "1 validation error for RestoreRequest\n"
-            "__root__\n"
-            "  At least one id must be provided (type=value_error)"
-        )
-        assert e.exconly() == expected_message
+        assert "At least one id must be provided" in e.exconly()

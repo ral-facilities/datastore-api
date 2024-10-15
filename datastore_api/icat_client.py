@@ -151,7 +151,7 @@ class IcatClient:
         Returns:
             str: ICAT sessionId
         """
-        credentials = login_request.credentials.dict()
+        credentials = login_request.credentials.model_dump()
         return self._login(login_request.auth, credentials)
 
     def login_functional(self) -> str:
@@ -164,7 +164,7 @@ class IcatClient:
         Returns:
             str: ICAT sessionId
         """
-        credentials = self.settings.functional_user.dict(exclude={"auth"})
+        credentials = self.settings.functional_user.model_dump(exclude={"auth"})
         return self._login(self.settings.functional_user.auth, credentials)
 
     def _login(self, auth: str, credentials: dict[str, str]) -> str:

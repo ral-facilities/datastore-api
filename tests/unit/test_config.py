@@ -3,7 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from datastore_api.config import Fts3Settings
+from datastore_api.config import Fts3Settings, Settings
+from tests.fixtures import mock_fts3_settings, submit
 
 
 class TestFts3Settings:
@@ -46,7 +47,8 @@ class TestFts3Settings:
     @pytest.mark.parametrize(
         ["x509_user_cert", "x509_user_key", "expected_error"],
         [
-            pytest.param(None, None, "x509_user_key not set"),
+            pytest.param(None, None, "Neither x509_user_cert nor x509_user_proxy set"),
+            pytest.param("cert", None, "x509_user_key not set"),
             pytest.param("cert", "key", "x509_user_cert set but doesn't exist"),
             pytest.param(__file__, "key", "x509_user_key set but doesn't exist"),
             pytest.param(
@@ -63,10 +65,11 @@ class TestFts3Settings:
     )
     def test_x509_cert_failure(
         self,
-        x509_user_cert: str,
-        x509_user_key: str,
+        x509_user_cert: str | None,
+        x509_user_key: str | None,
         expected_error: str,
         tmp_path: Path,
+        mock_fts3_settings: Settings,
     ):
 
         if x509_user_cert == "not_readable":
@@ -81,10 +84,21 @@ class TestFts3Settings:
             os.chmod(x509_user_key_path, 0o000)
             x509_user_key = x509_user_key_path.as_posix()
 
-        with pytest.raises(ValueError) as e:
-            Fts3Settings._validate_x509_cert(x509_user_cert, x509_user_key)
+        fts3_settings_dict = mock_fts3_settings.fts3.model_dump(
+            exclude_none=True,
+            exclude={"x509_user_cert", "x509_user_key"},
+        )
 
-        assert e.exconly() == f"ValueError: {expected_error}"
+        if x509_user_cert is not None:
+            fts3_settings_dict["x509_user_cert"] = x509_user_cert
+
+        if x509_user_key is not None:
+            fts3_settings_dict["x509_user_key"] = x509_user_key
+
+        with pytest.raises(ValueError) as e:
+            Fts3Settings(**fts3_settings_dict)
+
+        assert expected_error in e.exconly()
 
     @pytest.mark.parametrize(
         ["x509_user_proxy", "expected_error"],
@@ -96,9 +110,10 @@ class TestFts3Settings:
     )
     def test_x509_proxy_failure(
         self,
-        x509_user_proxy: str,
+        x509_user_proxy: str | None,
         expected_error: str,
         tmp_path: Path,
+        mock_fts3_settings: Settings,
     ):
 
         if x509_user_proxy == "not_readable":
@@ -107,31 +122,43 @@ class TestFts3Settings:
             os.chmod(x509_user_proxy_path, 0o000)
             x509_user_proxy = x509_user_proxy_path.as_posix()
 
+        fts3_settings_dict = mock_fts3_settings.fts3.model_dump(
+            exclude_none=True,
+            exclude={"x509_user_cert", "x509_user_key"},
+        )
+        if x509_user_proxy is not None:
+            fts3_settings_dict["x509_user_proxy"] = x509_user_proxy
+
         with pytest.raises(ValueError) as e:
-            Fts3Settings._validate_x509_proxy(x509_user_proxy)
+            Fts3Settings(**fts3_settings_dict)
 
-        assert e.exconly() == f"ValueError: {expected_error}"
-
-    @pytest.mark.parametrize(
-        ["endpoint", "expected_endpoint"],
-        [
-            pytest.param("root://domain.ac.uk:1094", "root://domain.ac.uk:1094//"),
-            pytest.param("root://domain.ac.uk:1094/", "root://domain.ac.uk:1094//"),
-            pytest.param(
-                "root://domain.ac.uk:1094//path",
-                "root://domain.ac.uk:1094//path/",
-            ),
-        ],
-    )
-    def test_validate_endpoint(self, endpoint: str, expected_endpoint: str):
-        validated_endpoint = Fts3Settings._validate_storage_endpoint(endpoint)
-
-        assert validated_endpoint == expected_endpoint
+        assert expected_error in e.exconly()
 
     @pytest.mark.parametrize(
         ["endpoint", "error"],
         [
-            pytest.param("http://domain.ac.uk:1094", "URL scheme not permitted"),
+            pytest.param("root://domain.ac.uk:1094", "path not set"),
+            pytest.param("root://domain.ac.uk:1094/", "path did not start with '//'"),
+            pytest.param("root://domain.ac.uk:1094//path", "path did not end with '/'"),
+        ],
+    )
+    def test_validate_endpoint(
+        self,
+        endpoint: str,
+        error: str,
+        mock_fts3_settings: Settings,
+    ):
+        fts3_settings_dict = mock_fts3_settings.fts3.model_dump(exclude_none=True)
+        fts3_settings_dict["instrument_data_cache"] = endpoint
+        with pytest.raises(ValueError) as e:
+            Fts3Settings(**fts3_settings_dict)
+
+        assert error in e.exconly()
+
+    @pytest.mark.parametrize(
+        ["endpoint", "error"],
+        [
+            pytest.param("http://domain.ac.uk:1094", "URL scheme should be "),
             pytest.param(
                 "root://domain.ac.uk:1094?query=query",
                 "Url query not supported for FTS endpoint",
@@ -142,17 +169,26 @@ class TestFts3Settings:
             ),
         ],
     )
-    def test_validate_endpoint_error(self, endpoint: str, error: str):
+    def test_validate_endpoint_error(
+        self,
+        endpoint: str,
+        error: str,
+        mock_fts3_settings: Settings,
+    ):
+        fts3_settings_dict = mock_fts3_settings.fts3.model_dump(exclude_none=True)
+        fts3_settings_dict["instrument_data_cache"] = endpoint
         with pytest.raises(ValueError) as e:
-            Fts3Settings._validate_storage_endpoint(endpoint)
+            Fts3Settings(**fts3_settings_dict)
 
         assert error in e.exconly()
 
-    def test_validate_supported_checksums(self):
+    def test_validate_supported_checksums(self, mock_fts3_settings: Settings):
+        fts3_settings_dict = mock_fts3_settings.fts3.model_dump(exclude_none=True)
+        fts3_settings_dict["verify_checksum"] = "both"
         with pytest.raises(ValueError) as e:
-            Fts3Settings._validate_supported_checksums([], {"verify_checksum": "both"})
+            Fts3Settings(**fts3_settings_dict)
 
-        assert e.exconly() == (
-            "ValueError: At least one checksum mechanism needs to be provided if "
-            "`verify_checksum` is not 'none'"
-        )
+        assert (
+            "At least one checksum mechanism needs to be provided if `verify_checksum`"
+            " is not 'none'"
+        ) in e.exconly()
