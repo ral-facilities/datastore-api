@@ -85,7 +85,7 @@ icatingest.py -i datastore_api/scripts/example.yaml -f YAML --duplicate IGNORE -
 
 If desired the entities in `example.yaml` can be modified or extended following the [python-icat documentation](https://python-icat.readthedocs.io/en/1.3.0/icatingest.html). There are other files which will create multiple entities, if needed.
 
-To verify that the entities are created correctly, the usual methods of inspecting the database (either by the command line within its container or via DB inspection software) or running commands against ICAT (via curl or a full stack including frontend) are possible, however for these use cases the [ICAT admin](https://vigorous-lamarr-7b3487.netlify.app/) web app offers a simple and quick method of verifying the entities are created. The full address and port (e.g. http://localhost:18080 if using Docker to forward the container port to the host machine as described above) is needed along with the credentials used in the tests:
+To verify that the entities are created correctly, the usual methods of inspecting the database (either by the command line within its container or via DB inspection software) or running commands against ICAT (via curl or a full stack including frontend) are possible, however for these use cases the [ICAT admin](https://icatadmin.netlify.app/) web app offers a simple and quick method of verifying the entities are created. The full address and port (e.g. http://localhost:18080 if using Docker to forward the container port to the host machine as described above) is needed along with the credentials used in the tests:
 ```yaml
 auth: simple
 username: root
