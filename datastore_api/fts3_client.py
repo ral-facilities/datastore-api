@@ -12,6 +12,9 @@ LOGGER = logging.getLogger(__name__)
 S3sUrl = stricturl(allowed_schemes={"s3s"})
 
 
+LOGGER = logging.getLogger(__name__)
+
+
 class Fts3Client:
     """Wrapper for FTS3 functionality."""
 
@@ -51,7 +54,6 @@ class Fts3Client:
             dict[str, list]: Transfer dict for moving `path` to tape.
         """
         source = f"{self.instrument_data_cache}{datafile_entity.location}"
-        alternate_source = f"{self.restored_data_cache}{datafile_entity.location}"
         destination = f"{self.tape_archive}{datafile_entity.location}"
         checksum = self._validate_checksum(datafile_entity.checksum)
         transfer = fts3.new_transfer(
@@ -59,7 +61,6 @@ class Fts3Client:
             destination=destination,
             checksum=checksum,
         )
-        transfer["sources"].append(alternate_source)
         return transfer
 
     def restore(
@@ -160,17 +161,40 @@ class Fts3Client:
             archive_timeout=self.archive_timeout if not stage else -1,
             strict_copy=strict_copy,
         )
+        LOGGER.debug("Submitting job to FTS: %s", job)
         return fts3.submit(context=self.context, job=job)
 
     def status(
         self,
-        job_id: str | list[str],
+        job_id: str,
         list_files: bool = False,
     ) -> list[dict]:
-        """Get full status dicts (including state) for one or more FTS jobs.
+        """Get full status dict (including state) for an FTS job.
 
         Args:
-            job_id (str or list): UUID4 for an FTS job.
+            job_id (list[str]): UUID4 for an FTS job.
+            list_files (bool, optional):
+                If True, will return the list of individual file statuses.
+                Defaults to False.
+
+        Returns:
+            dict: FTS status dict for `job_id`.
+        """
+        return fts3.get_job_status(
+            context=self.context,
+            job_id=job_id,
+            list_files=list_files,
+        )
+
+    def statuses(
+        self,
+        job_ids: list[str],
+        list_files: bool = False,
+    ) -> list[dict]:
+        """Get full status dicts (including state) for FTS jobs.
+
+        Args:
+            job_ids (list[str]): UUID4s for FTS jobs.
             list_files (bool, optional):
                 If True, will return the list of individual file statuses.
                 Defaults to False.
@@ -178,14 +202,16 @@ class Fts3Client:
         Returns:
             list[dict]: FTS status dicts for `job_id`.
         """
-        if type(job_id) is str:
-            job_id = list(job_id)
-
-        return fts3.get_jobs_statuses(
+        statuses = fts3.get_jobs_statuses(
             context=self.context,
-            job_ids=job_id,
+            job_ids=job_ids,
             list_files=list_files,
         )
+        # FTS will actually return a single dict if a length 1 list is provided
+        if isinstance(statuses, dict):
+            return [statuses]
+        else:
+            return statuses
 
     def cancel(self, job_id: str) -> str:
         """Cancel an FTS job.

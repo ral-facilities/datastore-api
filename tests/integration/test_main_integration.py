@@ -187,7 +187,7 @@ class TestArchive:
         UUID4(content["job_ids"][0])
 
         path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
-        sources = [f"root://idc.ac.uk:1094/{path}", f"root://rdc.ac.uk:1094/{path}"]
+        sources = [f"root://idc.ac.uk:1094/{path}"]
         destinations = [f"root://archive.ac.uk:1094/{path}"]
         job = fts_job(
             sources=sources,
@@ -304,6 +304,12 @@ class TestArchive:
         assert parameters[3].type.name == "string"
         assert parameters[3].stringValue == "stringValue"
 
+        test_response = test_client.get(f"/job/{content['job_ids'][0]}")
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "status" in content
+        assert isinstance(content["status"], dict)
+
     def test_archive_new_investigation(
         self,
         test_client: TestClient,
@@ -349,7 +355,7 @@ class TestArchive:
         UUID4(content["job_ids"][0])
 
         path = "/instrument/20XX/name-visitId/type/dataset1/datafile"
-        sources = [f"root://idc.ac.uk:1094/{path}", f"root://rdc.ac.uk:1094/{path}"]
+        sources = [f"root://idc.ac.uk:1094/{path}"]
         destinations = [f"root://archive.ac.uk:1094/{path}"]
         job = fts_job(
             sources=sources,
@@ -399,6 +405,12 @@ class TestArchive:
         assert investigation_entity.datasets[0].name == "dataset1"
         assert investigation_entity.datasets[0].type.name == "type"
         assert investigation_entity.datasets[0].datafiles[0].name == "datafile"
+
+        test_response = test_client.get(f"/job/{content['job_ids'][0]}")
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "status" in content
+        assert isinstance(content["status"], dict)
 
 
 class TestRestore:
@@ -457,6 +469,12 @@ class TestRestore:
             bring_online=28800,
         )
         submit.assert_called_once_with(context=ANY, job=job)
+
+        test_response = test_client.get(f"/job/{content['job_ids'][0]}")
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "status" in content
+        assert isinstance(content["status"], dict)
 
     @pytest.mark.parametrize(
         ["restore_ids"],
@@ -525,6 +543,12 @@ class TestRestore:
             strict_copy=True,
         )
         submit.assert_called_once_with(context=ANY, job=job)
+
+        test_response = test_client.get(f"/job/{content['job_ids'][0]}")
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "status" in content
+        assert isinstance(content["status"], dict)
 
 
 class TestCancel:

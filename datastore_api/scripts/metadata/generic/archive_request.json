@@ -1,0 +1,109 @@
+{
+    "facility_identifier": {
+        "name": "facility"
+    },
+    "instrument_identifier": {
+        "name": "instrument"
+    },
+    "facility_cycle_identifier": {
+        "name": "20XX"
+    },
+    "investigation_identifier": {
+        "name": "name",
+        "visitId": "visitId"
+    },
+    "dataset": {
+        "name": "name",
+        "complete": true,
+        "description": "description",
+        "doi": "10.00000/00000",
+        "startDate": "2024-05-17 08:53:18.480623",
+        "endDate": "2024-05-17 09:53:18.480623",
+        "datasetType": {
+            "name": "scan"
+        },
+        "sample": {
+            "name": "sample",
+            "sample_type": {
+                "name": "carbon",
+                "molecularFormula": "C"
+            }
+        },
+        "parameters": [
+            {
+                "parameter_type": {
+                    "name": "string",
+                    "units": ""
+                },
+                "stringValue": "stringValue"
+            },
+            {
+                "parameter_type": {
+                    "name": "numeric",
+                    "units": ""
+                },
+                "numericValue": 0,
+                "error": 0,
+                "rangeBottom": -1,
+                "rangeTop": 1
+            },
+            {
+                "parameter_type": {
+                    "name": "date_time",
+                    "units": ""
+                },
+                "dateTimeValue": "2024-05-17 08:53:18.480623"
+            }
+        ],
+        "datasetTechniques": [
+            {
+                "technique": "technique"
+            }
+        ],
+        "datasetInstruments": [
+            {
+                "name": "instrument"
+            }
+        ],
+        "datafiles": [
+            {
+                "name": "name",
+                "datafileFormat": {
+                    "name": "txt",
+                    "version": "0"
+                },
+                "description": "description",
+                "doi": "10.00000/00000",
+                "datafileCreateTime": "2024-05-17 08:53:18.480623",
+                "datafileModTime": "2024-05-17 09:53:18.480623",
+                "checksum": "ADLER32",
+                "parameters":[
+                    {
+                        "parameter_type": {
+                            "name": "string",
+                            "units": ""
+                        },
+                        "stringValue": "stringValue"
+                    },
+                    {
+                        "parameter_type": {
+                            "name": "numeric",
+                            "units": ""
+                        },
+                        "numericValue": 0,
+                        "error": 0,
+                        "rangeBottom": -1,
+                        "rangeTop": 1
+                    },
+                    {
+                        "parameter_type": {
+                            "name": "date_time",
+                            "units": ""
+                        },
+                        "dateTimeValue": "2024-05-17 08:53:18.480623"
+                    }
+                ]
+            }
+        ]
+    }
+}

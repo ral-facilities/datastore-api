@@ -31,7 +31,7 @@ class FacilityCycleIdentifier(BaseModel):
 
 
 class DatasetTypeIdentifier(BaseModel):
-    name: ShortStr = Field(example="type")
+    name: ShortStr = Field(example="scan")
 
 
 class InvestigationTypeIdentifier(BaseModel):
@@ -129,7 +129,7 @@ class DatafileFormat(DatafileFormatIdentifier):
 
 
 class Datafile(BaseModel):
-    name: ShortStr
+    name: ShortStr = Field(example="file_0000.nxs")
     description: ShortStr = Field(default=None, example="Description")
     doi: ShortStr = Field(default=None, example="10.00000/00000")
     fileSize: int = None
@@ -152,7 +152,7 @@ class Datafile(BaseModel):
 
 
 class Dataset(BaseModel):
-    name: ShortStr
+    name: ShortStr = Field(example="scan_0000")
     complete: bool = True
     description: ShortStr = Field(default=None, example="Description")
     doi: ShortStr = Field(default=None, example="10.00000/00000")

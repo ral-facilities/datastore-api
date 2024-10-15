@@ -18,7 +18,7 @@ from datastore_api.utils import load_yaml
 
 
 LOGGER = logging.getLogger(__name__)
-RootUrl = stricturl(allowed_schemes={"root"})
+EndpointUrl = stricturl(allowed_schemes={"root", "https", "davs"})
 
 
 def yaml_config_settings_source(settings: BaseSettings) -> dict[str, Any]:
@@ -98,15 +98,15 @@ class Fts3Settings(BaseModel):
         description="Url to use for the FTS server",
         example="https://localhost:8446",
     )
-    instrument_data_cache: RootUrl = Field(
+    instrument_data_cache: EndpointUrl = Field(
         description="Url for the destination of raw, instrument data pre-archival",
         example="root://localhost:1094//",
     )
-    tape_archive: RootUrl = Field(
+    tape_archive: EndpointUrl = Field(
         description="Url for the destination of archived data",
         example="root://localhost:1094//",
     )
-    restored_data_cache: RootUrl = Field(
+    restored_data_cache: EndpointUrl = Field(
         description="Url for the destination of restored data post-archival",
         example="root://localhost:1094//",
     )
@@ -182,8 +182,8 @@ class Fts3Settings(BaseModel):
             return Fts3Settings._validate_x509_proxy(x509_user_proxy)
 
     @validator("instrument_data_cache", "restored_data_cache", "tape_archive")
-    def _validate_storage_endpoint(cls, v: str) -> RootUrl:
-        url = parse_obj_as(RootUrl, v)
+    def _validate_storage_endpoint(cls, v: str) -> EndpointUrl:
+        url = parse_obj_as(EndpointUrl, v)
         if url.query is not None:
             raise ValueError("Url query not supported for FTS endpoint")
         if url.fragment is not None:
@@ -204,7 +204,7 @@ class Fts3Settings(BaseModel):
                 LOGGER.warning(msg, v)
                 path = f"{path}/"
 
-        return RootUrl.build(
+        return EndpointUrl.build(
             scheme=url.scheme,
             user=url.user,
             password=url.password,

@@ -1,4 +1,5 @@
 from unittest.mock import call
+from urllib.error import URLError
 
 from icat.entity import Entity
 import pytest
@@ -6,7 +7,13 @@ from pytest_mock import MockerFixture
 
 from datastore_api.config import Settings
 from datastore_api.icat_client import IcatClient
-from datastore_api.lifespan import lifespan, StateCounter, update_jobs
+from datastore_api.lifespan import (
+    lifespan,
+    LOGGER,
+    poll_fts,
+    StateCounter,
+    update_jobs,
+)
 from tests.fixtures import (
     dataset_type,
     dataset_with_job_id,
@@ -32,6 +39,50 @@ class TestLifespan:
 
         with pytest.raises(StopAsyncIteration):
             await generator.__anext__()
+
+    def test_poll_fts_success(
+        self,
+        mock_fts3_settings: Settings,
+        mocker: MockerFixture,
+    ):
+        icat_client = IcatClient()
+        icat_client.login_functional()
+        delete_many = mocker.patch.object(
+            icat_client.client,
+            "deleteMany",
+            wraps=icat_client.client.deleteMany,
+        )
+
+        poll_fts(icat_client)
+
+        delete_many.assert_called_once_with([])
+
+    def test_poll_fts_failure(
+        self,
+        mock_fts3_settings: Settings,
+        mocker: MockerFixture,
+    ):
+        icat_client = IcatClient()
+        icat_client.login_functional()
+        delete_many = mocker.patch.object(
+            icat_client.client,
+            "deleteMany",
+            wraps=icat_client.client.deleteMany,
+        )
+
+        error = mocker.patch.object(LOGGER, "error", wraps=LOGGER.error)
+
+        update_jobs_mock = mocker.MagicMock()
+        update_jobs_mock.side_effect = URLError("test")
+        mocker.patch("datastore_api.lifespan.update_jobs", update_jobs_mock)
+
+        poll_fts(icat_client)
+
+        delete_many.assert_not_called()
+        error.assert_called_once_with(
+            "Unable to poll for job statuses: %s",
+            "<urlopen error test>",
+        )
 
     @pytest.mark.parametrize(
         ["statuses", "job_ids", "state", "file_state", "to_delete"],
@@ -94,7 +145,7 @@ class TestLifespan:
         mocker: MockerFixture,
     ):
         get_fts3_client_mock = mocker.patch("datastore_api.lifespan.get_fts3_client")
-        get_fts3_client_mock.return_value.status.return_value = statuses
+        get_fts3_client_mock.return_value.statuses.return_value = statuses
 
         type_job_ids = functional_icat_client.settings.parameter_type_job_ids
         type_job_state = functional_icat_client.settings.parameter_type_job_state
@@ -111,11 +162,9 @@ class TestLifespan:
             parameters=parameters,
         )
 
-        calls = [
-            call(job_id=["0", "1", "2"], list_files=True),
-        ]
+        calls = [call(job_ids=["0", "1", "2"], list_files=True)]
 
-        get_fts3_client_mock.return_value.status.assert_has_calls(calls)
+        get_fts3_client_mock.return_value.statuses.assert_has_calls(calls)
 
         parameter = functional_icat_client.get_single_entity(
             entity="DatasetParameter",
