@@ -61,6 +61,7 @@ jobs:
           until docker exec minio /usr/bin/mc ls data/miniotestbucket | grep -q test3; do
             sleep 1
           done
+          docker exec minio /usr/bin/mc ls data/miniotestbucket
         timeout-minutes: 1
 
       - name: Run Nox unit_tests
@@ -91,6 +92,10 @@ jobs:
         if: failure() && steps.minio_check.outcome == 'failure'
         run: |
           docker logs minio
+
+      - name: Dump mc logs
+        if: failure() && steps.minio_check.outcome == 'failure'
+        run: |
           docker logs mc
 
 
