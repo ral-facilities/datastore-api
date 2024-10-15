@@ -57,7 +57,7 @@ jobs:
 
       - name: Wait for minio to contain test bucket/objects
         run: |
-          until docker ps --filter "name=minio" --format "{{.Status}}" | grep -q "(healthy)"; do
+          until docker ps -a --filter "name=mc" --format "{{.Status}}" | grep -q "Exited"; do
             sleep 1
           done
         timeout-minutes: 3

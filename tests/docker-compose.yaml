@@ -78,7 +78,7 @@ services:
       - "9000:9000"
       - "9001:9001"
     healthcheck:
-      test: /usr/bin/mc stat data/miniotestbucket/test3
+      test: /usr/bin/mc ls data
       interval: 10s
       timeout: 2s
       retries: 10
