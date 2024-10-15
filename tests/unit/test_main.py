@@ -8,6 +8,7 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest
+from datastore_api.models.dataset import DatasetStatusResponse
 from datastore_api.models.restore import RestoreRequest
 from datastore_api.s3_client import S3Client
 from tests.fixtures import (
@@ -53,13 +54,14 @@ def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
     dataset.parameters = [dataset_parameter_state, dataset_parameter_job_ids]
     dataset.datafiles = [datafile]
 
-    icat_client_mock = mocker.patch("datastore_api.main.IcatClient")
-    icat_client = icat_client_mock.return_value
-    icat_client.settings = mock_fts3_settings.icat
-    icat_client.login.return_value = SESSION_ID
-    icat_client.get_unique_datafiles.return_value = [datafile]
-    icat_client.check_job_id.return_value = None
-    icat_client.new_dataset.return_value = dataset
+    for module in {"main", "state_controller"}:
+        icat_client_mock = mocker.patch(f"datastore_api.{module}.IcatClient")
+        icat_client = icat_client_mock.return_value
+        icat_client.settings = mock_fts3_settings.icat
+        icat_client.login.return_value = SESSION_ID
+        icat_client.get_unique_datafiles.return_value = [datafile]
+        icat_client.check_job_id.return_value = None
+        icat_client.new_dataset.return_value = dataset
 
     mocker.patch("datastore_api.fts3_client.fts3.Context")
 
@@ -160,6 +162,50 @@ class TestMain:
             f"http://127.0.0.1:9000/miniotestbucket/test?AWSAccessKeyId={key}"
             in content["test"]
         )
+
+    def test_get_dataset_without_update(
+        self,
+        test_client: TestClient,
+        mocker: MockerFixture,
+    ):
+        response = DatasetStatusResponse(state="FINISHED")
+        state_controller_mock = mocker.patch("datastore_api.main.StateController")
+        state_controller = state_controller_mock.return_value
+        state_controller.get_dataset_job_ids.return_value = []
+        state_controller.get_dataset_status.return_value = response
+
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get(
+            "/dataset/1",
+            params={"list_files": False},
+            headers=headers,
+        )
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"state": "FINISHED"}
+
+    def test_get_dataset_with_update(
+        self,
+        test_client: TestClient,
+        mocker: MockerFixture,
+    ):
+        response = DatasetStatusResponse(state="SUBMITTED")
+        state_controller_mock = mocker.patch("datastore_api.main.StateController")
+        state_controller = state_controller_mock.return_value
+        state_controller.get_dataset_job_ids.return_value = [SESSION_ID]
+        state_controller.get_update_dataset_status.return_value = response
+
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get(
+            "/dataset/1",
+            params={"list_files": False},
+            headers=headers,
+        )
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"state": "SUBMITTED"}
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}

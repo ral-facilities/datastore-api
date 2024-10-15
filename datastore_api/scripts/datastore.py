@@ -32,6 +32,8 @@ def archive():
             headers=headers,
             json=request_json,
         )
+        if restore_response.status_code != 200:
+            raise requests.HTTPError(restore_response.content)
         response_dict = json.loads(restore_response.content.decode())
         print("Archive submitted with response:\n", response_dict)
 
@@ -41,6 +43,8 @@ def archive():
             headers=headers,
             json=request_json,
         )
+        if restore_response.status_code != 200:
+            raise requests.HTTPError(restore_response.content)
         response_dict = json.loads(restore_response.content.decode())
         print("Restore submitted with response:\n", response_dict)
 

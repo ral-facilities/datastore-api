@@ -57,7 +57,7 @@
         ],
         "datasetTechniques": [
             {
-                "technique": "technique"
+                "name": "technique"
             }
         ],
         "datasetInstruments": [

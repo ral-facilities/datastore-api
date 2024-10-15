@@ -47,7 +47,7 @@
         ],
         "datasetTechniques": [
             {
-                "technique": "wakefield"
+                "name": "wakefield"
             }
         ],
         "datasetInstruments": [

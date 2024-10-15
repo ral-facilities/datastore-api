@@ -40,7 +40,7 @@ def validate_endpoint_url_str(url_str: str):
         msg = f"FTS endpoint {url} path not set"
         raise ValueError(msg)
 
-    if not url.path.startswith("//"):
+    if url.scheme == "root" and not url.path.startswith("//"):
         msg = f"FTS endpoint {url} path did not start with '//'"
         raise ValueError(msg)
 

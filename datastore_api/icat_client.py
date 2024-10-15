@@ -602,6 +602,7 @@ class IcatClient:
         Args:
             bean (Entity): ICAT Entity with modified attributes.
         """
+        LOGGER.debug("Updating %s", bean)
         self.client.update(bean)
 
     def delete_many(self, beans: list[Entity]) -> None:
@@ -610,6 +611,7 @@ class IcatClient:
         Args:
             beans (list[Entity]): ICAT entities to be deleted.
         """
+        LOGGER.debug("Deleting %s", beans)
         self.client.deleteMany(beans)
 
     def get_entities(
