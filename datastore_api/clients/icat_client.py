@@ -26,15 +26,11 @@ LOGGER = logging.getLogger(__name__)
 class IcatCache:
     """Holds a cache of static ICAT information for a particular Facility."""
 
-    def __init__(self, facility_name: str) -> None:
-        """Initialises a cache of static ICAT information for `facility_name`.
-
-        Args:
-            facility_name (str): Name of the Facility in ICAT.
-        """
+    def __init__(self) -> None:
+        """Initialises a cache of static ICAT information."""
         icat_client = IcatClient()
         icat_client.login_functional()
-        equals = {"facility.name": facility_name, "units": ""}
+        equals = {"facility.name": icat_client.settings.facility_name, "units": ""}
         self.parameter_type_job_state = icat_client.get_single_entity(
             entity="ParameterType",
             equals={"name": icat_client.settings.parameter_type_job_state, **equals},
@@ -43,11 +39,16 @@ class IcatCache:
             entity="ParameterType",
             equals={"name": icat_client.settings.parameter_type_job_ids, **equals},
         )
+        name = icat_client.settings.parameter_type_deletion_date
+        self.parameter_type_deletion_date = icat_client.get_single_entity(
+            entity="ParameterType",
+            equals={"name": name, **equals},
+        )
 
 
 @lru_cache
-def get_icat_cache(facility_name: str) -> IcatCache:
-    return IcatCache(facility_name=facility_name)
+def get_icat_cache() -> IcatCache:
+    return IcatCache()
 
 
 class IcatClient:
@@ -63,35 +64,6 @@ class IcatClient:
         self.client = Client(self.settings.url, checkCert=self.settings.check_cert)
         self.client.autoLogout = False
         self.client.sessionId = session_id
-
-    @staticmethod
-    def _build_path(
-        instrument_name: str,
-        cycle_name: str,
-        investigation_name: str,
-        visit_id: str,
-        dataset_type_name: str,
-        dataset_name: str,
-        datafile_name: str,
-    ) -> str:
-        """Creates a deterministic path from ICAT metadata.
-
-        Args:
-            instrument_name (str): ICAT Instrument name.
-            cycle_name (str): ICAT FacilityCycle name.
-            investigation_name (str): ICAT Investigation name.
-            visit_id (str): ICAT Investigation visitId.
-            dataset_type_name (str): ICAT DatasetType name.
-            dataset_name (str): ICAT Dataset name.
-            datafile_name (str): ICAT Datafile name.
-
-        Returns:
-            str: Path for FTS.
-        """
-        return (
-            f"{instrument_name}/{cycle_name}/{investigation_name}-{visit_id}/"
-            f"{dataset_type_name}/{dataset_name}/{datafile_name}"
-        )
 
     @staticmethod
     def _validate_entities(entities: EntityList, expected_ids: list[int]) -> None:
@@ -216,14 +188,12 @@ class IcatClient:
 
     def new_investigation(
         self,
-        facility_name: str,
         investigation: Investigation | InvestigationIdentifier,
     ) -> tuple[list[Entity], set[str]]:
         """Create a new ICAT Investigation Entity (if needed) and child
         Dataset/Datafiles.
 
         Args:
-            facility_name (str): Name of the ICAT Facility `investigation` belongs to.
             investigation (Investigation | InvestigationIdentifier):
                 Either full or identifying metadata for the Investigation to be created.
 
@@ -233,7 +203,7 @@ class IcatClient:
         equals = {
             "name": investigation.name,
             "visitId": investigation.visitId,
-            "facility.name": facility_name,
+            "facility.name": self.settings.facility_name,
         }
         investigation_entity = self.get_single_entity(
             entity="Investigation",
@@ -247,7 +217,6 @@ class IcatClient:
 
         if investigation_entity is None:
             investigation_entity = self._new_investigation_entity(
-                facility_name=facility_name,
                 investigation=investigation,
             )
 
@@ -255,13 +224,11 @@ class IcatClient:
 
     def _new_investigation_entity(
         self,
-        facility_name: str,
         investigation: Investigation,
     ) -> Entity:
         """Creates a new ICAT Investigation Entity.
 
         Args:
-            facility_name (str): Name of the ICAT Facility `investigation` belongs to.
             investigation (Investigation): Metadata for the Investigation to be created.
 
         Returns:
@@ -270,12 +237,12 @@ class IcatClient:
         investigation_dict = investigation.excluded_dict()
 
         # Get existing high level metadata
-        equals = {"name": facility_name}
+        equals = {"name": self.settings.facility_name}
         facility = self.get_single_entity(entity="Facility", equals=equals)
 
         equals = {
             "name": investigation.investigationType.name,
-            "facility.name": facility_name,
+            "facility.name": self.settings.facility_name,
         }
         investigation_type = self.get_single_entity(
             entity="InvestigationType",
@@ -284,7 +251,7 @@ class IcatClient:
 
         equals = {
             "name": investigation.facilityCycle.name,
-            "facility.name": facility_name,
+            "facility.name": self.settings.facility_name,
         }
         facility_cycle = self.get_single_entity(
             entity="FacilityCycle",
@@ -293,7 +260,7 @@ class IcatClient:
 
         equals = {
             "name": investigation.instrument.name,
-            "facility.name": facility_name,
+            "facility.name": self.settings.facility_name,
         }
         instrument = self.get_single_entity(entity="Instrument", equals=equals)
 
@@ -318,16 +285,12 @@ class IcatClient:
 
     def new_dataset(
         self,
-        facility_name: str,
-        investigation_path: str,
         dataset: Dataset,
         investigation_entity: Entity,
     ) -> Entity:
         """Create a new ICAT Dataset Entity and child Datafiles.
 
         Args:
-            facility_name (str): Name of the ICAT Facility `dataset` belongs to.
-            investigation_path (str): Path to the Investigation level directory.
             dataset (Dataset): Metadata for the Dataset to be created.
             investigation_entity (Entity): Existing or new ICAT Investigation Entity.
 
@@ -336,16 +299,10 @@ class IcatClient:
         """
         datafile_entities = []
         paths = set()
-        dataset_location = investigation_path.format(
-            dataset_type_name=dataset.datasetType.name,
-            dataset_name=dataset.name,
-            datafile_name="",
-        )
         for datafile in dataset.datafiles:
-            location = dataset_location + datafile.name
-            datafile_entity = self._new_datafile(facility_name, location, datafile)
+            datafile_entity = self._new_datafile(datafile)
             datafile_entities.append(datafile_entity)
-            paths.add(location)
+            paths.add(datafile.location)
 
         dataset_dict = dataset.excluded_dict()
         if investigation_entity.id is not None:
@@ -353,15 +310,17 @@ class IcatClient:
 
         dataset_type = self.get_single_entity(
             entity="DatasetType",
-            equals={"name": dataset.datasetType.name, "facility.name": facility_name},
+            equals={
+                "name": dataset.datasetType.name,
+                "facility.name": self.settings.facility_name,
+            },
         )
 
         parameters = self._extract_parameters(
-            facility_name,
             "Dataset",
             dataset.parameters,
         )
-        icat_cache = get_icat_cache(facility_name=facility_name)
+        icat_cache = get_icat_cache()
         dataset_parameter_entity_state = self.client.new(
             "DatasetParameter",
             type=icat_cache.parameter_type_job_state,
@@ -379,12 +338,10 @@ class IcatClient:
             techniques=dataset.datasetTechniques,
         )
         dataset_dict["datasetInstruments"] = self._extract_instruments(
-            facility_name=facility_name,
             instruments=dataset.datasetInstruments,
         )
         if dataset.sample is not None:
             sample = self._extract_sample(
-                facility_name,
                 investigation_entity,
                 dataset.sample,
             )
@@ -396,7 +353,6 @@ class IcatClient:
             type=dataset_type,
             datafiles=datafile_entities,
             parameters=parameters,
-            location=dataset_location[:-1],
             **dataset_dict,
         )
 
@@ -404,14 +360,12 @@ class IcatClient:
 
     def _extract_instruments(
         self,
-        facility_name: str,
         instruments: list[InstrumentIdentifier],
     ) -> list[Entity]:
         """Instantiate, but do not persist, new DatasetInstrument entities for the
         provided metadata.
 
         Args:
-            facility_name (str): Name of the ICAT Facility the entities belongs to.
             instruments (list[InstrumentIdentifier]):
                 Identifying metadata for ICAT Instrument entities.
 
@@ -422,7 +376,7 @@ class IcatClient:
         for instrument in instruments:
             equals = {
                 "name": instrument.name,
-                "facility.name": facility_name,
+                "facility.name": self.settings.facility_name,
             }
             instrument_entity = self.get_single_entity("Instrument", equals=equals)
             dataset_instrument = self.client.new(
@@ -461,7 +415,6 @@ class IcatClient:
 
     def _extract_sample(
         self,
-        facility_name: str,
         investigation_entity: Entity,
         sample: Sample,
     ) -> Entity:
@@ -470,7 +423,6 @@ class IcatClient:
         creation of a Dataset so this is done now.
 
         Args:
-            facility_name (str): Name of the ICAT Facility the entities belongs to.
             investigation_entity (Entity):
                 ICAT Investigation entity to associate the sample with.
             sample (Sample): Full metadata for the ICAT Sample to be created.
@@ -482,7 +434,7 @@ class IcatClient:
             "name": sample.name,
             "investigation.name": str(investigation_entity.name),
             "investigation.visitId": str(investigation_entity.visitId),
-            "investigation.facility.name": facility_name,
+            "investigation.facility.name": self.settings.facility_name,
         }
         sample_entity = self.get_single_entity(
             "Sample",
@@ -495,11 +447,10 @@ class IcatClient:
         equals = {
             "name": sample.sample_type.name,
             "molecularFormula": sample.sample_type.molecularFormula,
-            "facility.name": facility_name,
+            "facility.name": self.settings.facility_name,
         }
         sample_type = self.get_single_entity("SampleType", equals=equals)
         parameters = self._extract_parameters(
-            facility_name=facility_name,
             parent="Sample",
             parameters=sample.parameters,
         )
@@ -516,15 +467,11 @@ class IcatClient:
 
     def _new_datafile(
         self,
-        facility_name: str,
-        location: str,
         datafile: Datafile,
     ) -> Entity:
         """Creates a new ICAT Datafile Entity.
 
         Args:
-            facility_name (str): Name of the ICAT Facility `datafile` belongs to.
-            location (str): Path to the `datafile`.
             datafile (Datafile): Metadata for the Datafile to be created.
 
         Returns:
@@ -533,11 +480,10 @@ class IcatClient:
         datafile_dict = datafile.excluded_dict()
 
         parameters = self._extract_parameters(
-            facility_name,
             "Datafile",
             datafile.parameters,
         )
-        icat_cache = get_icat_cache(facility_name=facility_name)
+        icat_cache = get_icat_cache()
         datafile_parameter_entity = self.client.new(
             "DatafileParameter",
             type=icat_cache.parameter_type_job_state,
@@ -549,14 +495,13 @@ class IcatClient:
             equals = {
                 "name": datafile.datafileFormat.name,
                 "version": datafile.datafileFormat.version,
-                "facility.name": facility_name,
+                "facility.name": self.settings.facility_name,
             }
             datafile_format = self.get_single_entity("DatafileFormat", equals=equals)
             datafile_dict["datafileFormat"] = datafile_format
 
         datafile_entity = self.client.new(
             obj="Datafile",
-            location=location,
             parameters=parameters,
             **datafile_dict,
         )
@@ -564,7 +509,6 @@ class IcatClient:
 
     def _extract_parameters(
         self,
-        facility_name: str,
         parent: str,
         parameters: list[Parameter],
     ) -> list[Entity]:
@@ -572,7 +516,6 @@ class IcatClient:
         metadata.
 
         Args:
-            facility_name (str): Name of the ICAT Facility `parameters` belong to.
             parent (str): The entity type the `parameters` belong to, e.g. "Dataset".
             parameters (list[Parameter]): Full metadata for ICAT Parameter entities.
 
@@ -584,7 +527,7 @@ class IcatClient:
             equals = {
                 "name": parameter.parameter_type.name,
                 "units": parameter.parameter_type.units,
-                "facility.name": facility_name,
+                "facility.name": self.settings.facility_name,
             }
             parameter_type = self.get_single_entity("ParameterType", equals=equals)
             parameter_entity = self.client.new(

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from datastore_api.s3_client import S3Client
+from datastore_api.clients.s3_client import S3Client
 from tests.fixtures import (
     bucket_creation,
     bucket_deletion,

@@ -15,7 +15,7 @@ class JobState(StrEnum):
     canceled = "CANCELED"
 
 
-complete_job_states = (
+COMPLETE_JOB_STATES = (
     JobState.finished,
     JobState.finished_dirty,
     JobState.failed,
@@ -38,7 +38,7 @@ class TransferState(StrEnum):
     defunct = "DEFUNCT"
 
 
-complete_transfer_states = (
+COMPLETE_TRANSFER_STATES = (
     TransferState.finished,
     TransferState.failed,
     TransferState.canceled,

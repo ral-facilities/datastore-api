@@ -3,7 +3,7 @@ from icat.entity import Entity
 import pytest
 from pytest_mock import MockerFixture
 
-from datastore_api.icat_client import IcatClient
+from datastore_api.clients.icat_client import IcatClient
 from datastore_api.models.icat import Sample
 from datastore_api.models.login import Credentials, LoginRequest
 from tests.fixtures import (
@@ -150,14 +150,12 @@ class TestIcatClient:
         archive_request_sample: Sample,
     ):
         sample_entity = functional_icat_client._extract_sample(
-            "facility",
             investigation,
             archive_request_sample,
         )
         new_sample_id = sample_entity.id
 
         sample_entity = functional_icat_client._extract_sample(
-            "facility",
             investigation,
             archive_request_sample,
         )

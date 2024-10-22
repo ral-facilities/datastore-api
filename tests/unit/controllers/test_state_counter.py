@@ -1,7 +1,7 @@
 import pytest
 
+from datastore_api.controllers.state_counter import StateCounter
 from datastore_api.models.job import JobState
-from datastore_api.state_counter import StateCounter
 from tests.fixtures import SESSION_ID
 
 

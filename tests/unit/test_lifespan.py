@@ -5,16 +5,16 @@ from icat.entity import Entity
 import pytest
 from pytest_mock import MockerFixture
 
+from datastore_api.clients.icat_client import IcatClient
 from datastore_api.config import Settings
-from datastore_api.icat_client import IcatClient
+from datastore_api.controllers.state_controller import StateController
+from datastore_api.controllers.state_counter import StateCounter
 from datastore_api.lifespan import (
     lifespan,
     LOGGER,
     poll_fts,
 )
 from datastore_api.models.job import JobState, TransferState
-from datastore_api.state_controller import StateController
-from datastore_api.state_counter import StateCounter
 from tests.fixtures import (
     dataset_type,
     dataset_with_job_id,
@@ -25,6 +25,7 @@ from tests.fixtures import (
     investigation,
     investigation_type,
     mock_fts3_settings,
+    parameter_type_deletion_date,
     parameter_type_job_ids,
     parameter_type_state,
     submit,
@@ -74,7 +75,7 @@ class TestLifespan:
         update_jobs_mock = mocker.MagicMock()
         update_jobs_mock.side_effect = URLError("test")
         mocker.patch(
-            "datastore_api.state_controller.StateController.update_jobs",
+            "datastore_api.controllers.state_controller.StateController.update_jobs",
             update_jobs_mock,
         )
 
@@ -143,7 +144,7 @@ class TestLifespan:
         functional_icat_client: IcatClient,
         mocker: MockerFixture,
     ):
-        module = "datastore_api.state_controller.get_fts3_client"
+        module = "datastore_api.controllers.state_controller.get_fts3_client"
         get_fts3_client_mock = mocker.patch(module)
         get_fts3_client_mock.return_value.statuses.return_value = statuses
 

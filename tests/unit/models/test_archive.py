@@ -99,7 +99,7 @@ class TestArchive:
         dataset = Dataset(
             name="name",
             datasetType=DatasetTypeIdentifier(name="type"),
-            datafiles=[Datafile(name="name")],
+            datafiles=[Datafile(name="name", location="location")],
         )
         investigation = Investigation(
             name="name",

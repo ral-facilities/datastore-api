@@ -63,9 +63,6 @@ jobs:
           done
         timeout-minutes: 1
 
-      - name: Run Nox unit_tests
-        run: nox -s unit_tests -- --cov --cov-report=xml
-
       - name: Wait for ICAT container to start
         run: |
           until docker ps --filter "name=icat_payara_container" --format "{{.Status}}" | grep -q "(healthy)"; do
@@ -76,8 +73,8 @@ jobs:
       - name: Log container status
         run: docker ps
 
-      - name: Run Nox integration_tests
-        run: nox -s integration_tests
+      - name: Run Nox tests
+        run: nox -s tests -- --cov --cov-report=xml
 
       - name: Docker compose down
         run: docker compose -f tests/docker-compose.yaml down

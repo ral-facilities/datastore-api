@@ -1,6 +1,7 @@
 icat:
   url: https://127.0.0.1:8181
   check_cert: False
+  facility_name: facility
   functional_user:
     auth: simple
     username: root
