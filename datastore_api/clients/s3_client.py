@@ -2,6 +2,7 @@ import logging
 from uuid import uuid4
 
 import boto3
+from botocore.exceptions import ClientError
 
 from datastore_api.config import get_settings
 
@@ -78,7 +79,7 @@ class S3Client:
         """
         # This try/except block is included in this aws example:
         # https://boto3.amazonaws.com/v1/documentation/api/latest/guide/error-handling.html
-        # Now commented out to avoid supressing errors
+        # Now commented out to avoid suppressing errors
         # try:
         response = self.client.generate_presigned_url(
             "get_object",
@@ -152,5 +153,10 @@ class S3Client:
         Returns:
             list[dict]: List of tags in a form of dict with "Key" and "Value" keys.
         """
-        response = self.client.get_bucket_tagging(Bucket=bucket_name)
-        return response["TagSet"]
+        try:
+            response = self.client.get_bucket_tagging(Bucket=bucket_name)
+            return response["TagSet"]
+        except (ClientError, KeyError) as e:
+            LOGGER.error(str(e))
+            self.tag_bucket(bucket_name=bucket_name, tags=[])
+            return []

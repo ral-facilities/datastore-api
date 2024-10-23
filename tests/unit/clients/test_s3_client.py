@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from pytest_mock import MockerFixture
+
 from datastore_api.clients.s3_client import S3Client
 from tests.fixtures import (
     bucket_creation,
@@ -62,3 +64,10 @@ class TestS3Client:
             "Key": "00000000-0000-0000-0000-000000000000",
             "Value": "STAGING",
         } in tag_list
+
+    def test_get_bucket_tags_error(self, s3_client: S3Client, mocker: MockerFixture):
+        mocked_client = mocker.MagicMock()
+        mocked_client.get_bucket_tagging.return_value = {}
+        s3_client.client = mocked_client
+        tag_list = s3_client.get_bucket_tags(bucket_name="miniotestbucket")
+        assert tag_list == []
