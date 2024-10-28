@@ -1,7 +1,6 @@
 from datetime import datetime
 
 from icat.entity import Entity
-from pydantic_core import Url
 
 from datastore_api.clients.fts3_client import get_fts3_client
 from datastore_api.clients.icat_client import get_icat_cache, IcatClient
@@ -375,20 +374,19 @@ class StateController:
                     job_id=status["job_id"],
                 )
                 for file_status in status["files"]:
-                    source_surl = file_status["source_surl"]
-                    file_path = Url(source_surl).path.strip("/")
+                    file_path, file_state = state_counter.check_file(
+                        file_status=file_status,
+                    )
                     file_state_parameter = self.get_datafile_state(location=file_path)
 
-                    file_state = file_status["file_state"]
-                    state_counter.file_states[file_path] = file_state
                     if file_state_parameter.stringValue != file_state:
                         file_state_parameter.stringValue = file_state
                         self.icat_client.update(bean=file_state_parameter)
 
-            if not state_counter.job_ids:
+            if not state_counter.ongoing_job_ids:
                 beans_to_delete.append(parameter)
-            elif state_counter.job_ids != job_ids:
-                parameter.stringValue = ",".join(state_counter.job_ids)
+            elif state_counter.ongoing_job_ids != job_ids:
+                parameter.stringValue = ",".join(state_counter.ongoing_job_ids)
                 self.icat_client.update(bean=parameter)
 
             state_parameter = self.get_dataset_state(dataset_id=parameter.dataset.id)

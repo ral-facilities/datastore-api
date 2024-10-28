@@ -253,6 +253,9 @@ class S3Settings(BaseModel):
     endpoint: HttpUrlStr = Field(description="Url to use for the S3 storage")
     access_key: str = Field(description="The ID for this access key")
     secret_key: str = Field(description="The secret key used to sign requests")
+    cache_bucket: str = Field(
+        description="Private bucket used to cache files before copy to download bucket",
+    )
 
 
 class Settings(BaseSettings):

@@ -25,3 +25,6 @@ class TestStateCounter:
         state_counter = StateCounter()
         state_counter.check_state(state=state, job_id=SESSION_ID)
         assert state_counter.state == state
+
+    def test_percentage(self):
+        assert StateCounter().file_percentage == -1

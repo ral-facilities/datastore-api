@@ -58,7 +58,7 @@ jobs:
       - name: Wait for minio to contain test bucket/objects
         id: minio_check
         run: |
-          until docker exec minio /usr/bin/mc ls data/miniotestbucket | grep -q test3; do
+          until docker exec minio /usr/bin/mc ls data/cache-bucket | grep -q test3; do
             sleep 1
           done
         timeout-minutes: 1
@@ -87,7 +87,7 @@ jobs:
       - name: Dump minio logs
         if: failure() && steps.minio_check.outcome == 'failure'
         run: |
-          docker exec minio /usr/bin/mc ls data/miniotestbucket;
+          docker exec minio /usr/bin/mc ls data/cache-bucket;
           docker logs minio;
 
       - name: Dump mc logs

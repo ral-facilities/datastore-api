@@ -41,3 +41,8 @@ class TestFts3Client:
         fts3_client = Fts3Client()
         statuses = fts3_client.statuses([SESSION_ID])
         assert isinstance(statuses, list)
+
+    @pytest.mark.parametrize("statuses", [pytest.param([{}]), pytest.param({})])
+    def test_validate_statuses(self, statuses: list[dict] | dict):
+        validated_statuses = Fts3Client._validate_statuses(statuses)
+        assert validated_statuses == [{}]

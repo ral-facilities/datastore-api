@@ -8,10 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from datastore_api.auth import validate_session_id
 from datastore_api.clients.fts3_client import Fts3Client, get_fts3_client
 from datastore_api.clients.icat_client import IcatClient
-from datastore_api.clients.s3_client import S3Client
+from datastore_api.controllers.bucket_controller import BucketController
 from datastore_api.controllers.investigation_archiver import InvestigationArchiver
 from datastore_api.controllers.state_controller import StateController
-from datastore_api.controllers.state_counter import StateCounter
 from datastore_api.controllers.transfer_controller import (
     DatasetReArchiver,
     RestoreController,
@@ -35,6 +34,7 @@ from datastore_api.models.restore import (
     DownloadResponse,
     RestoreRequest,
     RestoreResponse,
+    RestoreS3Request,
 )
 from datastore_api.models.version import VersionResponse
 
@@ -189,7 +189,7 @@ def restore_rdc(
     tags=["Restore"],
 )
 def restore_download(
-    download_request: RestoreRequest,
+    restore_s3_request: RestoreS3Request,
     session_id: SessionIdDependency,
     fts3_client: Fts3ClientDependency,
 ) -> DownloadResponse:
@@ -202,22 +202,22 @@ def restore_download(
         fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
-        bucket['Location'] (str): name of the created storage bucket
-        RestoreResponse: FTS job_id for download transfer.
+        DownloadResponse: FTS job_id for download transfer.
     """
     icat_client = IcatClient(session_id=session_id)
     datafile_entities = icat_client.get_unique_datafiles(
-        investigation_ids=download_request.investigation_ids,
-        dataset_ids=download_request.dataset_ids,
-        datafile_ids=download_request.datafile_ids,
+        investigation_ids=restore_s3_request.investigation_ids,
+        dataset_ids=restore_s3_request.dataset_ids,
+        datafile_ids=restore_s3_request.datafile_ids,
     )
 
-    bucket = S3Client().create_bucket()
+    bucket_controller = BucketController()
+    bucket_controller.create(bucket_acl=restore_s3_request.bucket_acl)
 
     download_controller = RestoreController(
         fts3_client=fts3_client,
         datafile_entities=datafile_entities,
-        destination_cache=f"{fts3_client.download_cache}{bucket['Location']}/",
+        destination_cache=fts3_client.download_cache,
         strict_copy=True,
     )
     download_controller.create_fts_jobs()
@@ -228,17 +228,11 @@ def restore_download(
         download_controller.job_ids,
     )
 
-    # MAX 50 TAGS
-    # Keys and Values can be max 128 characters long
-    tags = []
-    for job in download_controller.job_ids:
-        tags.append({"Key": job, "Value": JobState.staging})
-
-    S3Client().tag_bucket(bucket_name=bucket["Location"][1:], tags=tags)
-
+    job_states = {j: JobState.submitted for j in download_controller.job_ids}
+    bucket_controller.set_job_ids(job_states=job_states)
     return DownloadResponse(
         job_ids=download_controller.job_ids,
-        bucket_name=bucket["Location"][1:],
+        bucket_name=bucket_controller.bucket.name,
     )
 
 
@@ -261,16 +255,8 @@ def get_bucket_data(
     Returns:
         dict[str, str]: Dictionary with generated presigned urls.
     """
-    links = {}
-    object_names = S3Client().list_bucket_objects(bucket_name=bucket_name)
-    for name in object_names:
-        links[name] = S3Client().create_presigned_url(
-            object_name=name,
-            bucket_name=bucket_name,
-            expiration=expiration,
-        )
-
-    return links
+    bucket_controller = BucketController(name=bucket_name)
+    return bucket_controller.get_data(expiration=expiration)
 
 
 @app.get(
@@ -292,12 +278,10 @@ def get_bucket_status(
     Returns:
         StatusResponse: List of job statuses relating to the specified bucket.
     """
-    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
-    statuses = fts3_client.statuses(job_ids=job_ids)
-    new_tags = []
-    for status in statuses:
-        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
-    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
+    bucket_controller = BucketController(name=bucket_name)
+    job_ids = bucket_controller.cached_job_states
+    statuses = fts3_client.statuses(job_ids=job_ids, list_files=True)
+    bucket_controller.update_job_ids(statuses=statuses, check_files=False)
     return StatusResponse(status=statuses)
 
 
@@ -309,28 +293,17 @@ def get_bucket_status(
 )
 def get_bucket_complete(
     bucket_name: str,
-    fts3_client: Fts3ClientDependency,
 ) -> CompleteResponse:
     """Whether all jobs relating to the bucket are complete.
 
     Args:
         bucket_name (str): Name of the bucket from which to retrieve job statuses.
-        fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         CompleteResponse: Completeness of jobs relating to the specified bucket.
     """
-    state_counter = StateCounter()
-    new_tags = []
-    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
-    statuses = fts3_client.statuses(job_ids=job_ids)
-    for status in statuses:
-        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
-        state_counter.check_state(state=status["job_state"], job_id=status["job_id"])
-    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
-    return CompleteResponse(
-        complete=state_counter.state in COMPLETE_JOB_STATES,
-    )
+    bucket_controller = BucketController(name=bucket_name)
+    return CompleteResponse(complete=bucket_controller.complete)
 
 
 @app.get(
@@ -352,18 +325,14 @@ def get_bucket_percentage(
     Returns:
         PercentageResponse: Percentage of all individual transfers to the bucket
     """
-    files_complete = 0
-    files_total = 0
-    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
-    statuses = fts3_client.statuses(job_ids=job_ids)
-    new_tags = []
-    for status in statuses:
-        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
-        files_total += len(status["files"])
-        files_complete += StateController.sum_completed_transfers(status["files"])
-
-    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
-    return PercentageResponse(percentage_complete=100 * files_complete / files_total)
+    bucket_controller = BucketController(name=bucket_name)
+    job_ids = bucket_controller.cached_job_states
+    statuses = fts3_client.statuses(job_ids=job_ids, list_files=True)
+    state_counter = bucket_controller.update_job_ids(
+        statuses=statuses,
+        check_files=True,
+    )
+    return PercentageResponse(percentage_complete=state_counter.file_percentage)
 
 
 @app.delete(
@@ -378,7 +347,8 @@ def delete_bucket(bucket_name: str) -> None:
     Args:
         bucket_name (str): Name of the bucket to delete
     """
-    S3Client().delete_bucket(bucket_name=bucket_name)
+    bucket_controller = BucketController(name=bucket_name)
+    bucket_controller.delete()
 
 
 @app.put(

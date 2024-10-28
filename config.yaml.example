@@ -22,3 +22,4 @@ s3:
   endpoint: http://127.0.0.1:9000
   access_key: minioadmin
   secret_key: minioadmin
+  cache_bucket: cache-bucket

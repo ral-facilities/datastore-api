@@ -1,8 +1,8 @@
+from functools import lru_cache
 import logging
-from uuid import uuid4
 
 import boto3
-from botocore.exceptions import ClientError
+from mypy_boto3_s3 import S3Client as S3ClientBoto3, S3ServiceResource
 
 from datastore_api.config import get_settings
 
@@ -14,55 +14,21 @@ class S3Client:
 
     def __init__(self) -> None:
         """Initialise the client with the cached `s3_settings`."""
-        self.settings = get_settings().s3
-        self.resource = boto3.resource(
+        settings = get_settings()
+        self.endpoint = settings.s3.endpoint
+        self.cache_bucket = settings.s3.cache_bucket
+        self.resource: S3ServiceResource = boto3.resource(
             "s3",
-            endpoint_url=self.settings.endpoint,
-            aws_access_key_id=self.settings.access_key,
-            aws_secret_access_key=self.settings.secret_key,
+            endpoint_url=settings.s3.endpoint,
+            aws_access_key_id=settings.s3.access_key,
+            aws_secret_access_key=settings.s3.secret_key,
         )
-        self.client = boto3.client(
+        self.client: S3ClientBoto3 = boto3.client(
             "s3",
-            endpoint_url=self.settings.endpoint,
-            aws_access_key_id=self.settings.access_key,
-            aws_secret_access_key=self.settings.secret_key,
+            endpoint_url=settings.s3.endpoint,
+            aws_access_key_id=settings.s3.access_key,
+            aws_secret_access_key=settings.s3.secret_key,
         )
-
-    def create_bucket(self, bucket_name: str = None) -> dict:
-        """Creates a new s3 storage bucket
-        https://boto3.amazonaws.com/v1/documentation/api/latest/guide/s3-example-creating-buckets.html
-        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/create_bucket.html
-
-        Args:
-            bucket_name (str, optional): The name of the bucket to create.
-                If None, or a bucket with this name already exists
-                a random UUID4 name will be generated.
-                Defaults to None.
-        Returns:
-            dict: a dictionary with 'Location', which is the forward slash
-                followed by the name of the bucket
-        """
-        if not bucket_name:
-            bucket_name = str(uuid4())
-        try:
-            bucket = self.client.create_bucket(Bucket=bucket_name)
-        except self.client.exceptions.BucketAlreadyOwnedByYou:
-            bucket = self.create_bucket()
-        return bucket
-
-    def delete_bucket(self, bucket_name: str):
-        """Deletes a specified bucket and its contents
-        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/delete_bucket.html
-
-        Args:
-            bucket_name (str): Name of the bucket to be deleted
-        """
-        # First need to empty the bucket
-        # https://stackoverflow.com/questions/43326493/what-is-the-fastest-way-to-empty-s3-bucket-using-boto3
-        bucket = self.resource.Bucket(bucket_name)
-        bucket.objects.all().delete()
-
-        self.client.delete_bucket(Bucket=bucket_name)
 
     def create_presigned_url(self, object_name: str, bucket_name: str, expiration=3600):
         """Creates the download link for a single file in a bucket
@@ -92,36 +58,6 @@ class S3Client:
 
         return response
 
-    def list_bucket_objects(self, bucket_name: str, max_keys: int = 1000) -> list[str]:
-        """Lists objects in a S3 bucket
-
-        Args:
-            bucket_name (str): Name of the bucket.
-            max_keys (int, optional): Maximum number of objects in response.
-                Defaults to 1000.
-
-        Returns:
-            list[str]: List of object names
-        """
-        object_names = []
-        # TODO: list_objects returns max 1000 objects. is it enough?
-        # Also, v2 is available:
-        # https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/list_objects_v2.html
-        response = self.client.list_objects(Bucket=bucket_name, MaxKeys=max_keys)
-
-        for obj in response["Contents"]:
-            object_names.append(obj["Key"])
-
-        while response["IsTruncated"]:
-            response = self.client.list_objects(
-                Bucket=bucket_name,
-                Marker=response["NextMarker"],
-            )
-            for obj in response["Contents"]:
-                object_names.append(obj["Key"])
-
-        return object_names
-
     def list_buckets(self) -> list[str]:
         """Lists all owned buckets
 
@@ -133,30 +69,12 @@ class S3Client:
             bucket_names.append(bucket["Name"])
         return bucket_names
 
-    def tag_bucket(self, bucket_name: str, tags: list) -> None:
-        """Tag a bucket with tags from a list
-        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/put_bucket_tagging.html
 
-        Args:
-            bucket_name (str): Name of the bucket to tag.
-            tags (list): List of tags in a form of dict with "Key" and "Value" keys.
-        """
-        self.client.put_bucket_tagging(Bucket=bucket_name, Tagging={"TagSet": tags})
+@lru_cache
+def get_s3_client() -> S3Client:
+    """Initialise and cache the client for making calls to S3.
 
-    def get_bucket_tags(self, bucket_name: str) -> list[dict]:
-        """Get tags from a specified bucket
-        https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/s3/client/get_bucket_tagging.html
-
-        Args:
-            bucket_name (str): Name of the bucket
-
-        Returns:
-            list[dict]: List of tags in a form of dict with "Key" and "Value" keys.
-        """
-        try:
-            response = self.client.get_bucket_tagging(Bucket=bucket_name)
-            return response["TagSet"]
-        except (ClientError, KeyError) as e:
-            LOGGER.error(str(e))
-            self.tag_bucket(bucket_name=bucket_name, tags=[])
-            return []
+    Returns:
+        S3Client: Wrapper for calls to S3.
+    """
+    return S3Client()

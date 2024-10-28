@@ -12,6 +12,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from datastore_api.clients.icat_client import get_icat_cache, IcatClient
+from datastore_api.clients.s3_client import S3Client
 from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest
@@ -27,6 +28,8 @@ from tests.fixtures import (
     archive_request_parameters,
     archive_request_sample,
     bucket_deletion,
+    bucket_name_private,
+    cache_bucket,
     datafile_failed,
     datafile_format,
     dataset_failed,
@@ -51,6 +54,7 @@ from tests.fixtures import (
     submit,
     technique,
 )
+from tests.unit.test_main import STATUSES
 
 log = logging.getLogger("tests")
 
@@ -112,6 +116,8 @@ def fts_job(
             "s3alternate": False,
             "nostreams": 1,
             "buffer_size": None,
+            "disable_cleanup": False,
+            "overwrite_when_only_on_disk": False,
         },
     }
 
@@ -506,6 +512,7 @@ class TestRestore:
         investigation: Entity,
         dataset_failed: Entity,
         datafile_failed: Entity,
+        mock_fts3_settings: Settings,
         functional_icat_client: IcatClient,
         test_client: TestClient,
         restore_ids: str,
@@ -543,12 +550,10 @@ class TestRestore:
         UUID(content["job_ids"][0], version=4)
         UUID(content["bucket_name"], version=4)
 
-        bucket_name = content["bucket_name"]
+        s3_url = mock_fts3_settings.s3.endpoint.split("://")[1]
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
         sources = [f"root://archive.ac.uk:1094//{path}?copy_mode=push"]
-        destinations = [
-            f"s3s://127.0.0.1:9000/{bucket_name}/{path}",
-        ]
+        destinations = [f"s3s://{s3_url}/cache-bucket/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
@@ -817,3 +822,65 @@ class TestCancel:
         content = json.loads(test_response.content)
         assert test_response.status_code == 400, content
         assert content == {"detail": "Archival jobs cannot be cancelled"}
+
+
+class TestBucket:
+    def test_get_bucket_data_private(
+        self,
+        mock_fts3_settings: Settings,
+        test_client: TestClient,
+        bucket_name_private: str,
+    ):
+        s3_url = mock_fts3_settings.s3.endpoint
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        url = f"/bucket/{bucket_name_private}"
+        test_response = test_client.get(url, headers=headers)
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert len(content) == 1
+        assert "test" in content
+        assert content["test"].startswith(f"{s3_url}/{bucket_name_private}/test?")
+
+    def test_download_status(
+        self,
+        test_client: TestClient,
+        cache_bucket: str,
+        bucket_name_private: str,
+    ):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        url = f"/bucket/{bucket_name_private}/status"
+        test_response = test_client.get(url=url, headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"status": STATUSES}
+
+    def test_download_complete(self, test_client: TestClient, bucket_name_private: str):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        url = f"/bucket/{bucket_name_private}/complete"
+        test_response = test_client.get(url=url, headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"complete": True}
+
+    def test_download_percentage(
+        self,
+        test_client: TestClient,
+        cache_bucket: str,
+        bucket_name_private: str,
+    ):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        url = f"/bucket/{bucket_name_private}/percentage"
+        test_response = test_client.get(url=url, headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"percentage_complete": 100.0}
+
+    def test_delete_bucket(self, test_client: TestClient, bucket_name_private: str):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        url = f"/bucket/{bucket_name_private}"
+        test_response = test_client.delete(url=url, headers=headers)
+
+        assert test_response.status_code == 200

@@ -10,9 +10,6 @@ from datastore_api.config import get_settings, VerifyChecksum
 LOGGER = logging.getLogger(__name__)
 
 
-LOGGER = logging.getLogger(__name__)
-
-
 class Fts3Client:
     """Wrapper for FTS3 functionality."""
 
@@ -28,12 +25,21 @@ class Fts3Client:
         self.restored_data_cache = settings.fts3.restored_data_cache
         self.tape_archive = settings.fts3.tape_archive
         # https://fts3-docs.web.cern.ch/fts3-docs/docs/s3_support.html#submitting-s3-transfers
-        self.download_cache = "s3s://" + settings.s3.endpoint.split("://")[1]
+        s3_url = settings.s3.endpoint.split("://")[1]
+        self.download_cache = f"s3s://{s3_url}/{settings.s3.cache_bucket}/"
         self.retry = settings.fts3.retry
         self.verify_checksum = settings.fts3.verify_checksum
         self.supported_checksums = settings.fts3.supported_checksums
         self.bring_online = settings.fts3.bring_online
         self.archive_timeout = settings.fts3.archive_timeout
+
+    @staticmethod
+    def _validate_statuses(statuses: list[dict] | dict) -> list[dict]:
+        # FTS will actually return a single dict if a length 1 list is provided
+        if isinstance(statuses, dict):
+            return [statuses]
+        else:
+            return statuses
 
     def archive(self, datafile_entity: Entity) -> dict[str, list]:
         """Returns a transfer dict moving `path` from one of the caches to tape.
@@ -198,11 +204,7 @@ class Fts3Client:
             job_ids=job_ids,
             list_files=list_files,
         )
-        # FTS will actually return a single dict if a length 1 list is provided
-        if isinstance(statuses, dict):
-            return [statuses]
-        else:
-            return statuses
+        return Fts3Client._validate_statuses(statuses=statuses)
 
     def cancel(self, job_id: str) -> str:
         """Cancel an FTS job.
