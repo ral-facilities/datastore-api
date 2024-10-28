@@ -94,13 +94,13 @@ services:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
-      until /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin; do
+      until /usr/bin/mc alias set data http://minio:9000 minioadmin minioadmin; do
         sleep 1
       done;
-      /usr/bin/mc mb myminio/miniotestbucket;
-      /usr/bin/echo "test" | mc pipe myminio/miniotestbucket/test;
-      /usr/bin/echo "test2" | mc pipe myminio/miniotestbucket/test2;
-      /usr/bin/echo "test3" | mc pipe myminio/miniotestbucket/test3;
+      /usr/bin/mc mb data/cache-bucket;
+      /usr/bin/echo "test" | mc pipe data/cache-bucket/test;
+      /usr/bin/echo "test2" | mc pipe data/cache-bucket/test2;
+      /usr/bin/echo "test3" | mc pipe data/cache-bucket/test3;
       exit 0;
       "
     networks:
