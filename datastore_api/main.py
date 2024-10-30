@@ -217,7 +217,7 @@ def restore_download(
     download_controller = RestoreController(
         fts3_client=fts3_client,
         datafile_entities=datafile_entities,
-        destination_cache=fts3_client.download_cache,
+        destination_cache=bucket_controller.destination,
         strict_copy=True,
     )
     download_controller.create_fts_jobs()

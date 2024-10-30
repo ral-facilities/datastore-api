@@ -4,10 +4,14 @@ from pytest_mock import mocker, MockerFixture
 
 from datastore_api.config import Settings
 from datastore_api.controllers.bucket_controller import BucketController
+from datastore_api.models.job import JobState
+from datastore_api.models.restore import BucketAcl
 from tests.fixtures import (
     bucket_name_incomplete,
     bucket_name_private,
+    cache_bucket,
     mock_fts3_settings,
+    STATUSES,
     submit,
 )
 
@@ -32,6 +36,43 @@ class TestBucketController:
 
         bucket_controller = BucketController(name=bucket_name_incomplete)
         assert not bucket_controller.complete
+
+    def test_bucket_controller_update_job_ids(
+        self,
+        mock_fts3_settings: Settings,
+        cache_bucket: str,
+        bucket_name_incomplete: str,
+    ):
+        bucket_controller = BucketController(name=bucket_name_incomplete)
+        bucket_controller._acl = BucketAcl.PUBLIC_READ
+        objects = list(bucket_controller.bucket.objects.all())
+
+        assert len(objects) == 1
+        assert objects[0].key == ".job_ids"
+
+        state_counter = bucket_controller.update_job_ids(
+            statuses=STATUSES,
+            check_files=False,
+        )
+        objects = list(bucket_controller.bucket.objects.all())
+
+        assert state_counter.state == JobState.finished_dirty
+        assert len(objects) == 2
+        assert objects[0].key == ".job_ids"
+        assert objects[1].key == "test"
+
+    def test_get_data_private(
+        self,
+        mock_fts3_settings: Settings,
+        bucket_name_private: str,
+        mocker: MockerFixture,
+    ):
+        expected = f"{mock_fts3_settings.s3.endpoint}/{bucket_name_private}/test?"
+        bucket_controller = BucketController(name=bucket_name_private)
+        data_dict = bucket_controller.get_data(expiration=1)
+        assert len(data_dict) == 1
+        assert "test" in data_dict
+        assert data_dict["test"].startswith(expected)
 
     def test_get_data_public(
         self,

@@ -39,6 +39,7 @@ class BucketController:
             bucket_name=name,
             key=".job_ids",
         )
+        self._acl = None
 
     @property
     def acl(self) -> BucketAcl:
@@ -46,19 +47,28 @@ class BucketController:
         Returns:
             BucketAcl: The pre-defined ACL set when the bucket was originally created.
         """
-        response = self.s3_client.client.get_bucket_acl(Bucket=self.bucket.name)
-        for grant in response["Grants"]:
-            all_users_str = "http://acs.amazonaws.com/groups/global/AllUsers"
-            try:
-                is_group = grant["Grantee"]["Type"] == "Group"
-                is_all_users = grant["Grantee"]["URI"] == all_users_str
-                is_read = grant["Permission"] == "READ"
-                if is_group and is_all_users and is_read:
-                    return BucketAcl.PUBLIC_READ
-            except KeyError:
-                continue
+        if self._acl is None:
+            self._acl = BucketAcl.PRIVATE
+            response = self.s3_client.client.get_bucket_acl(Bucket=self.bucket.name)
+            for grant in response["Grants"]:
+                all_users_str = "http://acs.amazonaws.com/groups/global/AllUsers"
+                try:
+                    is_group = grant["Grantee"]["Type"] == "Group"
+                    is_all_users = grant["Grantee"]["URI"] == all_users_str
+                    is_read = grant["Permission"] == "READ"
+                    if is_group and is_all_users and is_read:
+                        self._acl = BucketAcl.PUBLIC_READ
+                except KeyError:
+                    continue
 
-        return BucketAcl.PRIVATE
+        return self._acl
+
+    @property
+    def destination(self) -> str:
+        if self.acl == BucketAcl.PRIVATE:
+            return f"{self.fts3_client.download_cache}{self.bucket.name}/"
+        else:
+            return f"{self.fts3_client.download_cache}{self.s3_client.cache_bucket}/"
 
     @property
     def complete(self) -> bool:
@@ -98,6 +108,7 @@ class BucketController:
         Args:
             bucket_acl (BucketAcl): The pre-defined ACL to use for this bucket.
         """
+        self._acl = bucket_acl
         self.bucket.create(ACL=bucket_acl.value)
 
     def set_job_ids(self, job_states: dict[str, str]) -> None:
@@ -133,10 +144,11 @@ class BucketController:
             state = status["job_state"]
             latest_job_states[job_id] = state
             job_complete = state_counter.check_state(state=state, job_id=job_id)
-            if check_files or job_complete:
+            do_copy = job_complete and self.acl == BucketAcl.PUBLIC_READ
+            if check_files or do_copy:
                 for file_status in status["files"]:
                     file_path, file_state = state_counter.check_file(file_status)
-                    if job_complete and file_state == TransferState.finished:
+                    if do_copy and file_state == TransferState.finished:
                         copy_source = {
                             "Bucket": self.s3_client.cache_bucket,
                             "Key": file_path,

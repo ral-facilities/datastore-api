@@ -26,7 +26,7 @@ class Fts3Client:
         self.tape_archive = settings.fts3.tape_archive
         # https://fts3-docs.web.cern.ch/fts3-docs/docs/s3_support.html#submitting-s3-transfers
         s3_url = settings.s3.endpoint.split("://")[1]
-        self.download_cache = f"s3s://{s3_url}/{settings.s3.cache_bucket}/"
+        self.download_cache = f"s3s://{s3_url}/"
         self.retry = settings.fts3.retry
         self.verify_checksum = settings.fts3.verify_checksum
         self.supported_checksums = settings.fts3.supported_checksums

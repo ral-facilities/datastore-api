@@ -22,7 +22,7 @@ from datastore_api.models.icat import (
     Investigation,
     InvestigationTypeIdentifier,
 )
-from datastore_api.models.restore import RestoreRequest
+from datastore_api.models.restore import BucketAcl, RestoreRequest, RestoreS3Request
 from tests.fixtures import (
     archive_request,
     archive_request_parameters,
@@ -501,6 +501,10 @@ class TestRestore:
             pytest.param("datafile_ids"),
         ],
     )
+    @pytest.mark.parametrize(
+        ["bucket_acl"],
+        [pytest.param(BucketAcl.PRIVATE), pytest.param(BucketAcl.PUBLIC_READ)],
+    )
     def test_restore_download(
         self,
         submit: MagicMock,
@@ -516,23 +520,27 @@ class TestRestore:
         functional_icat_client: IcatClient,
         test_client: TestClient,
         restore_ids: str,
+        bucket_acl: BucketAcl,
         bucket_deletion: None,
     ):
         if restore_ids == "investigation_ids":
-            restore_request = RestoreRequest(
+            restore_request = RestoreS3Request(
                 investigation_ids=[investigation.id],
+                bucket_acl=bucket_acl,
             )
         elif restore_ids == "dataset_ids":
             equals = {"investigation.id": investigation.id}
             dataset = functional_icat_client.get_single_entity("Dataset", equals)
-            restore_request = RestoreRequest(
+            restore_request = RestoreS3Request(
                 dataset_ids=[dataset.id],
+                bucket_acl=bucket_acl,
             )
         elif restore_ids == "datafile_ids":
             equals = {"dataset.investigation.id": investigation.id}
             datafile = functional_icat_client.get_single_entity("Datafile", equals)
-            restore_request = RestoreRequest(
+            restore_request = RestoreS3Request(
                 datafile_ids=[datafile.id],
+                bucket_acl=bucket_acl,
             )
 
         json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
@@ -547,13 +555,15 @@ class TestRestore:
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
         assert "bucket_name" in content
-        UUID(content["job_ids"][0], version=4)
-        UUID(content["bucket_name"], version=4)
+        if bucket_acl == BucketAcl.PUBLIC_READ:
+            bucket_name = "cache-bucket"
+        else:
+            bucket_name = content["bucket_name"]
 
         s3_url = mock_fts3_settings.s3.endpoint.split("://")[1]
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
         sources = [f"root://archive.ac.uk:1094//{path}?copy_mode=push"]
-        destinations = [f"s3s://{s3_url}/cache-bucket/{path}"]
+        destinations = [f"s3s://{s3_url}/{bucket_name}/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
