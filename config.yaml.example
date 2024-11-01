@@ -12,14 +12,21 @@ icat:
 
 fts3:
   endpoint: https://endpoint:8446
-  instrument_data_cache: root://idc:1094//
-  restored_data_cache: root://rdc:1094//
-  tape_archive: root://archive:1094//
   x509_user_cert: hostcert.pem
   x509_user_key: hostkey.pem
-
-s3:
-  endpoint: http://127.0.0.1:9000
-  access_key: minioadmin
-  secret_key: minioadmin
-  cache_bucket: cache-bucket
+  archive_endpoint:
+    url: root://archive:1094//
+    type: tape
+  storage_endpoints:
+    idc:
+      url: root://idc:1094//
+      type: disk
+    rdc:
+      url: root://rdc:1094//
+      type: disk
+    echo:
+      url: http://127.0.0.1:9000
+      type: s3
+      access_key: minioadmin
+      secret_key: minioadmin
+      cache_bucket: cache-bucket

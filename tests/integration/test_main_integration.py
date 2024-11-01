@@ -22,7 +22,7 @@ from datastore_api.models.icat import (
     Investigation,
     InvestigationTypeIdentifier,
 )
-from datastore_api.models.restore import BucketAcl, RestoreRequest, RestoreS3Request
+from datastore_api.models.transfer import BucketAcl, TransferRequest, TransferS3Request
 from tests.fixtures import (
     archive_request,
     archive_request_parameters,
@@ -192,7 +192,11 @@ class TestArchive:
         get_icat_cache.cache_clear()
         json_body = json.loads(archive_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {session_id}"}
-        test_response = test_client.post("/archive", headers=headers, json=json_body)
+        test_response = test_client.post(
+            "/archive/idc",
+            headers=headers,
+            json=json_body,
+        )
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
@@ -361,7 +365,11 @@ class TestArchive:
         )
         json_body = json.loads(archive_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {session_id}"}
-        test_response = test_client.post("/archive", headers=headers, json=json_body)
+        test_response = test_client.post(
+            "/archive/idc",
+            headers=headers,
+            json=json_body,
+        )
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
@@ -453,15 +461,15 @@ class TestRestore:
         restore_ids: str,
     ):
         if restore_ids == "investigation_ids":
-            restore_request = RestoreRequest(investigation_ids=[investigation.id])
+            restore_request = TransferRequest(investigation_ids=[investigation.id])
         elif restore_ids == "dataset_ids":
             equals = {"investigation.id": investigation.id}
             dataset = functional_icat_client.get_single_entity("Dataset", equals)
-            restore_request = RestoreRequest(dataset_ids=[dataset.id])
+            restore_request = TransferRequest(dataset_ids=[dataset.id])
         elif restore_ids == "datafile_ids":
             equals = {"dataset.investigation.id": investigation.id}
             datafile = functional_icat_client.get_single_entity("Datafile", equals)
-            restore_request = RestoreRequest(datafile_ids=[datafile.id])
+            restore_request = TransferRequest(datafile_ids=[datafile.id])
 
         json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {session_id}"}
@@ -524,21 +532,21 @@ class TestRestore:
         bucket_deletion: None,
     ):
         if restore_ids == "investigation_ids":
-            restore_request = RestoreS3Request(
+            restore_request = TransferS3Request(
                 investigation_ids=[investigation.id],
                 bucket_acl=bucket_acl,
             )
         elif restore_ids == "dataset_ids":
             equals = {"investigation.id": investigation.id}
             dataset = functional_icat_client.get_single_entity("Dataset", equals)
-            restore_request = RestoreS3Request(
+            restore_request = TransferS3Request(
                 dataset_ids=[dataset.id],
                 bucket_acl=bucket_acl,
             )
         elif restore_ids == "datafile_ids":
             equals = {"dataset.investigation.id": investigation.id}
             datafile = functional_icat_client.get_single_entity("Datafile", equals)
-            restore_request = RestoreS3Request(
+            restore_request = TransferS3Request(
                 datafile_ids=[datafile.id],
                 bucket_acl=bucket_acl,
             )
@@ -546,7 +554,7 @@ class TestRestore:
         json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post(
-            "/restore/download",
+            "/restore/echo",
             headers=headers,
             json=json_body,
         )
@@ -560,10 +568,10 @@ class TestRestore:
         else:
             bucket_name = content["bucket_name"]
 
-        s3_url = mock_fts3_settings.s3.endpoint.split("://")[1]
+        s3_url = mock_fts3_settings.fts3.storage_endpoints["echo"].formatted_url
         path = "instrument/20XX/name-visitId/type/dataset/datafile"
         sources = [f"root://archive.ac.uk:1094//{path}?copy_mode=push"]
-        destinations = [f"s3s://{s3_url}/{bucket_name}/{path}"]
+        destinations = [f"{s3_url}{bucket_name}/{path}"]
         job = fts_job(
             sources=sources,
             destinations=destinations,
@@ -579,8 +587,94 @@ class TestRestore:
         assert isinstance(content["status"], dict)
 
 
+class TestTransfer:
+    @pytest.mark.parametrize(
+        ["restore_ids"],
+        [
+            pytest.param("investigation_ids"),
+            pytest.param("dataset_ids"),
+            pytest.param("datafile_ids"),
+        ],
+    )
+    def test_transfer(
+        self,
+        submit: MagicMock,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
+        mock_fts3_settings: Settings,
+        functional_icat_client: IcatClient,
+        test_client: TestClient,
+        restore_ids: str,
+    ):
+        if restore_ids == "investigation_ids":
+            restore_request = TransferRequest(investigation_ids=[investigation.id])
+        elif restore_ids == "dataset_ids":
+            equals = {"investigation.id": investigation.id}
+            dataset = functional_icat_client.get_single_entity("Dataset", equals)
+            restore_request = TransferRequest(dataset_ids=[dataset.id])
+        elif restore_ids == "datafile_ids":
+            equals = {"dataset.investigation.id": investigation.id}
+            datafile = functional_icat_client.get_single_entity("Datafile", equals)
+            restore_request = TransferRequest(datafile_ids=[datafile.id])
+
+        json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
+        headers = {"Authorization": f"Bearer {session_id}"}
+        test_response = test_client.post(
+            "/transfer/echo/rdc",
+            headers=headers,
+            json=json_body,
+        )
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID(content["job_ids"][0], version=4)
+
+        s3_url = mock_fts3_settings.fts3.storage_endpoints["echo"].formatted_url
+        path = "instrument/20XX/name-visitId/type/dataset/datafile"
+        sources = [f"{s3_url}cache-bucket/{path}"]
+        destinations = [f"root://rdc.ac.uk:1094//{path}"]
+        job = fts_job(
+            sources=sources,
+            destinations=destinations,
+        )
+        submit.assert_called_once_with(context=ANY, job=job)
+
+        test_response = test_client.get(f"/job/{content['job_ids'][0]}/status")
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "status" in content
+        assert isinstance(content["status"], dict)
+
+    def test_transfer_failure(
+        self,
+        session_id: str,
+        mock_fts3_settings: Settings,
+        test_client: TestClient,
+    ):
+        transfer_request = TransferRequest(datafile_ids=[1])
+        json_body = json.loads(transfer_request.model_dump_json(exclude_none=True))
+        headers = {"Authorization": f"Bearer {session_id}"}
+        test_response = test_client.post(
+            "/transfer/test/test",
+            headers=headers,
+            json=json_body,
+        )
+
+        assert test_response.status_code == 422
+        detail = json.loads(test_response.content.decode())["detail"]
+        assert "test is not a recognised storage key:" in detail
+
+
 class TestDataset:
-    def test_put_dataset(
+    def test_put_dataset_retry(
         self,
         test_client: TestClient,
         submit: MagicMock,
@@ -605,7 +699,7 @@ class TestDataset:
     ):
         get_icat_cache.cache_clear()
         headers = {"Authorization": f"Bearer {session_id}"}
-        url = f"/dataset/{dataset_failed.id}"
+        url = f"/dataset/{dataset_failed.id}/retry/idc"
         test_response = test_client.put(url, headers=headers)
 
         content = json.loads(test_response.content)
@@ -841,15 +935,15 @@ class TestBucket:
         test_client: TestClient,
         bucket_name_private: str,
     ):
-        s3_url = mock_fts3_settings.s3.endpoint
+        s3_url = mock_fts3_settings.fts3.storage_endpoints["echo"].url
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
-        url = f"/bucket/{bucket_name_private}"
+        url = f"/bucket/echo/{bucket_name_private}"
         test_response = test_client.get(url, headers=headers)
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert len(content) == 1
         assert "test" in content
-        assert content["test"].startswith(f"{s3_url}/{bucket_name_private}/test?")
+        assert content["test"].startswith(f"{s3_url}{bucket_name_private}/test?")
 
     def test_download_status(
         self,
@@ -858,7 +952,7 @@ class TestBucket:
         bucket_name_private: str,
     ):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
-        url = f"/bucket/{bucket_name_private}/status"
+        url = f"/bucket/echo/{bucket_name_private}/status"
         test_response = test_client.get(url=url, headers=headers)
 
         content = json.loads(test_response.content)
@@ -867,7 +961,7 @@ class TestBucket:
 
     def test_download_complete(self, test_client: TestClient, bucket_name_private: str):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
-        url = f"/bucket/{bucket_name_private}/complete"
+        url = f"/bucket/echo/{bucket_name_private}/complete"
         test_response = test_client.get(url=url, headers=headers)
 
         content = json.loads(test_response.content)
@@ -881,7 +975,7 @@ class TestBucket:
         bucket_name_private: str,
     ):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
-        url = f"/bucket/{bucket_name_private}/percentage"
+        url = f"/bucket/echo/{bucket_name_private}/percentage"
         test_response = test_client.get(url=url, headers=headers)
 
         content = json.loads(test_response.content)
@@ -890,7 +984,18 @@ class TestBucket:
 
     def test_delete_bucket(self, test_client: TestClient, bucket_name_private: str):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
-        url = f"/bucket/{bucket_name_private}"
+        url = f"/bucket/echo/{bucket_name_private}"
         test_response = test_client.delete(url=url, headers=headers)
 
         assert test_response.status_code == 200
+
+    def test_bucket_failure(
+        self,
+        mock_fts3_settings: Settings,
+        test_client: TestClient,
+    ):
+        test_response = test_client.get("/bucket/idc/test/complete")
+
+        assert test_response.status_code == 422
+        detail = json.loads(test_response.content.decode())["detail"]
+        assert "idc is disk, not S3 storage" == detail

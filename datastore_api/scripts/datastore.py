@@ -4,7 +4,7 @@ import json
 import requests
 
 
-def archive():
+def transfer():
     parser = argparse.ArgumentParser(
         prog="Datastore",
         description="Submit request to the Datastore API",
@@ -28,7 +28,7 @@ def archive():
 
     if args.request == "archive":
         restore_response = requests.post(
-            url=f"{args.url}/archive",
+            url=f"{args.url}/archive/echo",
             headers=headers,
             json=request_json,
         )
@@ -50,4 +50,4 @@ def archive():
 
 
 if __name__ == "__main__":
-    archive()
+    transfer()

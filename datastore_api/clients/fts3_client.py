@@ -4,7 +4,7 @@ import logging
 import fts3.rest.client.easy as fts3
 from icat.entity import Entity
 
-from datastore_api.config import get_settings, VerifyChecksum
+from datastore_api.config import get_settings, Storage, StorageType, VerifyChecksum
 
 
 LOGGER = logging.getLogger(__name__)
@@ -21,17 +21,10 @@ class Fts3Client:
             ucert=settings.fts3.x509_user_cert,
             ukey=settings.fts3.x509_user_key,
         )
-        self.instrument_data_cache = settings.fts3.instrument_data_cache
-        self.restored_data_cache = settings.fts3.restored_data_cache
-        self.tape_archive = settings.fts3.tape_archive
-        # https://fts3-docs.web.cern.ch/fts3-docs/docs/s3_support.html#submitting-s3-transfers
-        s3_url = settings.s3.endpoint.split("://")[1]
-        self.download_cache = f"s3s://{s3_url}/"
+        self.fts3_settings = settings.fts3
         self.retry = settings.fts3.retry
         self.verify_checksum = settings.fts3.verify_checksum
         self.supported_checksums = settings.fts3.supported_checksums
-        self.bring_online = settings.fts3.bring_online
-        self.archive_timeout = settings.fts3.archive_timeout
 
     @staticmethod
     def _validate_statuses(statuses: list[dict] | dict) -> list[dict]:
@@ -41,44 +34,78 @@ class Fts3Client:
         else:
             return statuses
 
-    def archive(self, datafile_entity: Entity) -> dict[str, list]:
-        """Returns a transfer dict moving `path` from one of the caches to tape.
+    @staticmethod
+    def _format_location(
+        location: str,
+        source_storage: Storage,
+        source_prefix: str,
+        destination_storage: Storage,
+        destination_prefix: str,
+    ) -> tuple[str, str]:
+        """Formats source and destination surls for FTS.
 
         Args:
-            datafile_entity (Entity): Datafile to be moved.
+            location (str): File location on storage.
+            source_storage (Storage): Representation of the source Storage.
+            source_prefix (str): Prefix to before the location for the source.
+            destination_storage (Storage): Representation of the destination Storage.
+            destination_prefix (str): Prefix to before the location for the destination.
 
         Returns:
-            dict[str, list]: Transfer dict for moving `path` to tape.
+            tuple[str, str]: source, destination
         """
-        source = f"{self.instrument_data_cache}{datafile_entity.location}"
-        destination = f"{self.tape_archive}{datafile_entity.location}"
-        checksum = self._validate_checksum(datafile_entity.checksum)
-        transfer = fts3.new_transfer(
-            source=source,
-            destination=destination,
-            checksum=checksum,
-        )
-        return transfer
+        if destination_storage.storage_type == StorageType.S3:
+            query = "?copy_mode=push"
+        else:
+            query = ""
 
-    def restore(
+        return (
+            f"{source_storage.formatted_url}{source_prefix}{location}{query}",
+            f"{destination_storage.formatted_url}{destination_prefix}{location}",
+        )
+
+    def get_storage(self, key: str) -> Storage:
+        """Get the representation of configured Storage.
+
+        Args:
+            key (str):
+                Key to identify the Storage. If None, the archive storage is returned.
+
+        Returns:
+            Storage: Representation of the requested Storage.
+        """
+        if key is None:
+            return self.fts3_settings.archive_endpoint
+
+        return self.fts3_settings.storage_endpoints[key]
+
+    def transfer(
         self,
         datafile_entity: Entity,
-        destination_cache: str,
+        source_storage: Storage,
+        source_prefix: str,
+        destination_storage: Storage,
+        destination_prefix: str,
     ) -> dict[str, list]:
         """Returns a transfer dict moving `path` from tape to another storage endpoint.
 
         Args:
             datafile_entity (Entity): Datafile to be moved.
-            destination_cache (str): URL of the destination cache.
+            source_storage (Storage): Representation of the source Storage.
+            source_prefix (str): Prefix to before the location for the source.
+            destination_storage (Storage): Representation of the destination Storage.
+            destination_prefix (str): Prefix to before the location for the destination.
 
         Returns:
             dict[str, list]: Transfer dict for moving `path` to the RDC.
         """
-        source = f"{self.tape_archive}{datafile_entity.location}"
-        if destination_cache.startswith("s3s://"):
-            source += "?copy_mode=push"
-
-        destination = f"{destination_cache}{datafile_entity.location}"
+        source, destination = Fts3Client._format_location(
+            location=datafile_entity.location,
+            source_storage=source_storage,
+            source_prefix=source_prefix,
+            destination_storage=destination_storage,
+            destination_prefix=destination_prefix,
+        )
         checksum = self._validate_checksum(datafile_entity.checksum)
         return fts3.new_transfer(
             source=source,
@@ -135,7 +162,8 @@ class Fts3Client:
     def submit(
         self,
         transfers: list[dict[str, list]],
-        stage: bool = False,
+        bring_online: int = -1,
+        archive_timeout: int = -1,
         strict_copy: bool = False,
     ) -> str:
         """Submit a single FTS job for the `transfers`.
@@ -154,8 +182,8 @@ class Fts3Client:
             transfers=transfers,
             retry=self.retry,
             verify_checksum=self.verify_checksum.value,
-            bring_online=self.bring_online if stage else -1,
-            archive_timeout=self.archive_timeout if not stage else -1,
+            bring_online=bring_online,
+            archive_timeout=archive_timeout,
             strict_copy=strict_copy,
         )
         LOGGER.debug("Submitting job to FTS: %s", job)

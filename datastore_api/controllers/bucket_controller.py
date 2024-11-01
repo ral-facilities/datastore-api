@@ -9,13 +9,13 @@ from datastore_api.clients.fts3_client import get_fts3_client
 from datastore_api.clients.s3_client import get_s3_client
 from datastore_api.controllers.state_counter import StateCounter
 from datastore_api.models.job import COMPLETE_JOB_STATES, TransferState
-from datastore_api.models.restore import BucketAcl
+from datastore_api.models.transfer import BucketAcl
 
 
 class BucketController:
     """Handles logic for restoring to S3 buckets."""
 
-    def __init__(self, name: str = None) -> None:
+    def __init__(self, storage_key: str, name: str = None) -> None:
         """Initialise the controller, either for a new or existing bucket.
 
         Args:
@@ -27,7 +27,7 @@ class BucketController:
             HTTPException: If the name of the `cache_bucket` is provided.
         """
         self.fts3_client = get_fts3_client()
-        self.s3_client = get_s3_client()
+        self.s3_client = get_s3_client(key=storage_key)
         if name == self.s3_client.cache_bucket:
             raise HTTPException(403, "Access to global S3 cache is forbidden")
 
@@ -62,13 +62,6 @@ class BucketController:
                     continue
 
         return self._acl
-
-    @property
-    def destination(self) -> str:
-        if self.acl == BucketAcl.PRIVATE:
-            return f"{self.fts3_client.download_cache}{self.bucket.name}/"
-        else:
-            return f"{self.fts3_client.download_cache}{self.s3_client.cache_bucket}/"
 
     @property
     def complete(self) -> bool:

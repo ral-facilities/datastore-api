@@ -27,15 +27,33 @@ from tests.fixtures import (
 
 
 class TestStateController:
-    def test_init(self, mock_fts3_settings: Fts3Settings):
+    def test_init(
+        self,
+        mock_fts3_settings: Fts3Settings,
+        parameter_type_deletion_date: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_state: Entity,
+    ):
         state_controller = StateController(session_id=SESSION_ID)
         assert state_controller.icat_client.client.sessionId == SESSION_ID
 
-    def test_get_dataset_job_ids(self, mock_fts3_settings: Fts3Settings):
+    def test_get_dataset_job_ids(
+        self,
+        mock_fts3_settings: Fts3Settings,
+        parameter_type_deletion_date: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_state: Entity,
+    ):
         state_controller = StateController()
         assert state_controller.get_dataset_job_ids(dataset_id=1) == []
 
-    def test_get_dataset_datafile_states(self, mock_fts3_settings: Fts3Settings):
+    def test_get_dataset_datafile_states(
+        self,
+        mock_fts3_settings: Fts3Settings,
+        parameter_type_deletion_date: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_state: Entity,
+    ):
         state_controller = StateController()
         assert state_controller.get_datafile_states(dataset_id=1) == []
 
