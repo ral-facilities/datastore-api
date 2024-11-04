@@ -124,6 +124,12 @@ def validate_s3_storage_key(s3_storage_key: str) -> str:
 
     return s3_storage_key
 
+def validate_archive_storage() -> None:
+    settings = get_settings()
+    if settings.fts3.archive_endpoint is None:
+        detail = "Archive functionality not implemented for this instance"
+        raise HTTPException(501, detail)
+
 
 SessionIdDependency = Annotated[str, Depends(validate_session_id)]
 Fts3ClientDependency = Annotated[Fts3Client, Depends(get_fts3_client)]
@@ -180,6 +186,7 @@ def archive(
     Returns:
         ArchiveResponse: FTS job_id for archive transfer.
     """
+    validate_archive_storage()
     icat_client = IcatClient(session_id=session_id)
     icat_client.authorise_admin()
     investigation_archiver = InvestigationArchiver(
@@ -231,6 +238,7 @@ def restore(
     Returns:
         TransferS3Response | TransferResponse: FTS job_id for restore transfer.
     """
+    validate_archive_storage()
     icat_client = IcatClient(session_id=session_id)
     datafile_entities = icat_client.get_unique_datafiles(
         investigation_ids=transfer_request.investigation_ids,

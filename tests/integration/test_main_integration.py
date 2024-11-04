@@ -12,7 +12,6 @@ import pytest
 from pytest_mock import MockerFixture
 
 from datastore_api.clients.icat_client import get_icat_cache, IcatClient
-from datastore_api.clients.s3_client import S3Client
 from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest
@@ -43,6 +42,7 @@ from tests.fixtures import (
     investigation_tear_down,
     investigation_type,
     mock_fts3_settings,
+    mock_fts3_settings_no_archive,
     parameter_type_date_time,
     parameter_type_deletion_date,
     parameter_type_job_ids,
@@ -61,6 +61,11 @@ log = logging.getLogger("tests")
 
 @pytest.fixture(scope="function")
 def test_client(mock_fts3_settings: Settings) -> TestClient:
+    return TestClient(app)
+
+
+@pytest.fixture(scope="function")
+def test_client_no_archive(mock_fts3_settings_no_archive: Settings) -> TestClient:
     return TestClient(app)
 
 
@@ -434,6 +439,41 @@ class TestArchive:
         assert test_response.status_code == 200, content
         assert "status" in content
         assert isinstance(content["status"], dict)
+
+    def test_archive_failure(
+        self,
+        facility: Entity,
+        investigation_type: Entity,
+        dataset_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
+        parameter_type_state: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_deletion_date: Entity,
+        parameter_type_string: Entity,
+        parameter_type_numeric: Entity,
+        parameter_type_date_time: Entity,
+        sample_type: Entity,
+        technique: Entity,
+        datafile_format: Entity,
+        session_id: str,
+        archive_request: ArchiveRequest,
+        test_client_no_archive: TestClient,
+    ):
+        json_body = json.loads(archive_request.model_dump_json(exclude_none=True))
+        headers = {"Authorization": f"Bearer {session_id}"}
+        response = test_client_no_archive.post(
+            "/archive/idc",
+            headers=headers,
+            json=json_body,
+        )
+
+        detail = "Archive functionality not implemented for this instance"
+        assert response.status_code == 501
+        assert json.loads(response.content.decode())["detail"] == detail
 
 
 class TestRestore:

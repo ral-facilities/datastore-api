@@ -139,6 +139,53 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
 
 
 @pytest.fixture(scope="function")
+def mock_fts3_settings_no_archive(submit: MagicMock, mocker: MockerFixture) -> Settings:
+    get_settings.cache_clear()
+    fts3_settings = Fts3Settings(
+        endpoint="https://fts3-test.gridpp.rl.ac.uk:8446",
+        storage_endpoints={
+            "idc": Storage(url="root://idc.ac.uk:1094//"),
+            "rdc": Storage(url="root://rdc.ac.uk:1094//"),
+            "echo": S3Storage(
+                url="http://127.0.0.1:9000",
+                access_key="minioadmin",
+                secret_key="minioadmin",
+                cache_bucket="cache-bucket",
+            ),
+        },
+        x509_user_cert=__file__,
+        x509_user_key=__file__,
+    )
+    settings = Settings(fts3=fts3_settings)
+
+    mocker.patch("datastore_api.clients.fts3_client.fts3.Context")
+
+    module = "datastore_api.clients.fts3_client.fts3.get_job_status"
+    fts_status_mock = mocker.patch(module)
+    fts_status_mock.return_value = STATUSES[0]
+
+    modules = {
+        "clients.fts3_client",
+        "clients.icat_client",
+        "clients.s3_client",
+        "models.icat",
+        "main",
+    }
+    for module in modules:
+        get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
+        get_settings_mock.return_value = settings
+
+    module = "datastore_api.clients.fts3_client.fts3.get_jobs_statuses"
+    fts_status_mock = mocker.patch(module)
+    fts_status_mock.return_value = STATUSES
+
+    fts_cancel_mock = mocker.patch("datastore_api.clients.fts3_client.fts3.cancel")
+    fts_cancel_mock.return_value = "CANCELED"
+
+    return settings
+
+
+@pytest.fixture(scope="function")
 def archive_request_parameters() -> list[Parameter]:
     string_type = ParameterTypeIdentifier(name="string", units="")
     numeric_type = ParameterTypeIdentifier(name="numeric", units="")
