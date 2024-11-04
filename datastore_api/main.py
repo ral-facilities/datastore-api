@@ -124,6 +124,7 @@ def validate_s3_storage_key(s3_storage_key: str) -> str:
 
     return s3_storage_key
 
+
 def validate_archive_storage() -> None:
     settings = get_settings()
     if settings.fts3.archive_endpoint is None:
