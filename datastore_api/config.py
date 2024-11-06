@@ -199,6 +199,10 @@ class Fts3Settings(BaseModel):
         description="Url to use for the FTS server",
         examples=["https://localhost:8446"],
     )
+    verify: bool = Field(
+        default=True,
+        description="Whether we verify the server's TLS certificate",
+    )
     x509_user_proxy: str = Field(
         default=None,
         description=(

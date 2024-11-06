@@ -18,6 +18,7 @@ class Fts3Client:
         settings = get_settings()
         self.context = fts3.Context(
             endpoint=settings.fts3.endpoint,
+            verify=settings.fts3.verify,
             ucert=settings.fts3.x509_user_cert,
             ukey=settings.fts3.x509_user_key,
         )

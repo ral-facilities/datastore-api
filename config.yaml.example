@@ -12,6 +12,7 @@ icat:
 
 fts3:
   endpoint: https://endpoint:8446
+  verify: false
   x509_user_cert: hostcert.pem
   x509_user_key: hostkey.pem
   archive_endpoint:
