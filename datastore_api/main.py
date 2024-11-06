@@ -267,7 +267,7 @@ def restore(
         "Submit a request to restore experimental data to another location, "
         "creating an FTS transfer"
     ),
-    tags=["Restore"],
+    tags=["Transfer"],
 )
 def transfer(
     source_key: SourceKey,

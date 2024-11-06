@@ -85,6 +85,7 @@ services:
       retries: 10
     networks:
       network:
+    profiles: [minio]
 
   # Script that inits minio with a bucket and an object
   mc:
@@ -106,6 +107,7 @@ services:
       "
     networks:
       - network
+    profiles: [minio]
 
 volumes:
   minio_data:

@@ -1,9 +1,9 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 
 
 class Credentials(BaseModel):
     username: str = Field(examples=["root"])
-    password: str = Field(examples=["pw"])
+    password: SecretStr = Field(examples=["pw"])
 
 
 class LoginRequest(BaseModel):

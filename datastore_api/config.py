@@ -12,6 +12,7 @@ from pydantic import (
     Field,
     HttpUrl,
     model_validator,
+    SecretStr,
     TypeAdapter,
     UrlConstraints,
 )
@@ -70,7 +71,7 @@ class IcatUser(BaseModel):
 
 
 class FunctionalUser(IcatUser):
-    password: str = Field(description="ICAT password.", examples=["pw"])
+    password: SecretStr = Field(description="ICAT password.", examples=["pw"])
 
 
 class IcatSettings(BaseModel):
@@ -178,8 +179,8 @@ class TapeStorage(Storage):
 
 class S3Storage(Storage):
     storage_type: Literal[StorageType.S3] = StorageType.S3
-    access_key: str = Field(description="The ID for this access key")
-    secret_key: str = Field(description="The secret key used to sign requests")
+    access_key: SecretStr = Field(description="The ID for this access key")
+    secret_key: SecretStr = Field(description="The secret key used to sign requests")
     cache_bucket: str = Field(
         description="Private bucket used to cache files before copy to download bucket",
     )
@@ -295,7 +296,11 @@ class Settings(BaseSettings):
     icat: IcatSettings = Field(description="Settings to connect to an ICAT instance")
     fts3: Fts3Settings = Field(description="Settings to connect to an FTS3 instance")
 
-    model_config = SettingsConfigDict(yaml_file="config.yaml")
+    model_config = SettingsConfigDict(
+        yaml_file="config.yaml",
+        env_nested_delimiter="__",
+        hide_input_in_errors=True,
+    )
 
     @classmethod
     def settings_customise_sources(

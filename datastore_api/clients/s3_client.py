@@ -21,14 +21,14 @@ class S3Client:
         self.resource: S3ServiceResource = boto3.resource(
             "s3",
             endpoint_url=storage_endpoint.url,
-            aws_access_key_id=storage_endpoint.access_key,
-            aws_secret_access_key=storage_endpoint.secret_key,
+            aws_access_key_id=storage_endpoint.access_key.get_secret_value(),
+            aws_secret_access_key=storage_endpoint.secret_key.get_secret_value(),
         )
         self.client: S3ClientBoto3 = boto3.client(
             "s3",
             endpoint_url=storage_endpoint.url,
-            aws_access_key_id=storage_endpoint.access_key,
-            aws_secret_access_key=storage_endpoint.secret_key,
+            aws_access_key_id=storage_endpoint.access_key.get_secret_value(),
+            aws_secret_access_key=storage_endpoint.secret_key.get_secret_value(),
         )
 
     def create_presigned_url(self, object_name: str, bucket_name: str, expiration=3600):

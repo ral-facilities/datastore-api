@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import Generator
 from unittest.mock import MagicMock
+from warnings import warn
 
 from botocore.exceptions import ClientError
 import fts3.rest.client.easy as fts3
@@ -89,26 +90,23 @@ def submit(mocker: MockerFixture) -> MagicMock:
 def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
     try:
         settings = get_settings()
-    except ValidationError:
-        # Assume the issue is that we do not have the cert to communicate with FTS.
-        # This will be the case for GHA workflows, in which case,
-        # pass a readable file to satisfy the validator and mock requests to FTS.
-        fts3_settings = Fts3Settings(
-            endpoint="https://fts3-test.gridpp.rl.ac.uk:8446",
-            archive_endpoint=TapeStorage(url="root://archive.ac.uk:1094//"),
-            storage_endpoints={
-                "idc": Storage(url="root://idc.ac.uk:1094//"),
-                "rdc": Storage(url="root://rdc.ac.uk:1094//"),
-                "echo": S3Storage(
-                    url="http://127.0.0.1:9000",
-                    access_key="minioadmin",
-                    secret_key="minioadmin",
-                    cache_bucket="cache-bucket",
-                ),
-            },
-            x509_user_cert=__file__,
-            x509_user_key=__file__,
-        )
+    except ValidationError as e:
+        warn(f"Mocking FTS3 settings due to:\n{e}")
+        fts3_settings = {}
+        if "x509_user_cert set but doesn't exist" in str(e):
+            fts3_settings["x509_user_cert"] = __file__
+        if "x509_user_key set but doesn't exist" in str(e):
+            fts3_settings["x509_user_key"] = __file__
+        if "fts3.storage_endpoints.echo.s3." in str(e):
+            echo_settings = {
+                "url": "http://127.0.0.1:9000",
+                "storage_type": "s3",
+                "access_key": "minioadmin",
+                "secret_key": "minioadmin",
+                "cache_bucket": "cache-bucket",
+            }
+            fts3_settings["storage_endpoints"] = {"echo": echo_settings}
+
         settings = Settings(fts3=fts3_settings)
 
         mocker.patch("datastore_api.clients.fts3_client.fts3.Context")

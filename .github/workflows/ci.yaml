@@ -55,13 +55,14 @@ jobs:
           path: /home/runner/work/datastore-api/datastore-api/.nox/tests*
           key: nox-tests-${{ hashFiles('poetry.lock') }}
 
-      - name: Wait for minio to contain test bucket/objects
-        id: minio_check
+      - name: Set X509 certificate
         run: |
-          until docker exec minio /usr/bin/mc ls data/cache-bucket | grep -q test3; do
-            sleep 1
-          done
-        timeout-minutes: 1
+          echo "$X509_USER_CERT" > hostcert.pem;
+          echo "$X509_USER_KEY" > hostkey.pem;
+          chmod 600 hostkey.pem;
+        env:
+          X509_USER_CERT: ${{ secrets.FTS3_HOSTCERT }}
+          X509_USER_KEY: ${{ secrets.FTS3_HOSTKEY }}
 
       - name: Wait for ICAT container to start
         run: |
@@ -75,6 +76,9 @@ jobs:
 
       - name: Run Nox tests
         run: nox -s tests -- --cov --cov-report=xml
+        env:
+          FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY: ${{ secrets.ECHO_S3_ACCESS_KEY }}
+          FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY: ${{ secrets.ECHO_S3_SECRET_KEY }}
 
       - name: Docker compose down
         run: docker compose -f tests/docker-compose.yaml down
@@ -83,17 +87,6 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Dump minio logs
-        if: failure() && steps.minio_check.outcome == 'failure'
-        run: |
-          docker exec minio /usr/bin/mc ls data/cache-bucket;
-          docker logs minio;
-
-      - name: Dump mc logs
-        if: failure() && steps.minio_check.outcome == 'failure'
-        run: |
-          docker logs mc;
 
 
   linting:
