@@ -6,23 +6,13 @@
 The Datastore API accepts requests for the archival or retrieval of experimental data.
 These trigger subsequent requests to create corresponding metadata in [ICAT](https://icatproject.org/), and schedules the transfer of the data using [FTS3](https://fts3-docs.web.cern.ch/fts3-docs/).
 
-## Deployment
-To run the API (while sourcing the virtual environment):
-
-```bash
-uvicorn --host=127.0.0.1 --port=8000 --log-config=logging.ini --reload datastore_api.main:app
-```
-
-To run from outside of the virtual environment, add `poetry run` to the beginning of the above command.
-Changing the optional arguments as needed. Documentation can be found by navigating to `/docs`.
-
 ## Development
 
 ### Environment setup
 To develop the API Python development tools will need to be installed. The exact command will vary, for example on Rocky 8:
 
 ```bash
-sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-setuptools openldap-devel swig gcc openssl-devel xrootd-client
+sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-setuptools openldap-devel swig gcc openssl-devel xrootd-client pipx
 ```
 
 Configuration is handled via the `config.yaml` and `logging.ini` config files.
@@ -33,6 +23,7 @@ Configuration is handled via the `config.yaml` and `logging.ini` config files.
 The official documentation should be referred to for the management of dependencies, but to create a Python development environment:
 
 ```bash
+pipx install poetry
 poetry install
 ```
 
@@ -70,6 +61,12 @@ sudo yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin dock
 
 _(Other installation methods can be found in the official [documentation](https://docs.docker.com/engine/install/rhel/#install-using-the-repository))._
 
+Start Docker Daemon
+
+```bash
+sudo systemctl start docker
+```
+
 To run Docker, `cd` to the _tests_ directory containing the compose file and run:
 
 ```bash
@@ -80,7 +77,7 @@ sudo docker compose up
 Following the above commands will create containers for ICAT and the underlying database, but not any data. The requests to the API implicitly assume that certain high level entities exist, so these should be created:
 
 ```bash
-icatingest.py -i datastore_api/scripts/example.yaml -f YAML --duplicate IGNORE --url http://localhost:18080 --no-check-certificate --auth simple --user root --pass pw
+icatingest.py -i datastore_api/scripts/metadata/epac/example.yaml -f YAML --duplicate IGNORE --url http://localhost:18080 --no-check-certificate --auth simple --user root --pass pw
 ```
 
 If desired the entities in `example.yaml` can be modified or extended following the [python-icat documentation](https://python-icat.readthedocs.io/en/1.3.0/icatingest.html). There are other files which will create multiple entities, if needed.
@@ -91,3 +88,13 @@ auth: simple
 username: root
 password: pw
 ```
+
+## Deployment
+To run the API (while sourcing the virtual environment):
+
+```bash
+uvicorn --host=127.0.0.1 --port=8000 --log-config=logging.ini --reload datastore_api.main:app
+```
+
+To run from outside of the virtual environment, add `poetry run` to the beginning of the above command.
+Changing the optional arguments as needed. Documentation can be found by navigating to `/docs`.
