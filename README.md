@@ -36,6 +36,11 @@ poetry install
     - `unit_tests` - as above but only runs tests in `tests/unit`, which mock dependencies on other classes and external packages.
     - `integration_tests` - as above but only runs tests in `tests/integration`, which will not mock and therefore requires services such as ICAT and FTS to be running.
 
+To install: 
+```bash
+pipx install nox
+```
+
 By executing 
 ```bash
 nox -s [SESSIONS ...]
