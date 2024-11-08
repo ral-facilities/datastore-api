@@ -2,7 +2,10 @@ from functools import lru_cache
 import logging
 
 import boto3
+from botocore.exceptions import ClientError
+from fastapi.exceptions import HTTPException
 from mypy_boto3_s3 import S3Client as S3ClientBoto3, S3ServiceResource
+from mypy_boto3_s3.type_defs import GetObjectAttributesOutputTypeDef
 
 from datastore_api.config import get_settings
 
@@ -69,6 +72,24 @@ class S3Client:
         for bucket in self.client.list_buckets()["Buckets"]:
             bucket_names.append(bucket["Name"])
         return bucket_names
+
+    def stat(self, location: str) -> GetObjectAttributesOutputTypeDef:
+        """Get details of an object in the cache_bucket of this S3 storage.
+
+        Args:
+            location (str): ICAT Datafile.location for a single object.
+
+        Returns:
+            GetObjectAttributesOutputTypeDef: Attributes of the requested object.
+        """
+        try:
+            return self.client.head_object(
+                Bucket=self.cache_bucket,
+                Key=location,
+            )
+        except ClientError as e:
+            detail = f"File not found at {self.cache_bucket}/{location}"
+            raise HTTPException(status_code=404, detail=detail) from e
 
 
 @lru_cache
