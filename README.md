@@ -9,13 +9,20 @@ These trigger subsequent requests to create corresponding metadata in [ICAT](htt
 ## Development
 
 ### Environment setup
-To develop the API Python development tools will need to be installed. The exact command will vary, for example on Rocky 8:
+To develop the API Python development tools will need to be installed. The exact command will vary, for example on Rocky 9:
 
 ```bash
 sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-setuptools openldap-devel swig gcc openssl-devel xrootd-client pipx
 ```
 
 Configuration is handled via the `config.yaml` and `logging.ini` config files.
+
+If installing on other Distros (e.g Rocky 8), pipx doesn't install as easily. So you have to install pipx seperately. [The Documentation](https://github.com/pypa/pipx?tab=readme-ov-file#on-linux) goes over the steps. You can run the @Development Tools commands normally: 
+
+```bash
+sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-setuptools openldap-devel swig gcc openssl-devel xrootd-client
+```
+
 
 ### Poetry
 [Poetry](https://python-poetry.org/) is used to manage the dependencies of this API. Note that to prevent conflicts Poetry should not be installed in the environment used for the project dependencies; [different recommended installation methods are possible](https://python-poetry.org/docs/#installing-with-the-official-installer). _(Note that pipx may not install the latest version)_
