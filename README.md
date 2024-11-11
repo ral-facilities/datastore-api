@@ -17,6 +17,11 @@ sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-set
 
 Configuration is handled via the `config.yaml` and `logging.ini` config files.
 
+```bash
+cp logging.ini.example logging.ini
+cp config.yaml.example config.yaml
+```
+
 If installing on other Distros (e.g Rocky 8), pipx doesn't install as easily. So you have to install pipx seperately. [The Documentation](https://github.com/pypa/pipx?tab=readme-ov-file#on-linux) goes over the steps. You can run the @Development Tools commands normally: 
 
 ```bash
@@ -86,6 +91,12 @@ sudo docker compose up
 ```
 
 ### ICAT Setup
+First we need to make sure the Virtal Environment is setup correctly by running the following command:
+
+```bash
+source ~/.cache/pypoetry/virtualenvs/datastore-api-fZJILp1_-py3.11/bin/activate
+```
+
 Following the above commands will create containers for ICAT and the underlying database, but not any data. The requests to the API implicitly assume that certain high level entities exist, so these should be created:
 
 ```bash
