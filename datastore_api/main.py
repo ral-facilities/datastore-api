@@ -489,7 +489,7 @@ def dataset_status(
     session_id: SessionIdDependency,
     dataset_id: str,
     list_files: bool = True,
-) -> DatasetStatusResponse:
+) -> DatasetStatusListFilesResponse | DatasetStatusResponse:
     """Get details of a previously archived Dataset
     \f
     Args:
