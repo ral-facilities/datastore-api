@@ -11,6 +11,7 @@ Before starting, ensure:
   - `x509_user_cert` and `x509_user_key` set and the files they point to exist and are readable
 - The ICAT stack is running, e.g. with Docker using `sudo docker compose -f tests/docker-compose.yaml up`
 - The Datastore API is running with `poetry run uvicorn --host=127.0.0.1 --port=8000 --log-config=logging.ini --reload datastore_api.main:app`
+- Source into the Virtual Env: `source ~/.cache/pypoetry/virtualenvs/datastore-api-fZJILp1_-py3.11/bin/activate`
 
 ### Create high level ICAT entities
 ```bash
@@ -20,10 +21,10 @@ icatingest.py -i datastore_api/scripts/metadata/epac/example.yaml -f YAML --dupl
 ### Create files in IDC
 For simplicity, all following commands will assume that the following have been set with the correct hostnames and paths:
 ```bash
-INSTRUMENT_DATA_CACHE=root://hostname:1094//
-USER_DATA_CACHE=root://hostname:1094//
-TAPE_ARCHIVE=root://hostname:1094//
-TAPE_ROOT_DIR=path/to/root/dir/
+export INSTRUMENT_DATA_CACHE=root://hostname:1094//
+export USER_DATA_CACHE=root://hostname:1094//
+export TAPE_ARCHIVE=root://hostname:1094//
+export TAPE_ROOT_DIR=path/to/root/dir/
 ```
 
 To generate some datafiles:
