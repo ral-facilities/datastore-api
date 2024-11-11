@@ -8,7 +8,10 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest
-from datastore_api.models.dataset import DatasetStatusListFilesResponse, DatasetStatusResponse
+from datastore_api.models.dataset import (
+    DatasetStatusListFilesResponse,
+    DatasetStatusResponse,
+)
 from datastore_api.models.job import TransferState
 from datastore_api.models.transfer import TransferRequest
 from tests.fixtures import (
