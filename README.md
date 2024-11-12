@@ -91,10 +91,15 @@ sudo docker compose up
 ```
 
 ### ICAT Setup
-First we need to make sure the Virtal Environment is setup correctly by running the following command:
+First we need to make sure the Virtal Environment is setup correctly by running the following commands:
 
 ```bash
-source ~/.cache/pypoetry/virtualenvs/datastore-api-fZJILp1_-py3.11/bin/activate
+ls ~/.cache/pypoetry/virtualenvs/
+```
+After getting the name of the directory ```datastore-api-XXXXXXX_-py3.11```
+
+```bash
+source ~/.cache/pypoetry/virtualenvs/datastore-api-XXXXXXX_-py3.11/bin/activate
 ```
 
 Following the above commands will create containers for ICAT and the underlying database, but not any data. The requests to the API implicitly assume that certain high level entities exist, so these should be created:

@@ -11,10 +11,17 @@ Before starting, ensure:
   - `x509_user_cert` and `x509_user_key` set and the files they point to exist and are readable
 - The ICAT stack is running, e.g. with Docker using `sudo docker compose -f tests/docker-compose.yaml up`
 - The Datastore API is running with `poetry run uvicorn --host=127.0.0.1 --port=8000 --log-config=logging.ini --reload datastore_api.main:app`
+- The Datastore Virtual Env is running: ```source ~/.cache/pypoetry/virtualenvs/datastore-api-XXXXXXX_-py3.11/bin/activate```
 
 ### Create high level ICAT entities
 ```bash
-icatingest.py -i datastore_api/scripts/metadata/epac/example.yaml -f YAML --duplicate IGNORE --url http://localhost:18080 --no-check-certificate --auth simple --user root --pass pw
+icatingest.py -i ~/datastore-api/datastore_api/scripts/metadata/epac/example.yaml -f YAML --duplicate IGNORE --url http://localhost:18080 --no-check-certificate --auth simple --user root --pass pw
+```
+
+If you have done this step before you may get an error:
+
+```bash
+ValueError: Cannot IGNORE duplicate on Instrument if instrumentScientists is not empty.
 ```
 
 ### Create files in IDC
