@@ -1,7 +1,7 @@
 import pytest
 
+from datastore_api.clients.fts3_client import Fts3Client
 from datastore_api.config import Settings, VerifyChecksum
-from datastore_api.fts3_client import Fts3Client
 from tests.fixtures import mock_fts3_settings, SESSION_ID, submit
 
 

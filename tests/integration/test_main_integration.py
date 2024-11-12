@@ -11,11 +11,13 @@ from icat.query import Query
 import pytest
 from pytest_mock import MockerFixture
 
+from datastore_api.clients.icat_client import get_icat_cache, IcatClient
 from datastore_api.config import Settings
-from datastore_api.icat_client import get_icat_cache, IcatClient
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest
 from datastore_api.models.icat import (
+    FacilityCycleIdentifier,
+    InstrumentIdentifier,
     Investigation,
     InvestigationTypeIdentifier,
 )
@@ -25,7 +27,9 @@ from tests.fixtures import (
     archive_request_parameters,
     archive_request_sample,
     bucket_deletion,
+    datafile_failed,
     datafile_format,
+    dataset_failed,
     dataset_type,
     dataset_with_job_id,
     facility,
@@ -37,6 +41,7 @@ from tests.fixtures import (
     investigation_type,
     mock_fts3_settings,
     parameter_type_date_time,
+    parameter_type_deletion_date,
     parameter_type_job_ids,
     parameter_type_numeric,
     parameter_type_state,
@@ -165,8 +170,11 @@ class TestArchive:
         facility_cycle: Entity,
         instrument: Entity,
         investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
         parameter_type_state: Entity,
         parameter_type_job_ids: Entity,
+        parameter_type_deletion_date: Entity,
         parameter_type_string: Entity,
         parameter_type_numeric: Entity,
         parameter_type_date_time: Entity,
@@ -304,7 +312,7 @@ class TestArchive:
         assert parameters[3].type.name == "string"
         assert parameters[3].stringValue == "stringValue"
 
-        test_response = test_client.get(f"/job/{content['job_ids'][0]}")
+        test_response = test_client.get(f"/job/{content['job_ids'][0]}/status")
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert "status" in content
@@ -322,6 +330,7 @@ class TestArchive:
         instrument: Entity,
         parameter_type_state: Entity,
         parameter_type_job_ids: Entity,
+        parameter_type_deletion_date: Entity,
         parameter_type_string: Entity,
         parameter_type_numeric: Entity,
         parameter_type_date_time: Entity,
@@ -339,8 +348,8 @@ class TestArchive:
             endDate=datetime.now(),
             releaseDate=datetime.now(),
             investigationType=InvestigationTypeIdentifier(name="type"),
-            facilityCycle=archive_request.facility_cycle_identifier,
-            instrument=archive_request.instrument_identifier,
+            facilityCycle=FacilityCycleIdentifier(name="20XX"),
+            instrument=InstrumentIdentifier(name="instrument"),
             datasets=[archive_request.dataset],
             **archive_request.investigation_identifier.model_dump(),
         )
@@ -406,7 +415,7 @@ class TestArchive:
         assert investigation_entity.datasets[0].type.name == "type"
         assert investigation_entity.datasets[0].datafiles[0].name == "datafile"
 
-        test_response = test_client.get(f"/job/{content['job_ids'][0]}")
+        test_response = test_client.get(f"/job/{content['job_ids'][0]}/status")
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert "status" in content
@@ -431,6 +440,8 @@ class TestRestore:
         facility_cycle: Entity,
         instrument: Entity,
         investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
         functional_icat_client: IcatClient,
         test_client: TestClient,
         restore_ids: str,
@@ -470,7 +481,7 @@ class TestRestore:
         )
         submit.assert_called_once_with(context=ANY, job=job)
 
-        test_response = test_client.get(f"/job/{content['job_ids'][0]}")
+        test_response = test_client.get(f"/job/{content['job_ids'][0]}/status")
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert "status" in content
@@ -493,6 +504,8 @@ class TestRestore:
         facility_cycle: Entity,
         instrument: Entity,
         investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
         functional_icat_client: IcatClient,
         test_client: TestClient,
         restore_ids: str,
@@ -544,11 +557,240 @@ class TestRestore:
         )
         submit.assert_called_once_with(context=ANY, job=job)
 
-        test_response = test_client.get(f"/job/{content['job_ids'][0]}")
+        test_response = test_client.get(f"/job/{content['job_ids'][0]}/status")
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert "status" in content
         assert isinstance(content["status"], dict)
+
+
+class TestDataset:
+    def test_put_dataset(
+        self,
+        test_client: TestClient,
+        submit: MagicMock,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        dataset_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
+        parameter_type_state: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_deletion_date: Entity,
+        parameter_type_string: Entity,
+        parameter_type_numeric: Entity,
+        parameter_type_date_time: Entity,
+        sample_type: Entity,
+        technique: Entity,
+        datafile_format: Entity,
+    ):
+        get_icat_cache.cache_clear()
+        headers = {"Authorization": f"Bearer {session_id}"}
+        url = f"/dataset/{dataset_failed.id}"
+        test_response = test_client.put(url, headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "dataset_ids" in content
+        assert content["dataset_ids"] == [dataset_failed.id]
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID(content["job_ids"][0], version=4)
+
+        path = "/instrument/20XX/name-visitId/type/dataset/datafile"
+        sources = [f"root://idc.ac.uk:1094/{path}"]
+        destinations = [f"root://archive.ac.uk:1094/{path}"]
+        job = fts_job(
+            sources=sources,
+            destinations=destinations,
+            archive_timeout=28800,
+        )
+        submit.assert_called_once_with(context=ANY, job=job)
+
+        icat_client = IcatClient(session_id=session_id)
+        query = Query(
+            client=icat_client.client,
+            entity="Dataset",
+            conditions={"name": " = 'dataset'"},
+            includes=[
+                "parameters.type",
+                "datafiles.parameters.type",
+            ],
+        )
+        datasets = icat_client.client.search(query=query)
+        assert len(datasets) == 1
+        assert len(datasets[0].parameters) == 2, datasets[0].parameters
+        assert datasets[0].parameters[0].type.name == "Archival state"
+        assert datasets[0].parameters[0].stringValue == "SUBMITTED"
+        assert datasets[0].parameters[1].type.name == "Archival ids"
+        assert datasets[0].parameters[1].stringValue is not None
+        assert len(datasets[0].datafiles[0].parameters) == 1
+        assert datasets[0].datafiles[0].parameters[0].type.name == "Archival state"
+        assert datasets[0].datafiles[0].parameters[0].stringValue == "SUBMITTED"
+
+    def test_put_dataset_status(
+        self,
+        test_client: TestClient,
+        submit: MagicMock,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        dataset_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
+        parameter_type_state: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_deletion_date: Entity,
+        parameter_type_string: Entity,
+        parameter_type_numeric: Entity,
+        parameter_type_date_time: Entity,
+        sample_type: Entity,
+        technique: Entity,
+        datafile_format: Entity,
+    ):
+        get_icat_cache.cache_clear()
+        headers = {"Authorization": f"Bearer {session_id}"}
+        query = "new_state=DELETED_BY_POLICY&set_deletion_date=true"
+        url = f"/dataset/{dataset_failed.id}/status?{query}"
+        test_response = test_client.put(url, headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content is None
+
+        icat_client = IcatClient(session_id=session_id)
+        query = Query(
+            client=icat_client.client,
+            entity="Dataset",
+            conditions={"name": " = 'dataset'"},
+            includes=[
+                "parameters.type",
+                "datafiles.parameters.type",
+            ],
+        )
+        datasets = icat_client.client.search(query=query)
+        assert len(datasets) == 1
+        assert len(datasets[0].parameters) == 2, datasets[0].parameters
+        assert datasets[0].parameters[0].type.name == "Archival state"
+        assert datasets[0].parameters[0].stringValue == "DELETED_BY_POLICY"
+        assert datasets[0].parameters[1].type.name == "Deletion date"
+        assert datasets[0].parameters[1].dateTimeValue is not None
+        assert len(datasets[0].datafiles[0].parameters) == 2
+        assert datasets[0].datafiles[0].parameters[0].type.name == "Archival state"
+        assert datasets[0].datafiles[0].parameters[0].stringValue == "DELETED_BY_POLICY"
+        assert datasets[0].datafiles[0].parameters[1].type.name == "Deletion date"
+        assert datasets[0].datafiles[0].parameters[1].dateTimeValue is not None
+
+    def test_get_dataset_complete(
+        self,
+        test_client: TestClient,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        dataset_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
+        parameter_type_state: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_deletion_date: Entity,
+    ):
+        url = f"/dataset/{dataset_failed.id}/complete"
+        headers = {"Authorization": f"Bearer {session_id}"}
+        test_response = test_client.get(url=url, headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"complete": True}
+
+    def test_get_dataset_percentage(
+        self,
+        test_client: TestClient,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        dataset_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
+        parameter_type_state: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_deletion_date: Entity,
+    ):
+        url = f"/dataset/{dataset_failed.id}/percentage"
+        headers = {"Authorization": f"Bearer {session_id}"}
+        test_response = test_client.get(url=url, headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == {"percentage_complete": 100}
+
+
+class TestDatafile:
+    def test_put_datafile_status(
+        self,
+        test_client: TestClient,
+        submit: MagicMock,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        dataset_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
+        parameter_type_state: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_deletion_date: Entity,
+        parameter_type_string: Entity,
+        parameter_type_numeric: Entity,
+        parameter_type_date_time: Entity,
+        sample_type: Entity,
+        technique: Entity,
+        datafile_format: Entity,
+    ):
+        get_icat_cache.cache_clear()
+        headers = {"Authorization": f"Bearer {session_id}"}
+        query = "new_state=DELETED_BY_POLICY&set_deletion_date=true"
+        url = f"/datafile/{datafile_failed.id}/status?{query}"
+        test_response = test_client.put(url, headers=headers)
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content is None
+
+        icat_client = IcatClient(session_id=session_id)
+        query = Query(
+            client=icat_client.client,
+            entity="Dataset",
+            conditions={"name": " = 'dataset'"},
+            includes=[
+                "parameters.type",
+                "datafiles.parameters.type",
+            ],
+        )
+        datasets = icat_client.client.search(query=query)
+        assert len(datasets) == 1
+        assert len(datasets[0].parameters) == 1, datasets[0].parameters
+        assert datasets[0].parameters[0].type.name == "Archival state"
+        assert datasets[0].parameters[0].stringValue == "FAILED"
+        assert len(datasets[0].datafiles[0].parameters) == 2
+        assert datasets[0].datafiles[0].parameters[0].type.name == "Archival state"
+        assert datasets[0].datafiles[0].parameters[0].stringValue == "DELETED_BY_POLICY"
+        assert datasets[0].datafiles[0].parameters[1].type.name == "Deletion date"
+        assert datasets[0].datafiles[0].parameters[1].dateTimeValue is not None
 
 
 class TestCancel:
@@ -557,7 +799,7 @@ class TestCancel:
         test_client: TestClient,
         mocker: MockerFixture,
     ):
-        fts_submit_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+        fts_submit_mock = mocker.patch("datastore_api.clients.fts3_client.fts3.cancel")
         fts_submit_mock.return_value = "SUBMITTED"
         test_response = test_client.delete("/job/0")
 

@@ -82,6 +82,7 @@ class IcatSettings(BaseModel):
         ),
         examples=["https://localhost:8181"],
     )
+    facility_name: str = Field(description="ICAT Facility.name")
     admin_users: list[IcatUser] = Field(
         default=[],
         description=(
@@ -111,6 +112,12 @@ class IcatSettings(BaseModel):
         default="Archival state",
         description=(
             "ICAT ParameterType.name to identify how to record FTS archival state."
+        ),
+    )
+    parameter_type_deletion_date: str = Field(
+        default="Deletion date",
+        description=(
+            "ICAT ParameterType.name to identify how to record deletion date."
         ),
     )
     embargo_types: list[str] = Field(

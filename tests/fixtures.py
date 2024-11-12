@@ -9,6 +9,8 @@ from pydantic import ValidationError
 import pytest
 from pytest_mock import mocker, MockerFixture
 
+from datastore_api.clients.icat_client import IcatClient
+from datastore_api.clients.s3_client import S3Client
 from datastore_api.config import (
     Fts3Settings,
     FunctionalUser,
@@ -17,7 +19,6 @@ from datastore_api.config import (
     S3Settings,
     Settings,
 )
-from datastore_api.icat_client import IcatClient
 from datastore_api.models.archive import ArchiveRequest
 from datastore_api.models.icat import (
     Datafile,
@@ -37,7 +38,6 @@ from datastore_api.models.icat import (
     StringParameter,
     TechniqueIdentifier,
 )
-from datastore_api.s3_client import S3Client
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -52,7 +52,7 @@ def submit(mocker: MockerFixture) -> MagicMock:
         submit_mock = mocker.MagicMock()
         submit_mock.return_value = SESSION_ID
 
-    mocker.patch("datastore_api.fts3_client.fts3.submit", submit_mock)
+    mocker.patch("datastore_api.clients.fts3_client.fts3.submit", submit_mock)
     return submit_mock
 
 
@@ -74,20 +74,28 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
         )
         settings = Settings(fts3=fts3_settings)
 
-        mocker.patch("datastore_api.fts3_client.fts3.Context")
+        mocker.patch("datastore_api.clients.fts3_client.fts3.Context")
 
-        fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_job_status")
+        module = "datastore_api.clients.fts3_client.fts3.get_job_status"
+        fts_status_mock = mocker.patch(module)
         fts_status_mock.return_value = {"status": {}}
 
-    for module in {"fts3_client", "icat_client", "s3_client", "models.icat"}:
+    modules = {
+        "clients.fts3_client",
+        "clients.icat_client",
+        "clients.s3_client",
+        "models.icat",
+    }
+    for module in modules:
         get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
         get_settings_mock.return_value = settings
 
-    fts_status_mock = mocker.patch("datastore_api.fts3_client.fts3.get_jobs_statuses")
+    module = "datastore_api.clients.fts3_client.fts3.get_jobs_statuses"
+    fts_status_mock = mocker.patch(module)
     # This represents a single status dict, which is returned if a single job_id is used
     fts_status_mock.return_value = {"status": {}}
 
-    fts_cancel_mock = mocker.patch("datastore_api.fts3_client.fts3.cancel")
+    fts_cancel_mock = mocker.patch("datastore_api.clients.fts3_client.fts3.cancel")
     fts_cancel_mock.return_value = "CANCELED"
 
     return settings
@@ -149,11 +157,13 @@ def archive_request(
     investigation_identifier = InvestigationIdentifier(name="name", visitId="visitId")
     datafile = Datafile(
         name="datafile",
+        location="instrument/20XX/name-visitId/type/dataset1/datafile",
         datafileFormat=DatafileFormatIdentifier(name="txt", version="0"),
         parameters=archive_request_parameters,
     )
     dataset = Dataset(
         name="dataset1",
+        location="instrument/20XX/name-visitId/type/dataset1",
         datasetType=DatasetTypeIdentifier(name="type"),
         datafiles=[datafile],
         sample=archive_request_sample,
@@ -187,12 +197,12 @@ def icat_settings(mock_fts3_settings: Settings):
 
 @pytest.fixture(scope="function")
 def icat_client(icat_settings: IcatSettings, mocker: MockerFixture):
-    client = mocker.patch("datastore_api.icat_client.Client")
+    client = mocker.patch("datastore_api.clients.icat_client.Client")
     client.return_value.login.side_effect = login_side_effect
     client.return_value.getUserName.return_value = "simple/root"
     client.return_value.search.return_value = [mocker.MagicMock()]
 
-    mocker.patch("datastore_api.icat_client.Query")
+    mocker.patch("datastore_api.clients.icat_client.Query")
 
     return IcatClient()
 
@@ -209,12 +219,12 @@ def icat_client_empty_search(icat_settings: IcatSettings, mocker: MockerFixture)
     def search_side_effect(**kwargs):
         return next(iterator)
 
-    client = mocker.patch("datastore_api.icat_client.Client")
+    client = mocker.patch("datastore_api.clients.icat_client.Client")
     client.return_value.login.side_effect = login_side_effect
     client.return_value.getUserName.return_value = "simple/root"
     client.return_value.search.side_effect = search_side_effect
 
-    mocker.patch("datastore_api.icat_client.Query")
+    mocker.patch("datastore_api.clients.icat_client.Query")
 
     return IcatClient()
 
@@ -387,6 +397,27 @@ def parameter_type_job_ids(
 
 
 @pytest.fixture(scope="function")
+def parameter_type_deletion_date(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+) -> Generator[Entity, None, None]:
+    parameter_type = create(
+        icat_client=functional_icat_client,
+        entity="ParameterType",
+        name="Deletion date",
+        facility=facility,
+        units="",
+        valueType="DATE_AND_TIME",
+        applicableToDataset=True,
+        applicableToDatafile=True,
+    )
+
+    yield parameter_type
+
+    delete(icat_client=functional_icat_client, entity=parameter_type)
+
+
+@pytest.fixture(scope="function")
 def parameter_type_string(
     functional_icat_client: IcatClient,
     facility: Entity,
@@ -492,7 +523,6 @@ def investigation(
     investigation_type: Entity,
     instrument: Entity,
     facility_cycle: Entity,
-    dataset_type: Entity,
 ) -> Generator[Entity, None, None]:
     investigation_instrument = functional_icat_client.client.new(
         obj="InvestigationInstrument",
@@ -501,17 +531,6 @@ def investigation(
     investigation_facility_cycle = functional_icat_client.client.new(
         obj="InvestigationFacilityCycle",
         facilityCycle=facility_cycle,
-    )
-    datafile = functional_icat_client.client.new(
-        obj="Datafile",
-        name="datafile",
-        location="instrument/20XX/name-visitId/type/dataset/datafile",
-    )
-    dataset = functional_icat_client.client.new(
-        obj="Dataset",
-        name="dataset",
-        type=dataset_type,
-        datafiles=[datafile],
     )
     investigation = create(
         icat_client=functional_icat_client,
@@ -527,12 +546,72 @@ def investigation(
         type=investigation_type,
         investigationInstruments=[investigation_instrument],
         investigationFacilityCycles=[investigation_facility_cycle],
-        datasets=[dataset],
     )
 
     yield investigation
 
     delete(icat_client=functional_icat_client, entity=investigation)
+
+
+@pytest.fixture(scope="function")
+def dataset_failed(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+    investigation_type: Entity,
+    instrument: Entity,
+    facility_cycle: Entity,
+    dataset_type: Entity,
+    parameter_type_state: Entity,
+    investigation: Entity,
+):
+    dataset_parameter = functional_icat_client.client.new(
+        obj="DatasetParameter",
+        stringValue="FAILED",
+        type=parameter_type_state,
+    )
+    dataset = create(
+        icat_client=functional_icat_client,
+        entity="Dataset",
+        name="dataset",
+        type=dataset_type,
+        investigation=investigation,
+        parameters=[dataset_parameter],
+    )
+
+    yield dataset
+
+    delete(icat_client=functional_icat_client, entity=dataset)
+
+
+@pytest.fixture(scope="function")
+def datafile_failed(
+    functional_icat_client: IcatClient,
+    facility: Entity,
+    investigation_type: Entity,
+    instrument: Entity,
+    facility_cycle: Entity,
+    dataset_type: Entity,
+    parameter_type_state: Entity,
+    investigation: Entity,
+    dataset_failed: Entity,
+):
+    datafile_parameter = functional_icat_client.client.new(
+        obj="DatafileParameter",
+        stringValue="FAILED",
+        type=parameter_type_state,
+    )
+    dataset = create(
+        icat_client=functional_icat_client,
+        entity="Datafile",
+        name="datafile",
+        location="instrument/20XX/name-visitId/type/dataset/datafile",
+        dataset=dataset_failed,
+        parameters=[datafile_parameter],
+    )
+
+    yield dataset
+
+    delete(icat_client=functional_icat_client, entity=dataset)
 
 
 @pytest.fixture(scope="function")
@@ -577,6 +656,7 @@ def dataset_with_job_id(
     dataset_type: Entity,
     parameter_type_job_ids: Entity,
     parameter_type_state: Entity,
+    parameter_type_deletion_date: Entity,
     investigation: Entity,
 ) -> Generator[Entity, None, None]:
     parameter_job_ids = functional_icat_client.client.new(

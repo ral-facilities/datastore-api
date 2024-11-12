@@ -6,7 +6,7 @@ from urllib.error import URLError
 
 from fastapi import FastAPI
 
-from datastore_api.state_controller import StateController
+from datastore_api.controllers.state_controller import StateController
 
 LOGGER = logging.getLogger(__name__)
 

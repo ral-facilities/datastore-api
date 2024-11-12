@@ -85,6 +85,13 @@ parameterType:
     units: ""
     valueType: STRING
     applicableToDataset: True
+  parameterDeletionDate:
+    facility: epac
+    name: Deletion date
+    units: ""
+    valueType: DATE_AND_TIME
+    applicableToDataset: True
+    applicableToDatafile: True
   # E.G. from Run Start Document
   num_points:
     facility: epac

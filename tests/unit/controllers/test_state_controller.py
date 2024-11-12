@@ -3,11 +3,11 @@ import pytest
 from pytest_mock import MockerFixture
 
 from datastore_api.config import Fts3Settings
+from datastore_api.controllers.state_controller import StateController
 from datastore_api.models.dataset import (
     DatasetStatusListFilesResponse,
     DatasetStatusResponse,
 )
-from datastore_api.state_controller import StateController
 from tests.fixtures import (
     dataset_type,
     dataset_with_job_id,
@@ -18,6 +18,7 @@ from tests.fixtures import (
     investigation,
     investigation_type,
     mock_fts3_settings,
+    parameter_type_deletion_date,
     parameter_type_job_ids,
     parameter_type_state,
     SESSION_ID,
@@ -60,7 +61,7 @@ class TestStateController:
         dataset_with_job_id: Entity,
         mocker: MockerFixture,
     ):
-        module = "datastore_api.state_controller.get_fts3_client"
+        module = "datastore_api.controllers.state_controller.get_fts3_client"
         get_fts3_client_mock = mocker.patch(module)
         get_fts3_client_mock.return_value.statuses.return_value = [
             {
@@ -79,10 +80,12 @@ class TestStateController:
             {"job_state": "SUBMITTED", "files": [], "job_id": "2"},
         ]
 
-        parameter = dataset_with_job_id.parameters[0].copy()
-        parameter.dataset = dataset_with_job_id
         state_controller = StateController()
-        response = state_controller.get_update_dataset_status([parameter], list_files)
+        response = state_controller.get_dataset_status(
+            dataset_with_job_id.id,
+            list_files=list_files,
+        )
+
         assert response == expected_response
 
     @pytest.mark.parametrize(
@@ -107,7 +110,7 @@ class TestStateController:
         dataset_with_job_id: Entity,
     ):
         state_controller = StateController()
-        response = state_controller.get_dataset_status(
+        response = state_controller._get_dataset_status(
             dataset_with_job_id.id,
             list_files,
         )

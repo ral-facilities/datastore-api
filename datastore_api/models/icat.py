@@ -135,6 +135,7 @@ class DatafileFormat(DatafileFormatIdentifier):
 
 class Datafile(BaseModel):
     name: ShortStr = Field(examples=["file_0000.nxs"])
+    location: ShortStr = Field(examples=["/path/to/scan_0000/file_0000.nxs"])
     description: ShortStr = Field(default=None, examples=["Description"])
     doi: ShortStr = Field(default=None, examples=["10.00000/00000"])
     fileSize: int = None
@@ -159,6 +160,7 @@ class Datafile(BaseModel):
 
 class Dataset(BaseModel):
     name: ShortStr = Field(examples=["scan_0000"])
+    location: ShortStr = Field(default=None, examples=["/path/to/scan_0000"])
     complete: bool = True
     description: ShortStr = Field(default=None, examples=["Description"])
     doi: ShortStr = Field(default=None, examples=["10.00000/00000"])

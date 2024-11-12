@@ -2,9 +2,9 @@ from pydantic import BaseModel, Field, model_validator
 
 
 class RestoreRequest(BaseModel):
-    investigation_ids: set[int] = []
-    dataset_ids: set[int] = []
-    datafile_ids: set[int] = []
+    investigation_ids: set[int] = set()
+    dataset_ids: set[int] = set()
+    datafile_ids: set[int] = set()
 
     @model_validator(mode="after")
     def validate_ids(self) -> "RestoreRequest":

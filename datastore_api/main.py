@@ -6,16 +6,25 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from datastore_api.auth import validate_session_id
-from datastore_api.fts3_client import Fts3Client, get_fts3_client
-from datastore_api.icat_client import IcatClient
-from datastore_api.investigation_archiver import InvestigationArchiver
+from datastore_api.clients.fts3_client import Fts3Client, get_fts3_client
+from datastore_api.clients.icat_client import IcatClient
+from datastore_api.clients.s3_client import S3Client
+from datastore_api.controllers.investigation_archiver import InvestigationArchiver
+from datastore_api.controllers.state_controller import StateController
+from datastore_api.controllers.state_counter import StateCounter
+from datastore_api.controllers.transfer_controller import (
+    DatasetReArchiver,
+    RestoreController,
+)
 from datastore_api.lifespan import lifespan
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
-from datastore_api.models.dataset import DatasetStatusResponse
+from datastore_api.models.dataset import (
+    DatasetStatusListFilesResponse,
+    DatasetStatusResponse,
+)
 from datastore_api.models.job import (
     CancelResponse,
-    complete_job_states,
-    complete_transfer_states,
+    COMPLETE_JOB_STATES,
     CompleteResponse,
     JobState,
     PercentageResponse,
@@ -28,10 +37,6 @@ from datastore_api.models.restore import (
     RestoreResponse,
 )
 from datastore_api.models.version import VersionResponse
-from datastore_api.s3_client import S3Client
-from datastore_api.state_controller import StateController
-from datastore_api.state_counter import StateCounter
-from datastore_api.transfer_controller import RestoreController
 
 
 LOGGER = logging.getLogger(__name__)
@@ -111,15 +116,12 @@ def archive(
     investigation_archiver = InvestigationArchiver(
         icat_client=icat_client,
         fts3_client=fts3_client,
-        facility_name=archive_request.facility_identifier.name,
-        facility_cycle_name=archive_request.facility_cycle_identifier.name,
-        instrument_name=archive_request.instrument_identifier.name,
         investigation=archive_request.investigation_identifier,
         datasets=[archive_request.dataset],
     )
     investigation_archiver.archive_datasets()
 
-    icat_client.create_many(beans=investigation_archiver.beans)
+    icat_ids = icat_client.create_many(beans=investigation_archiver.beans)
 
     LOGGER.info(
         "Submitted FTS archival jobs for %s transfers with ids %s",
@@ -127,7 +129,10 @@ def archive(
         investigation_archiver.job_ids,
     )
 
-    return ArchiveResponse(job_ids=investigation_archiver.job_ids)
+    return ArchiveResponse(
+        dataset_ids=list(icat_ids),
+        job_ids=investigation_archiver.job_ids,
+    )
 
 
 @app.post(
@@ -238,12 +243,12 @@ def restore_download(
 
 
 @app.get(
-    "/data/{bucket_name}",
+    "/bucket/{bucket_name}",
     response_description="The URL to download the data",
     summary="Get the download link for the records in the download cache",
-    tags=["data"],
+    tags=["Bucket"],
 )
-def get_data(
+def get_bucket_data(
     bucket_name: str,
     expiration: int | None = None,
 ) -> dict[str, str]:
@@ -268,11 +273,104 @@ def get_data(
     return links
 
 
+@app.get(
+    "/bucket/{bucket_name}/status",
+    response_description="List of fts3 job statuses relating to the specified bucket",
+    summary="Get details of FTS jobs relating to the specified bucket",
+    tags=["Bucket"],
+)
+def get_bucket_status(
+    bucket_name: str,
+    fts3_client: Fts3ClientDependency,
+) -> StatusResponse:
+    """Get details of FTS jobs relating to the specified bucket
+    \f
+    Args:
+        bucket_name (str): Name of the bucket from which to retrieve job statuses.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
+
+    Returns:
+        StatusResponse: List of job statuses relating to the specified bucket.
+    """
+    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
+    statuses = fts3_client.statuses(job_ids=job_ids)
+    new_tags = []
+    for status in statuses:
+        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
+    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
+    return StatusResponse(status=statuses)
+
+
+@app.get(
+    "/bucket/{bucket_name}/complete",
+    response_description="Completeness of jobs relating to the specified bucket.",
+    summary="Whether all jobs relating to the bucket are complete.",
+    tags=["Bucket"],
+)
+def get_bucket_complete(
+    bucket_name: str,
+    fts3_client: Fts3ClientDependency,
+) -> CompleteResponse:
+    """Whether all jobs relating to the bucket are complete.
+
+    Args:
+        bucket_name (str): Name of the bucket from which to retrieve job statuses.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
+
+    Returns:
+        CompleteResponse: Completeness of jobs relating to the specified bucket.
+    """
+    state_counter = StateCounter()
+    new_tags = []
+    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
+    statuses = fts3_client.statuses(job_ids=job_ids)
+    for status in statuses:
+        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
+        state_counter.check_state(state=status["job_state"], job_id=status["job_id"])
+    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
+    return CompleteResponse(
+        complete=state_counter.state in COMPLETE_JOB_STATES,
+    )
+
+
+@app.get(
+    "/bucket/{bucket_name}/percentage",
+    response_description="Percentage of all individual transfers to the bucket",
+    summary="Percentage of all individual transfers to the bucket, that are completed",
+    tags=["Bucket"],
+)
+def get_bucket_percentage(
+    bucket_name: str,
+    fts3_client: Fts3ClientDependency,
+) -> PercentageResponse:
+    """Percentage of all individual transfers to the bucket, that are completed
+
+    Args:
+        bucket_name (str): Name of the bucket for which the percentage is being checked.
+        fts3_client (Fts3Client): Cached client for calls to FTS.
+
+    Returns:
+        PercentageResponse: Percentage of all individual transfers to the bucket
+    """
+    files_complete = 0
+    files_total = 0
+    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
+    statuses = fts3_client.statuses(job_ids=job_ids)
+    new_tags = []
+    for status in statuses:
+        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
+        files_total += len(status["files"])
+        files_complete += StateController.sum_completed_transfers(status["files"])
+
+    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
+    return PercentageResponse(percentage_complete=100 * files_complete / files_total)
+
+
 @app.delete(
-    "/delete_bucket/{bucket_name}",
+    "/bucket/{bucket_name}",
     response_description="None",
     summary="Delete a specified bucket",
-    tags=["data"],
+    tags=["Bucket"],
 )
 def delete_bucket(bucket_name: str) -> None:
     """Delete an S3 bucket with its content
@@ -283,8 +381,45 @@ def delete_bucket(bucket_name: str) -> None:
     S3Client().delete_bucket(bucket_name=bucket_name)
 
 
-@app.get(
+@app.put(
     "/dataset/{dataset_id}",
+    response_description="The FTS job id(s) for the requested transfer(s)",
+    summary="Retry the transfer of the requested Dataset",
+    tags=["Dataset"],
+)
+def put_dataset(
+    session_id: SessionIdDependency,
+    fts3_client: Fts3ClientDependency,
+    dataset_id: str,
+) -> ArchiveResponse:
+    """Get details of a previously archived Dataset
+    \f
+    Args:
+        session_id (SessionIdDependency): ICAT sessionId.
+        dataset_id (str): ICAT Dataset id.
+
+    Returns:
+        ArchiveResponse: FTS job_id for archive transfer.
+    """
+    icat_client = IcatClient(session_id=session_id)
+    icat_client.authorise_admin()
+    state_controller = StateController(session_id=session_id)
+    status: DatasetStatusListFilesResponse = state_controller.get_dataset_status(
+        dataset_id=dataset_id,
+        list_files=True,
+    )
+    archiver = DatasetReArchiver(
+        icat_client=icat_client,
+        fts3_client=fts3_client,
+        dataset_id=dataset_id,
+        status=status,
+    )
+    archiver.create_fts_jobs()
+    return ArchiveResponse(dataset_ids=[dataset_id], job_ids=archiver.job_ids)
+
+
+@app.get(
+    "/dataset/{dataset_id}/status",
     response_description="JSON describing the status of the requested Dataset",
     summary="Get details of a previously archived Dataset",
     tags=["Dataset"],
@@ -305,18 +440,115 @@ def dataset_status(
         DatasetStatusResponse: Details of the Dataset (and Datafile) state(s).
     """
     state_controller = StateController(session_id=session_id)
-    parameters = state_controller.get_dataset_job_ids(dataset_id=dataset_id)
-    if parameters:
-        state_controller_functional = StateController()
-        return state_controller_functional.get_update_dataset_status(
-            parameters=parameters,
-            list_files=list_files,
-        )
-    else:
-        return state_controller.get_dataset_status(
-            dataset_id=dataset_id,
-            list_files=list_files,
-        )
+    return state_controller.get_dataset_status(
+        dataset_id=dataset_id,
+        list_files=list_files,
+    )
+
+
+@app.put(
+    "/dataset/{dataset_id}/status",
+    summary="Explicitly set the state of an archived Dataset and its Datafiles",
+    tags=["Dataset"],
+)
+def put_dataset_status(
+    session_id: SessionIdDependency,
+    dataset_id: str,
+    new_state: str = "UNKNOWN",
+    set_deletion_date: bool = False,
+) -> None:
+    state_controller = StateController(session_id=session_id)
+    state_controller.set_dataset_state(
+        dataset_id=dataset_id,
+        new_state=new_state,
+        set_deletion_date=set_deletion_date,
+    )
+    state_controller.set_datafile_states(
+        dataset_id=dataset_id,
+        new_state=new_state,
+        set_deletion_date=set_deletion_date,
+    )
+
+
+@app.get(
+    "/dataset/{dataset_id}/complete",
+    response_description="Whether the archival of the Dataset is complete",
+    summary=(
+        "Whether the jobs for the Dataset ended in the FINISHED, FINISHEDDIRTY or "
+        "FAILED states"
+    ),
+    tags=["Dataset"],
+)
+def dataset_complete(
+    session_id: SessionIdDependency,
+    dataset_id: str,
+) -> CompleteResponse:
+    """Get details of a previously archived Dataset
+    \f
+    Args:
+        session_id (SessionIdDependency): ICAT sessionId.
+        dataset_id (str): ICAT Dataset id.
+
+    Returns:
+        CompleteResponse: Details of the Dataset (and Datafile) state(s).
+    """
+    state_controller = StateController(session_id=session_id)
+    status = state_controller.get_dataset_status(dataset_id=dataset_id)
+    return CompleteResponse(complete=status.state in COMPLETE_JOB_STATES)
+
+
+@app.get(
+    "/dataset/{dataset_id}/percentage",
+    response_description=(
+        "Percentage of individual transfers that have completed for the requested "
+        "Dataset"
+    ),
+    summary=(
+        "Percentage of individual transfers that have completed for the requested "
+        "Dataset"
+    ),
+    tags=["Dataset"],
+)
+def dataset_percentage(
+    session_id: SessionIdDependency,
+    dataset_id: str,
+) -> PercentageResponse:
+    """Percentage of individual transfers that have completed for the requested Dataset.
+    \f
+    Args:
+        session_id (SessionIdDependency): ICAT sessionId.
+        dataset_id (str): ICAT Dataset id.
+
+    Returns:
+        PercentageResponse: Percentage of individual transfers that are completed.
+    """
+    state_controller = StateController(session_id=session_id)
+    status: DatasetStatusListFilesResponse = state_controller.get_dataset_status(
+        dataset_id=dataset_id,
+        list_files=True,
+    )
+    files_total = len(status.file_states)
+    files_complete = StateController.sum_completed_transfers(status.file_states)
+    return PercentageResponse(percentage_complete=100 * files_complete / files_total)
+
+
+@app.put(
+    "/datafile/{datafile_id}/status",
+    summary="Explicitly set the state of an archived Datafile",
+    tags=["Datafile"],
+)
+def put_datafile_status(
+    session_id: SessionIdDependency,
+    datafile_id: str,
+    new_state: str = "UNKNOWN",
+    set_deletion_date: bool = False,
+) -> None:
+    state_controller = StateController(session_id=session_id)
+    state_controller.set_datafile_state(
+        datafile_id=datafile_id,
+        new_state=new_state,
+        set_deletion_date=set_deletion_date,
+    )
 
 
 @app.delete(
@@ -343,7 +575,7 @@ def cancel(job_id: str, fts3_client: Fts3ClientDependency) -> CancelResponse:
 
 
 @app.get(
-    "/job/{job_id}",
+    "/job/{job_id}/status",
     response_description="JSON describing the status of the requested job",
     summary="Get details of a job previously submitted to FTS",
     tags=["Job"],
@@ -384,7 +616,7 @@ def complete(job_id: str, fts3_client: Fts3ClientDependency) -> CompleteResponse
         CompleteResponse: Completeness of the requested job.
     """
     status = fts3_client.status(job_id=job_id)
-    return CompleteResponse(complete=status["job_state"] in complete_job_states)
+    return CompleteResponse(complete=status["job_state"] in COMPLETE_JOB_STATES)
 
 
 @app.get(
@@ -403,107 +635,9 @@ def percentage(job_id: str, fts3_client: Fts3ClientDependency) -> PercentageResp
     Returns:
         PercentageResponse: Percentage of individual transfers that are completed.
     """
-    files_complete = 0
     status = fts3_client.status(job_id=job_id, list_files=True)
     files_total = len(status["files"])
-    for file in status["files"]:
-        if file["file_state"] in complete_transfer_states:
-            files_complete += 1
-
-    return PercentageResponse(percentage_complete=100 * files_complete / files_total)
-
-
-@app.get(
-    "/status/{bucket_name}",
-    response_description="List of fts3 job statuses relating to the specified bucket",
-    summary="Get details of FTS jobs relating to the specified bucket",
-    tags=["Status"],
-)
-def get_status(
-    bucket_name: str,
-    fts3_client: Fts3ClientDependency,
-) -> StatusResponse:
-    """Get details of FTS jobs relating to the specified bucket
-    \f
-    Args:
-        bucket_name (str): Name of the bucket from which to retrieve job statuses.
-        fts3_client (Fts3Client): Cached client for calls to FTS.
-
-    Returns:
-        StatusResponse: List of job statuses relating to the specified bucket.
-    """
-    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
-    statuses = fts3_client.statuses(job_ids=job_ids)
-    new_tags = []
-    for status in statuses:
-        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
-    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
-    return StatusResponse(status=statuses)
-
-
-@app.get(
-    "/status/{bucket_name}/complete",
-    response_description="Completeness of jobs relating to the specified bucket.",
-    summary="Whether all jobs relating to the bucket are complete.",
-    tags=["Status"],
-)
-def get_complete(
-    bucket_name: str,
-    fts3_client: Fts3ClientDependency,
-) -> CompleteResponse:
-    """Whether all jobs relating to the bucket are complete.
-
-    Args:
-        bucket_name (str): Name of the bucket from which to retrieve job statuses.
-        fts3_client (Fts3Client): Cached client for calls to FTS.
-
-    Returns:
-        CompleteResponse: Completeness of jobs relating to the specified bucket.
-    """
-    state_counter = StateCounter()
-    new_tags = []
-    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
-    statuses = fts3_client.statuses(job_ids=job_ids)
-    for status in statuses:
-        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
-        state_counter.check_state(state=status["job_state"], job_id=status["job_id"])
-    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
-    return CompleteResponse(
-        complete=state_counter.state in complete_job_states,
-    )
-
-
-@app.get(
-    "/status/{bucket_name}/percentage",
-    response_description="Percentage of all individual transfers to the bucket",
-    summary="Percentage of all individual transfers to the bucket, that are completed",
-    tags=["Status"],
-)
-def get_percentage(
-    bucket_name: str,
-    fts3_client: Fts3ClientDependency,
-) -> PercentageResponse:
-    """Percentage of all individual transfers to the bucket, that are completed
-
-    Args:
-        bucket_name (str): Name of the bucket for which the percentage is being checked.
-        fts3_client (Fts3Client): Cached client for calls to FTS.
-
-    Returns:
-        PercentageResponse: Percentage of all individual transfers to the bucket
-    """
-    files_complete = 0
-    files_total = 0
-    job_ids = [job["Key"] for job in S3Client().get_bucket_tags(bucket_name)]
-    statuses = fts3_client.statuses(job_ids=job_ids)
-    new_tags = []
-    for status in statuses:
-        new_tags.append({"Key": status["job_id"], "Value": status["job_state"]})
-        files_total += len(status["files"])
-        for file in status["files"]:
-            if file["file_state"] in complete_transfer_states:
-                files_complete += 1
-    S3Client().tag_bucket(bucket_name=bucket_name, tags=new_tags)
+    files_complete = StateController.sum_completed_transfers(status["files"])
     return PercentageResponse(percentage_complete=100 * files_complete / files_total)
 
 
