@@ -1,3 +1,4 @@
+from botocore.exceptions import ClientError
 from fastapi import HTTPException
 import pytest
 from pytest_mock import mocker, MockerFixture
@@ -128,4 +129,29 @@ class TestBucketController:
         assert e.exconly() == (
             "fastapi.exceptions.HTTPException: 400: "
             "Restoration of requested data still ongoing"
+        )
+
+    def test_delete_no_raise(self, bucket_name_private: str):
+        bucket_controller = BucketController(
+            storage_key="echo",
+            name=bucket_name_private,
+        )
+        bucket_controller.delete()
+        bucket_controller.delete()
+        # No assert, as if we delete twice without exception it's behaving as intended
+
+    def test_delete_re_raise(self, bucket_name_private: str, mocker: MockerFixture):
+        bucket_controller = BucketController(
+            storage_key="echo",
+            name=bucket_name_private,
+        )
+        mock_delete = mocker.MagicMock()
+        mock_delete.side_effect = ClientError({}, "delete")
+        bucket_controller.bucket.delete = mock_delete
+        with pytest.raises(ClientError) as e:
+            bucket_controller.delete()
+
+        assert e.exconly() == (
+            "botocore.exceptions.ClientError: "
+            "An error occurred (Unknown) when calling the delete operation: Unknown"
         )
