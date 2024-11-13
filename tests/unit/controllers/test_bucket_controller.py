@@ -120,7 +120,6 @@ class TestBucketController:
         bucket_controller.delete()
         # No assert, as if we delete twice without exception it's behaving as intended
 
-
     def test_delete_re_raise(self, bucket_name_private: str, mocker: MockerFixture):
         bucket_controller = BucketController(name=bucket_name_private)
         mock_delete = mocker.MagicMock()
@@ -128,7 +127,7 @@ class TestBucketController:
         bucket_controller.bucket.delete = mock_delete
         with pytest.raises(ClientError) as e:
             bucket_controller.delete()
-        
+
         assert e.exconly() == (
             "botocore.exceptions.ClientError: "
             "An error occurred (Unknown) when calling the delete operation: Unknown"
