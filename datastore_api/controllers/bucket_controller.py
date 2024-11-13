@@ -96,7 +96,14 @@ class BucketController:
             Generator[tuple[str, str], None, None]:
                 Tuple of the FTS job id and last recorded state of that job.
         """
-        response = self.job_ids_object.get()
+        try:
+            response = self.job_ids_object.get()
+        except ClientError as e:
+            if "NoSuchKey" in str(e):
+                return
+            else:
+                raise e
+
         line = response["Body"].readline()
         while line:
             yield line.decode().split(":")
