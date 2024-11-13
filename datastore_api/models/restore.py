@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -15,6 +17,15 @@ class RestoreRequest(BaseModel):
             raise ValueError("At least one id must be provided")
 
         return self
+
+
+class BucketAcl(StrEnum):
+    PRIVATE = "private"
+    PUBLIC_READ = "public-read"
+
+
+class RestoreS3Request(RestoreRequest):
+    bucket_acl: BucketAcl = BucketAcl.PUBLIC_READ
 
 
 class RestoreResponse(BaseModel):

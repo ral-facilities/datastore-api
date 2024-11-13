@@ -192,7 +192,7 @@ class TestLifespan:
 
         assert len(state_counters) == 1
         assert state_counters[0].state == state
-        assert ",".join(state_counters[0].job_ids) == job_ids
+        assert ",".join(state_counters[0].ongoing_job_ids) == job_ids
 
 
 class TestStateCounter:
