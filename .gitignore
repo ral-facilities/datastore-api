@@ -1,6 +1,7 @@
 .venv/
 venv/
 .idea/
+.tmp/
 *.pyc
 *.log
 *.log.*

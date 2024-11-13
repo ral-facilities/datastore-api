@@ -1,5 +1,5 @@
 icat:
-  url: https://127.0.0.1:8181
+  url: https://icat_payara_container:8181
   check_cert: False
   facility_name: facility
   functional_user:
@@ -11,15 +11,15 @@ icat:
       username: root
 
 fts3:
-  endpoint: https://endpoint:8446
-  instrument_data_cache: root://idc:1094//
-  restored_data_cache: root://rdc:1094//
-  tape_archive: root://archive:1094//
+  endpoint: https://lcgfts3.gridpp.rl.ac.uk:8446
+  instrument_data_cache: root://idc.ac.uk:1094//
+  restored_data_cache: root://rdc.ac.uk:1094//
+  tape_archive: root://archive.ac.uk:1094//
   x509_user_cert: hostcert.pem
   x509_user_key: hostkey.pem
 
 s3:
-  endpoint: http://127.0.0.1:9000
+  endpoint: http://minio:9000
   access_key: minioadmin
   secret_key: minioadmin
   cache_bucket: cache-bucket
