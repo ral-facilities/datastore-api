@@ -174,7 +174,9 @@ class TestIcatCache:
     ):
         module = "datastore_api.clients.icat_client.get_settings"
         get_settings_mock = mocker.patch(module)
-        model_dump = mock_fts3_settings.icat.model_dump(exclude="create_parameter_types")
+        model_dump = mock_fts3_settings.icat.model_dump(
+            exclude="create_parameter_types",
+        )
         icat_settings_copy = IcatSettings(create_parameter_types=True, **model_dump)
         get_settings_mock.return_value = Settings(
             icat=icat_settings_copy,
