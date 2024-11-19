@@ -169,14 +169,17 @@ class TestIcatCache:
     def test_icat_cache(
         self,
         facility: Entity,
-        icat_settings: IcatSettings,
+        mock_fts3_settings: Settings,
         mocker: MockerFixture,
     ):
         module = "datastore_api.clients.icat_client.get_settings"
         get_settings_mock = mocker.patch(module)
-        model_dump = icat_settings.model_dump(exclude="create_parameter_types")
+        model_dump = mock_fts3_settings.icat.model_dump(exclude="create_parameter_types")
         icat_settings_copy = IcatSettings(create_parameter_types=True, **model_dump)
-        get_settings_mock.return_value = Settings(icat=icat_settings_copy)
+        get_settings_mock.return_value = Settings(
+            icat=icat_settings_copy,
+            fts3=mock_fts3_settings.fts3,
+        )
 
         icat_cache = IcatCache()
 
