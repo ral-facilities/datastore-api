@@ -3,7 +3,8 @@ from icat.entity import Entity
 import pytest
 from pytest_mock import MockerFixture
 
-from datastore_api.clients.icat_client import IcatClient
+from datastore_api.clients.icat_client import IcatCache, IcatClient
+from datastore_api.config import IcatSettings, Settings
 from datastore_api.models.icat import Sample
 from datastore_api.models.login import Credentials, LoginRequest
 from tests.fixtures import (
@@ -162,3 +163,23 @@ class TestIcatClient:
         existing_sample_id = sample_entity.id
 
         assert new_sample_id == existing_sample_id
+
+
+class TestIcatCache:
+    def test_icat_cache(
+        self,
+        facility: Entity,
+        icat_settings: IcatSettings,
+        mocker: MockerFixture,
+    ):
+        module = "datastore_api.clients.icat_client.get_settings"
+        get_settings_mock = mocker.patch(module)
+        model_dump = icat_settings.model_dump(exclude="create_parameter_types")
+        icat_settings_copy = IcatSettings(create_parameter_types=True, **model_dump)
+        get_settings_mock.return_value = Settings(icat=icat_settings_copy)
+
+        icat_cache = IcatCache()
+
+        assert icat_cache.parameter_type_job_state is not None
+        assert icat_cache.parameter_type_job_ids is not None
+        assert icat_cache.parameter_type_deletion_date is not None
