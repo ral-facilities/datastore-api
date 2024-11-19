@@ -1,6 +1,7 @@
 import os
 import tempfile
 
+from codecarbon import OfflineEmissionsTracker
 import nox
 
 # Separating Black away from the rest of the sessions
@@ -54,9 +55,14 @@ def safety(session):
 @nox.session(python=["3.11"], reuse_venv=True)
 def tests(session):
     """Runs all tests."""
-    args = session.posargs or ["--cov", "--cov-report=term-missing"]
-    session.run("poetry", "install", "--with=dev", external=True)
-    session.run("pytest", "tests", *args)
+    with OfflineEmissionsTracker(
+        country_iso_code="GBR",
+        save_to_file=False,
+        measure_power_secs=60 * 60,
+    ):
+        args = session.posargs or ["--cov", "--cov-report=term-missing"]
+        session.run("poetry", "install", "--with=dev", external=True)
+        session.run("pytest", "tests", *args)
 
 
 @nox.session(python=["3.11"], reuse_venv=True)
@@ -64,9 +70,14 @@ def unit_tests(session):
     """Runs only the tests which target individual functions. These may typically mock
     responses from other components to make tests specific and quick.
     """
-    args = session.posargs or ["--cov", "--cov-report=term-missing"]
-    session.run("poetry", "install", "--with=dev", external=True)
-    session.run("pytest", "tests/unit", *args)
+    with OfflineEmissionsTracker(
+        country_iso_code="GBR",
+        save_to_file=False,
+        measure_power_secs=60 * 60,
+    ):
+        args = session.posargs or ["--cov", "--cov-report=term-missing"]
+        session.run("poetry", "install", "--with=dev", external=True)
+        session.run("pytest", "tests/unit", *args)
 
 
 @nox.session(python=["3.11"], reuse_venv=True)
@@ -75,6 +86,11 @@ def integration_tests(session):
     responses from other components when absolutely necessary (i.e. from FTS when certs
     are not present) to make the tests as realistic as practicable.
     """
-    args = session.posargs or ["--cov", "--cov-report=term-missing"]
-    session.run("poetry", "install", "--with=dev", external=True)
-    session.run("pytest", "tests/integration", *args)
+    with OfflineEmissionsTracker(
+        country_iso_code="GBR",
+        save_to_file=False,
+        measure_power_secs=60 * 60,
+    ):
+        args = session.posargs or ["--cov", "--cov-report=term-missing"]
+        session.run("poetry", "install", "--with=dev", external=True)
+        session.run("pytest", "tests/integration", *args)
