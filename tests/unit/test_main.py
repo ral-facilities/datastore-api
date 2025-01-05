@@ -166,3 +166,10 @@ class TestMain:
 
         assert test_response.status_code == 200
         assert json.loads(test_response.content) == {"version": "0.1.0"}
+
+    def test_get_storage_info(self, test_client: TestClient):
+        test_response = test_client.get("/storage-type")
+        content = json.loads(test_response.content)
+
+        assert test_response.status_code == 200, content
+        assert content == {"state": "CANCELED"}
