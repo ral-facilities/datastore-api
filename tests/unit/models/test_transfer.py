@@ -1,13 +1,13 @@
 from pydantic import ValidationError
 import pytest
 
-from datastore_api.models.restore import RestoreRequest
+from datastore_api.models.transfer import TransferRequest
 
 
-class TestRestore:
-    def test_restore_request(self):
+class TestTransfer:
+    def test_transfer_request(self):
         with pytest.raises(ValidationError) as e:
-            RestoreRequest(
+            TransferRequest(
                 investigation_ids=[],
                 dataset_ids=[],
                 datafile_ids=[],

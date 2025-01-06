@@ -2,18 +2,19 @@ from importlib import metadata
 import logging
 from typing import Annotated
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from datastore_api.auth import validate_session_id
 from datastore_api.clients.fts3_client import Fts3Client, get_fts3_client
 from datastore_api.clients.icat_client import IcatClient
+from datastore_api.config import get_settings, Storage, StorageType
 from datastore_api.controllers.bucket_controller import BucketController
 from datastore_api.controllers.investigation_archiver import InvestigationArchiver
 from datastore_api.controllers.state_controller import StateController
 from datastore_api.controllers.transfer_controller import (
     DatasetReArchiver,
-    RestoreController,
+    TransferController,
 )
 from datastore_api.lifespan import lifespan
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
@@ -25,16 +26,15 @@ from datastore_api.models.job import (
     CancelResponse,
     COMPLETE_JOB_STATES,
     CompleteResponse,
-    JobState,
     PercentageResponse,
     StatusResponse,
 )
 from datastore_api.models.login import LoginRequest, LoginResponse
-from datastore_api.models.restore import (
-    DownloadResponse,
-    RestoreRequest,
-    RestoreResponse,
-    RestoreS3Request,
+from datastore_api.models.transfer import (
+    TransferRequest,
+    TransferResponse,
+    TransferS3Request,
+    TransferS3Response,
 )
 from datastore_api.models.version import VersionResponse
 
@@ -60,8 +60,83 @@ app.add_middleware(
 )
 
 
+def _get_storage(key: str) -> Storage:
+    """Get representation of storage from the FTS3 settings.
+
+    Args:
+        key (str): Storage key.
+
+    Returns:
+        Storage: Corresponding Pydantic object.
+    """
+    settings = get_settings()
+    try:
+        return settings.fts3.storage_endpoints[key]
+    except KeyError as e:
+        keys = settings.fts3.storage_endpoints.keys()
+        detail = f"{key} is not a recognised storage key: {set(keys)}"
+        raise HTTPException(422, detail) from e
+
+
+def validate_source_key(source_key: str) -> str:
+    """Implicitly raise KeyError if source_key unknown.
+
+    Args:
+        source_key (str): Key that should be present in the FTS3 storage endpoints.
+
+    Returns:
+        str: source_key
+    """
+    _get_storage(key=source_key)
+    return source_key
+
+
+def validate_destination_key(destination_key: str) -> str:
+    """Implicitly raise KeyError if destination_key unknown.
+
+    Args:
+        destination_key (str): Key that should be present in the FTS3 storage endpoints.
+
+    Returns:
+        str: destination_key
+    """
+    _get_storage(key=destination_key)
+    return destination_key
+
+
+def validate_s3_storage_key(s3_storage_key: str) -> str:
+    """Implicitly raise KeyError if s3_storage_key unknown.
+
+    Args:
+        s3_storage_key (str):
+            Key that should be present in the FTS3 storage endpoints and have S3 type.
+
+    Raises:
+        ValueError: If not S3 type
+
+    Returns:
+        str: s3_storage_key
+    """
+    storage = _get_storage(key=s3_storage_key)
+    if storage.storage_type != StorageType.S3:
+        detail = f"{s3_storage_key} is {storage.storage_type}, not S3 storage"
+        raise HTTPException(422, detail)
+
+    return s3_storage_key
+
+
+def validate_archive_storage() -> None:
+    settings = get_settings()
+    if settings.fts3.archive_endpoint is None:
+        detail = "Archive functionality not implemented for this instance"
+        raise HTTPException(501, detail)
+
+
 SessionIdDependency = Annotated[str, Depends(validate_session_id)]
 Fts3ClientDependency = Annotated[Fts3Client, Depends(get_fts3_client)]
+SourceKey = Annotated[str, Depends(validate_source_key)]
+DestinationKey = Annotated[str, Depends(validate_destination_key)]
+S3StorageKey = Annotated[str, Depends(validate_s3_storage_key)]
 
 
 @app.post(
@@ -87,7 +162,7 @@ def login(login_request: LoginRequest) -> LoginResponse:
 
 
 @app.post(
-    "/archive",
+    "/archive/{source_key}",
     response_description="The FTS job id for the requested transfer",
     summary=(
         "Submit a request to archive experimental data, "
@@ -96,26 +171,28 @@ def login(login_request: LoginRequest) -> LoginResponse:
     tags=["Archive"],
 )
 def archive(
+    source_key: SourceKey,
     archive_request: ArchiveRequest,
     session_id: SessionIdDependency,
-    fts3_client: Fts3ClientDependency,
 ) -> ArchiveResponse:
     """Submit a request to archive experimental data, recording metadata in ICAT and
     creating an FTS transfer.
     \f
     Args:
+        source_key (SourceKey):
+            Key identifying the storage to use as the transfer source.
         archive_request (ArchiveRequest): Metadata for the entities to be archived.
         session_id (str): ICAT sessionId.
-        fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         ArchiveResponse: FTS job_id for archive transfer.
     """
+    validate_archive_storage()
     icat_client = IcatClient(session_id=session_id)
     icat_client.authorise_admin()
     investigation_archiver = InvestigationArchiver(
         icat_client=icat_client,
-        fts3_client=fts3_client,
+        source_key=source_key,
         investigation=archive_request.investigation_identifier,
         datasets=[archive_request.dataset],
     )
@@ -136,149 +213,153 @@ def archive(
 
 
 @app.post(
-    "/restore/rdc",
+    "/restore/{destination_key}",
     response_description="The FTS job id for the requested transfer",
     summary=(
-        "Submit a request to restore experimental data to the RDC, "
+        "Submit a request to restore experimental data to another location, "
         "creating an FTS transfer"
     ),
     tags=["Restore"],
 )
-def restore_rdc(
-    restore_request: RestoreRequest,
+def restore(
+    destination_key: DestinationKey,
+    transfer_request: TransferS3Request | TransferRequest,
     session_id: SessionIdDependency,
-    fts3_client: Fts3ClientDependency,
-) -> RestoreResponse:
-    """Submit a request to restore experimental data to the RDC,
+) -> TransferS3Response | TransferResponse:
+    """Submit a request to restore experimental data to the another location,
     creating an FTS transfer.
     \f
     Args:
-        restore_request (RestoreRequest): ICAT ids for Investigations to restore
+        destination_key (DestinationKey):
+            Key identifying the storage to use as the transfer destination.
+        transfer_request (TransferS3Request | TransferRequest):
+            ICAT ids for Investigations to restore.
         session_id (str): ICAT sessionId.
-        fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
-        RestoreResponse: FTS job_id for restore transfer.
+        TransferS3Response | TransferResponse: FTS job_id for restore transfer.
     """
+    validate_archive_storage()
     icat_client = IcatClient(session_id=session_id)
     datafile_entities = icat_client.get_unique_datafiles(
-        investigation_ids=restore_request.investigation_ids,
-        dataset_ids=restore_request.dataset_ids,
-        datafile_ids=restore_request.datafile_ids,
+        investigation_ids=transfer_request.investigation_ids,
+        dataset_ids=transfer_request.dataset_ids,
+        datafile_ids=transfer_request.datafile_ids,
     )
-    restore_controller = RestoreController(
-        fts3_client=fts3_client,
-        destination_cache=fts3_client.restored_data_cache,
+    is_s3_request = isinstance(transfer_request, TransferS3Request)
+    restore_controller = TransferController(
         datafile_entities=datafile_entities,
+        destination_key=destination_key,
+        bucket_acl=transfer_request.bucket_acl if is_s3_request else None,
     )
-    restore_controller.create_fts_jobs()
+    response = restore_controller.create_fts_jobs()
 
     message = "Submitted FTS restore jobs for %s transfers with ids %s"
     LOGGER.info(message, restore_controller.total_transfers, restore_controller.job_ids)
 
-    return RestoreResponse(job_ids=restore_controller.job_ids)
+    return response
 
 
 @app.post(
-    "/restore/download",
+    "/transfer/{source_key}/{destination_key}",
     response_description="The FTS job id for the requested transfer",
     summary=(
-        "Submit a request to restore experimental data to the download cache, "
+        "Submit a request to restore experimental data to another location, "
         "creating an FTS transfer"
     ),
     tags=["Restore"],
 )
-def restore_download(
-    restore_s3_request: RestoreS3Request,
+def transfer(
+    source_key: SourceKey,
+    destination_key: DestinationKey,
+    transfer_request: TransferS3Request | TransferRequest,
     session_id: SessionIdDependency,
-    fts3_client: Fts3ClientDependency,
-) -> DownloadResponse:
-    """Submit a request to restore experimental data to the download cache,
+) -> TransferS3Response | TransferResponse:
+    """Submit a request to transfer experimental data to the another location,
     creating an FTS transfer.
     \f
     Args:
-        download_request (RestoreRequest): ICAT ids for Investigations to restore.
+        source_key (SourceKey):
+            Key identifying the storage to use as the transfer source.
+        destination_key (DestinationKey):
+            Key identifying the storage to use as the transfer destination.
+        restore_request (TransferS3Request | TransferRequest):
+            ICAT ids for Investigations to restore.
         session_id (str): ICAT sessionId.
-        fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
-        DownloadResponse: FTS job_id for download transfer.
+        TransferS3Response | TransferResponse: FTS job_id for restore transfer.
     """
     icat_client = IcatClient(session_id=session_id)
     datafile_entities = icat_client.get_unique_datafiles(
-        investigation_ids=restore_s3_request.investigation_ids,
-        dataset_ids=restore_s3_request.dataset_ids,
-        datafile_ids=restore_s3_request.datafile_ids,
+        investigation_ids=transfer_request.investigation_ids,
+        dataset_ids=transfer_request.dataset_ids,
+        datafile_ids=transfer_request.datafile_ids,
     )
-
-    bucket_controller = BucketController()
-    bucket_controller.create(bucket_acl=restore_s3_request.bucket_acl)
-
-    download_controller = RestoreController(
-        fts3_client=fts3_client,
+    is_s3_request = isinstance(transfer_request, TransferS3Request)
+    restore_controller = TransferController(
         datafile_entities=datafile_entities,
-        destination_cache=bucket_controller.destination,
-        strict_copy=True,
+        source_key=source_key,
+        destination_key=destination_key,
+        bucket_acl=transfer_request.bucket_acl if is_s3_request else None,
     )
-    download_controller.create_fts_jobs()
-    message = "Submitted FTS download jobs for %s transfers with ids %s"
-    LOGGER.info(
-        message,
-        download_controller.total_transfers,
-        download_controller.job_ids,
-    )
+    response = restore_controller.create_fts_jobs()
 
-    job_states = {j: JobState.submitted for j in download_controller.job_ids}
-    bucket_controller.set_job_ids(job_states=job_states)
-    return DownloadResponse(
-        job_ids=download_controller.job_ids,
-        bucket_name=bucket_controller.bucket.name,
-    )
+    message = "Submitted FTS transfer jobs for %s transfers with ids %s"
+    LOGGER.info(message, restore_controller.total_transfers, restore_controller.job_ids)
+
+    return response
 
 
 @app.get(
-    "/bucket/{bucket_name}",
+    "/bucket/{s3_storage_key}/{bucket_name}",
     response_description="The URL to download the data",
     summary="Get the download link for the records in the download cache",
     tags=["Bucket"],
 )
 def get_bucket_data(
+    s3_storage_key: S3StorageKey,
     bucket_name: str,
     expiration: int | None = None,
 ) -> dict[str, str]:
     """Get the download links for the records in the download cache
     \f
     Args:
+        s3_storage_key (S3StorageKey):
+            Key identifying the storage where the bucket is located.
         bucket_name (str): The bucket containing data to download.
         expiration (int): Expiration date of the download url in seconds.
 
     Returns:
         dict[str, str]: Dictionary with generated presigned urls.
     """
-    bucket_controller = BucketController(name=bucket_name)
+    bucket_controller = BucketController(storage_key=s3_storage_key, name=bucket_name)
     return bucket_controller.get_data(expiration=expiration)
 
 
 @app.get(
-    "/bucket/{bucket_name}/status",
+    "/bucket/{s3_storage_key}/{bucket_name}/status",
     response_description="List of fts3 job statuses relating to the specified bucket",
     summary="Get details of FTS jobs relating to the specified bucket",
     tags=["Bucket"],
 )
 def get_bucket_status(
+    s3_storage_key: S3StorageKey,
     bucket_name: str,
     fts3_client: Fts3ClientDependency,
 ) -> StatusResponse:
     """Get details of FTS jobs relating to the specified bucket
     \f
     Args:
+        s3_storage_key (S3StorageKey):
+            Key identifying the storage where the bucket is located.
         bucket_name (str): Name of the bucket from which to retrieve job statuses.
         fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         StatusResponse: List of job statuses relating to the specified bucket.
     """
-    bucket_controller = BucketController(name=bucket_name)
+    bucket_controller = BucketController(storage_key=s3_storage_key, name=bucket_name)
     job_ids = bucket_controller.cached_job_states
     statuses = fts3_client.statuses(job_ids=job_ids, list_files=True)
     bucket_controller.update_job_ids(statuses=statuses, check_files=False)
@@ -286,46 +367,52 @@ def get_bucket_status(
 
 
 @app.get(
-    "/bucket/{bucket_name}/complete",
+    "/bucket/{s3_storage_key}/{bucket_name}/complete",
     response_description="Completeness of jobs relating to the specified bucket.",
     summary="Whether all jobs relating to the bucket are complete.",
     tags=["Bucket"],
 )
 def get_bucket_complete(
+    s3_storage_key: S3StorageKey,
     bucket_name: str,
 ) -> CompleteResponse:
     """Whether all jobs relating to the bucket are complete.
 
     Args:
+        s3_storage_key (S3StorageKey):
+            Key identifying the storage where the bucket is located.
         bucket_name (str): Name of the bucket from which to retrieve job statuses.
 
     Returns:
         CompleteResponse: Completeness of jobs relating to the specified bucket.
     """
-    bucket_controller = BucketController(name=bucket_name)
+    bucket_controller = BucketController(storage_key=s3_storage_key, name=bucket_name)
     return CompleteResponse(complete=bucket_controller.complete)
 
 
 @app.get(
-    "/bucket/{bucket_name}/percentage",
+    "/bucket/{s3_storage_key}/{bucket_name}/percentage",
     response_description="Percentage of all individual transfers to the bucket",
     summary="Percentage of all individual transfers to the bucket, that are completed",
     tags=["Bucket"],
 )
 def get_bucket_percentage(
     bucket_name: str,
+    s3_storage_key: S3StorageKey,
     fts3_client: Fts3ClientDependency,
 ) -> PercentageResponse:
     """Percentage of all individual transfers to the bucket, that are completed
 
     Args:
+        s3_storage_key (S3StorageKey):
+            Key identifying the storage where the bucket is located.
         bucket_name (str): Name of the bucket for which the percentage is being checked.
         fts3_client (Fts3Client): Cached client for calls to FTS.
 
     Returns:
         PercentageResponse: Percentage of all individual transfers to the bucket
     """
-    bucket_controller = BucketController(name=bucket_name)
+    bucket_controller = BucketController(storage_key=s3_storage_key, name=bucket_name)
     job_ids = bucket_controller.cached_job_states
     statuses = fts3_client.statuses(job_ids=job_ids, list_files=True)
     state_counter = bucket_controller.update_job_ids(
@@ -336,37 +423,41 @@ def get_bucket_percentage(
 
 
 @app.delete(
-    "/bucket/{bucket_name}",
+    "/bucket/{s3_storage_key}/{bucket_name}",
     response_description="None",
     summary="Delete a specified bucket",
     tags=["Bucket"],
 )
-def delete_bucket(bucket_name: str) -> None:
+def delete_bucket(s3_storage_key: S3StorageKey, bucket_name: str) -> None:
     """Delete an S3 bucket with its content
     \f
     Args:
+        s3_storage_key (S3StorageKey):
+            Key identifying the storage where the bucket is located.
         bucket_name (str): Name of the bucket to delete
     """
-    bucket_controller = BucketController(name=bucket_name)
+    bucket_controller = BucketController(storage_key=s3_storage_key, name=bucket_name)
     bucket_controller.delete()
 
 
 @app.put(
-    "/dataset/{dataset_id}",
+    "/dataset/{dataset_id}/retry/{source_key}",
     response_description="The FTS job id(s) for the requested transfer(s)",
     summary="Retry the transfer of the requested Dataset",
     tags=["Dataset"],
 )
 def put_dataset(
     session_id: SessionIdDependency,
-    fts3_client: Fts3ClientDependency,
+    source_key: SourceKey,
     dataset_id: str,
 ) -> ArchiveResponse:
     """Get details of a previously archived Dataset
     \f
     Args:
-        session_id (SessionIdDependency): ICAT sessionId.
         dataset_id (str): ICAT Dataset id.
+        source_key (SourceKey):
+            Key identifying the storage to use as the transfer source.
+        session_id (SessionIdDependency): ICAT sessionId.
 
     Returns:
         ArchiveResponse: FTS job_id for archive transfer.
@@ -380,9 +471,9 @@ def put_dataset(
     )
     archiver = DatasetReArchiver(
         icat_client=icat_client,
-        fts3_client=fts3_client,
         dataset_id=dataset_id,
         status=status,
+        source_key=source_key,
     )
     archiver.create_fts_jobs()
     return ArchiveResponse(dataset_ids=[dataset_id], job_ids=archiver.job_ids)
@@ -427,6 +518,18 @@ def put_dataset_status(
     new_state: str = "UNKNOWN",
     set_deletion_date: bool = False,
 ) -> None:
+    """Explicitly set the state of an archived Dataset and its Datafiles
+    \f
+    Args:
+        session_id (SessionIdDependency): ICAT sessionId.
+        dataset_id (str): ICAT Dataset id.
+        new_state (str, optional):
+            New state with which to mark the Dataset and Datafiles.
+            Defaults to "UNKNOWN".
+        set_deletion_date (bool, optional):
+            Whether to set the deletion date parameter to the current datetime.
+            Defaults to False.
+    """
     state_controller = StateController(session_id=session_id)
     state_controller.set_dataset_state(
         dataset_id=dataset_id,
@@ -513,6 +616,18 @@ def put_datafile_status(
     new_state: str = "UNKNOWN",
     set_deletion_date: bool = False,
 ) -> None:
+    """Explicitly set the state of an archived Datafile.
+    \f
+    Args:
+        session_id (SessionIdDependency): ICAT sessionId.
+        datafile_id (str): ICAT Datafile id.
+        new_state (str, optional):
+            New state with which to mark the Datafile.
+            Defaults to "UNKNOWN".
+        set_deletion_date (bool, optional):
+            Whether to set the deletion date parameter to the current datetime.
+            Defaults to False.
+    """
     state_controller = StateController(session_id=session_id)
     state_controller.set_datafile_state(
         datafile_id=datafile_id,
@@ -624,3 +739,21 @@ def version() -> VersionResponse:
         VersionResponse: Version of the API.
     """
     return VersionResponse(version=metadata.version("datastore-api"))
+
+
+@app.get("/storage-type", summary="get storage types for endpoints")
+def get_storage_info():
+
+    settings = get_settings()
+
+    fts3_settings = settings.fts3
+
+    archive_storage_type = None
+    if fts3_settings.archive_endpoint:
+        archive_storage_type = fts3_settings.archive_endpoint.storage_type
+
+    storage_endpoint_type = {}
+    for key, value in fts3_settings.storage_endpoints.items():
+        storage_endpoint_type[key] = value.storage_type
+
+    return {"archive": archive_storage_type, "storage": storage_endpoint_type}

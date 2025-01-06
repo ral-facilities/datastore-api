@@ -6,7 +6,7 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.config import Settings
 from datastore_api.controllers.bucket_controller import BucketController
 from datastore_api.models.job import JobState
-from datastore_api.models.restore import BucketAcl
+from datastore_api.models.transfer import BucketAcl
 from tests.fixtures import (
     bucket_name_incomplete,
     bucket_name_private,
@@ -18,9 +18,9 @@ from tests.fixtures import (
 
 
 class TestBucketController:
-    def test_init_failure(self):
+    def test_init_failure(self, mock_fts3_settings: Settings):
         with pytest.raises(HTTPException) as e:
-            BucketController(name="cache-bucket")
+            BucketController(storage_key="echo", name="cache-bucket")
         assert e.exconly() == (
             "fastapi.exceptions.HTTPException: 403: "
             "Access to global S3 cache is forbidden"
@@ -35,7 +35,10 @@ class TestBucketController:
             "files": [],
         }
 
-        bucket_controller = BucketController(name=bucket_name_incomplete)
+        bucket_controller = BucketController(
+            storage_key="echo",
+            name=bucket_name_incomplete,
+        )
         assert not bucket_controller.complete
 
     def test_bucket_controller_update_job_ids(
@@ -44,7 +47,10 @@ class TestBucketController:
         cache_bucket: str,
         bucket_name_incomplete: str,
     ):
-        bucket_controller = BucketController(name=bucket_name_incomplete)
+        bucket_controller = BucketController(
+            storage_key="echo",
+            name=bucket_name_incomplete,
+        )
         bucket_controller._acl = BucketAcl.PUBLIC_READ
         objects = list(bucket_controller.bucket.objects.all())
 
@@ -68,8 +74,12 @@ class TestBucketController:
         bucket_name_private: str,
         mocker: MockerFixture,
     ):
-        expected = f"{mock_fts3_settings.s3.endpoint}/{bucket_name_private}/test?"
-        bucket_controller = BucketController(name=bucket_name_private)
+        echo_url = mock_fts3_settings.fts3.storage_endpoints["echo"].url
+        expected = f"{echo_url}{bucket_name_private}/test?"
+        bucket_controller = BucketController(
+            storage_key="echo",
+            name=bucket_name_private,
+        )
         data_dict = bucket_controller.get_data(expiration=1)
         assert len(data_dict) == 1
         assert "test" in data_dict
@@ -86,7 +96,10 @@ class TestBucketController:
         works for Ceph does not work for minio, so mock this to ensure the parser is
         correct regardless of what S3 backend is used.
         """
-        bucket_controller = BucketController(name=bucket_name_private)
+        bucket_controller = BucketController(
+            storage_key="echo",
+            name=bucket_name_private,
+        )
         mock_get_bucket_acl = mocker.MagicMock()
         uri = "http://acs.amazonaws.com/groups/global/AllUsers"
         grant = {"Grantee": {"Type": "Group", "URI": uri}, "Permission": "READ"}
@@ -94,7 +107,8 @@ class TestBucketController:
         bucket_controller.s3_client.client.get_bucket_acl = mock_get_bucket_acl
 
         data_dict = bucket_controller.get_data(expiration=1)
-        expected = {"bucket": f"{mock_fts3_settings.s3.endpoint}/{bucket_name_private}"}
+        echo_url = mock_fts3_settings.fts3.storage_endpoints["echo"].url
+        expected = {"bucket": f"{echo_url}/{bucket_name_private}"}
         assert data_dict == expected
 
     def test_get_data_failure(self, bucket_name_incomplete: str, mocker: MockerFixture):
@@ -106,7 +120,10 @@ class TestBucketController:
             "files": [],
         }
 
-        bucket_controller = BucketController(name=bucket_name_incomplete)
+        bucket_controller = BucketController(
+            storage_key="echo",
+            name=bucket_name_incomplete,
+        )
         with pytest.raises(HTTPException) as e:
             bucket_controller.get_data(expiration=1)
         assert e.exconly() == (
@@ -115,13 +132,19 @@ class TestBucketController:
         )
 
     def test_delete_no_raise(self, bucket_name_private: str):
-        bucket_controller = BucketController(name=bucket_name_private)
+        bucket_controller = BucketController(
+            storage_key="echo",
+            name=bucket_name_private,
+        )
         bucket_controller.delete()
         bucket_controller.delete()
         # No assert, as if we delete twice without exception it's behaving as intended
 
     def test_delete_re_raise(self, bucket_name_private: str, mocker: MockerFixture):
-        bucket_controller = BucketController(name=bucket_name_private)
+        bucket_controller = BucketController(
+            storage_key="echo",
+            name=bucket_name_private,
+        )
         mock_delete = mocker.MagicMock()
         mock_delete.side_effect = ClientError({}, "delete")
         bucket_controller.bucket.delete = mock_delete

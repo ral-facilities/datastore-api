@@ -12,22 +12,23 @@ LOGGER = logging.getLogger(__name__)
 class S3Client:
     """Wrapper for S3 functionality."""
 
-    def __init__(self) -> None:
+    def __init__(self, key: str) -> None:
         """Initialise the client with the cached `s3_settings`."""
         settings = get_settings()
-        self.endpoint = settings.s3.endpoint
-        self.cache_bucket = settings.s3.cache_bucket
+        storage_endpoint = settings.fts3.storage_endpoints[key]
+        self.endpoint = storage_endpoint.url
+        self.cache_bucket = storage_endpoint.cache_bucket
         self.resource: S3ServiceResource = boto3.resource(
             "s3",
-            endpoint_url=settings.s3.endpoint,
-            aws_access_key_id=settings.s3.access_key,
-            aws_secret_access_key=settings.s3.secret_key,
+            endpoint_url=storage_endpoint.url,
+            aws_access_key_id=storage_endpoint.access_key,
+            aws_secret_access_key=storage_endpoint.secret_key,
         )
         self.client: S3ClientBoto3 = boto3.client(
             "s3",
-            endpoint_url=settings.s3.endpoint,
-            aws_access_key_id=settings.s3.access_key,
-            aws_secret_access_key=settings.s3.secret_key,
+            endpoint_url=storage_endpoint.url,
+            aws_access_key_id=storage_endpoint.access_key,
+            aws_secret_access_key=storage_endpoint.secret_key,
         )
 
     def create_presigned_url(self, object_name: str, bucket_name: str, expiration=3600):
@@ -71,10 +72,10 @@ class S3Client:
 
 
 @lru_cache
-def get_s3_client() -> S3Client:
+def get_s3_client(key: str) -> S3Client:
     """Initialise and cache the client for making calls to S3.
 
     Returns:
         S3Client: Wrapper for calls to S3.
     """
-    return S3Client()
+    return S3Client(key=key)

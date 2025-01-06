@@ -2,11 +2,13 @@ from enum import StrEnum
 from functools import lru_cache
 import logging
 import os
-from typing import Annotated, Tuple, Type
+from typing import Annotated, Literal, Tuple, Type
 
 from pydantic import (
     AfterValidator,
     BaseModel,
+    computed_field,
+    Discriminator,
     Field,
     HttpUrl,
     model_validator,
@@ -23,7 +25,8 @@ from pydantic_settings import (
 
 
 LOGGER = logging.getLogger(__name__)
-EndpointUrl = Annotated[Url, UrlConstraints(allowed_schemes={"root", "https", "davs"})]
+ALLOWED_SCHEMES = {"root", "http", "https", "davs"}
+EndpointUrl = Annotated[Url, UrlConstraints(allowed_schemes=ALLOWED_SCHEMES)]
 
 
 def validate_endpoint_url_str(url_str: str):
@@ -48,7 +51,7 @@ def validate_endpoint_url_str(url_str: str):
         msg = f"FTS endpoint {url} path did not end with '/'"
         raise ValueError(msg)
 
-    return url_str
+    return str(url)
 
 
 def validate_url_str(url_str: str, url_type: type = HttpUrl) -> str:
@@ -143,22 +146,64 @@ class VerifyChecksum(StrEnum):
     BOTH = "both"
 
 
+class StorageType(StrEnum):
+    DISK = "disk"
+    TAPE = "tape"
+    S3 = "s3"
+
+
+class Storage(BaseModel):
+    url: EndpointUrlStr = Field(
+        description="Url for this storage",
+        examples=["root://localhost:1094//"],
+    )
+    storage_type: Literal[StorageType.DISK] = StorageType.DISK
+
+    @computed_field
+    @property
+    def formatted_url(self) -> str:
+        return self.url
+
+
+class TapeStorage(Storage):
+    storage_type: Literal[StorageType.TAPE] = StorageType.TAPE
+    bring_online: int = Field(
+        default=28800,
+        description=(
+            "Number of seconds to wait for an archived file to be staged for "
+            "restoration. The default (28800 seconds) is 8 hours."
+        ),
+    )
+    archive_timeout: int = Field(
+        default=28800,
+        description=(
+            "Number of seconds to wait for an file to be archived. "
+            "The default (28800 seconds) is 8 hours."
+        ),
+    )
+
+
+class S3Storage(Storage):
+    storage_type: Literal[StorageType.S3] = StorageType.S3
+    access_key: str = Field(description="The ID for this access key")
+    secret_key: str = Field(description="The secret key used to sign requests")
+    cache_bucket: str = Field(
+        description="Private bucket used to cache files before copy to download bucket",
+    )
+
+    @computed_field
+    @property
+    def formatted_url(self) -> str:
+        return "s3s://" + self.url.split("://")[1]
+
+
+AnyStorage = Annotated[S3Storage | TapeStorage | Storage, Discriminator("storage_type")]
+
+
 class Fts3Settings(BaseModel):
     endpoint: HttpUrlStr = Field(
         description="Url to use for the FTS server",
         examples=["https://localhost:8446"],
-    )
-    instrument_data_cache: EndpointUrlStr = Field(
-        description="Url for the destination of raw, instrument data pre-archival",
-        examples=["root://localhost:1094//"],
-    )
-    tape_archive: EndpointUrlStr = Field(
-        description="Url for the destination of archived data",
-        examples=["root://localhost:1094//"],
-    )
-    restored_data_cache: EndpointUrlStr = Field(
-        description="Url for the destination of restored data post-archival",
-        examples=["root://localhost:1094//"],
     )
     x509_user_proxy: str = Field(
         default=None,
@@ -206,19 +251,16 @@ class Fts3Settings(BaseModel):
         ),
         examples=[["ADLER32"]],
     )
-    bring_online: int = Field(
-        default=28800,
+    archive_endpoint: AnyStorage = Field(
+        default=None,
         description=(
-            "Number of seconds to wait for an archived file to be staged for "
-            "restoration. The default (28800 seconds) is 8 hours."
+            "Special endpoint for archival requests, which result in the creation of "
+            "ICAT metadata."
         ),
     )
-    archive_timeout: int = Field(
-        default=28800,
-        description=(
-            "Number of seconds to wait for an file to be archived. "
-            "The default (28800 seconds) is 8 hours."
-        ),
+    storage_endpoints: dict[str, AnyStorage] = Field(
+        default=[],
+        description="List of possible storage endpoints FTS can transfer between.",
     )
 
     @staticmethod
@@ -256,19 +298,9 @@ class Fts3Settings(BaseModel):
         return self
 
 
-class S3Settings(BaseModel):
-    endpoint: HttpUrlStr = Field(description="Url to use for the S3 storage")
-    access_key: str = Field(description="The ID for this access key")
-    secret_key: str = Field(description="The secret key used to sign requests")
-    cache_bucket: str = Field(
-        description="Private bucket used to cache files before copy to download bucket",
-    )
-
-
 class Settings(BaseSettings):
     icat: IcatSettings = Field(description="Settings to connect to an ICAT instance")
     fts3: Fts3Settings = Field(description="Settings to connect to an FTS3 instance")
-    s3: S3Settings = Field(description="Settings to connect to an S3 instance")
 
     model_config = SettingsConfigDict(yaml_file="config.yaml")
 

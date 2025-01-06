@@ -1,4 +1,3 @@
-from datastore_api.clients.fts3_client import Fts3Client
 from datastore_api.clients.icat_client import IcatClient
 from datastore_api.controllers.transfer_controller import DatasetArchiver
 from datastore_api.models.icat import Dataset, Investigation, InvestigationIdentifier
@@ -12,7 +11,7 @@ class InvestigationArchiver:
     def __init__(
         self,
         icat_client: IcatClient,
-        fts3_client: Fts3Client,
+        source_key: str,
         investigation: Investigation | InvestigationIdentifier,
         datasets: list[Dataset] = None,
     ) -> None:
@@ -21,7 +20,7 @@ class InvestigationArchiver:
         Args:
             session_id (str): ICAT session to use.
             icat_client (IcatClient): ICAT client to use.
-            fts3_client (Fts3Client): FTS client to use.
+            source_key (str): FTS storage endpoint to use as source.
             investigation (Investigation | InvestigationIdentifier):
                 Either full or identifying metadata for an Investigation.
             datasets (list[Dataset], optional):
@@ -33,7 +32,7 @@ class InvestigationArchiver:
         self.total_transfers = 0
 
         self.icat_client = icat_client
-        self.fts3_client = fts3_client
+        self.source_key = source_key
 
         if isinstance(investigation, Investigation):
             datasets = investigation.datasets
@@ -58,7 +57,7 @@ class InvestigationArchiver:
         for dataset in self.datasets:
             dataset_archiver = DatasetArchiver(
                 icat_client=self.icat_client,
-                fts3_client=self.fts3_client,
+                source_key=self.source_key,
                 dataset=dataset,
                 investigation_entity=self.investigation_entity,
             )

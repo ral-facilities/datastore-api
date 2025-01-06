@@ -17,8 +17,10 @@ from datastore_api.config import (
     FunctionalUser,
     get_settings,
     IcatSettings,
-    S3Settings,
+    S3Storage,
     Settings,
+    Storage,
+    TapeStorage,
 )
 from datastore_api.controllers.bucket_controller import BucketController
 from datastore_api.models.archive import ArchiveRequest
@@ -41,7 +43,7 @@ from datastore_api.models.icat import (
     TechniqueIdentifier,
 )
 from datastore_api.models.job import JobState
-from datastore_api.models.restore import BucketAcl
+from datastore_api.models.transfer import BucketAcl
 
 
 SESSION_ID = "00000000-0000-0000-0000-000000000000"
@@ -92,10 +94,18 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
         # This will be the case for GHA workflows, in which case,
         # pass a readable file to satisfy the validator and mock requests to FTS.
         fts3_settings = Fts3Settings(
-            endpoint="https://lcgfts3.gridpp.rl.ac.uk:8446",
-            instrument_data_cache="root://idc.ac.uk:1094//",
-            restored_data_cache="root://rdc.ac.uk:1094//",
-            tape_archive="root://archive.ac.uk:1094//",
+            endpoint="https://fts3-test.gridpp.rl.ac.uk:8446",
+            archive_endpoint=TapeStorage(url="root://archive.ac.uk:1094//"),
+            storage_endpoints={
+                "idc": Storage(url="root://idc.ac.uk:1094//"),
+                "rdc": Storage(url="root://rdc.ac.uk:1094//"),
+                "echo": S3Storage(
+                    url="http://127.0.0.1:9000",
+                    access_key="minioadmin",
+                    secret_key="minioadmin",
+                    cache_bucket="cache-bucket",
+                ),
+            },
             x509_user_cert=__file__,
             x509_user_key=__file__,
         )
@@ -112,6 +122,54 @@ def mock_fts3_settings(submit: MagicMock, mocker: MockerFixture) -> Settings:
         "clients.icat_client",
         "clients.s3_client",
         "models.icat",
+        "main",
+    }
+    for module in modules:
+        get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
+        get_settings_mock.return_value = settings
+
+    module = "datastore_api.clients.fts3_client.fts3.get_jobs_statuses"
+    fts_status_mock = mocker.patch(module)
+    fts_status_mock.return_value = STATUSES
+
+    fts_cancel_mock = mocker.patch("datastore_api.clients.fts3_client.fts3.cancel")
+    fts_cancel_mock.return_value = "CANCELED"
+
+    return settings
+
+
+@pytest.fixture(scope="function")
+def mock_fts3_settings_no_archive(submit: MagicMock, mocker: MockerFixture) -> Settings:
+    get_settings.cache_clear()
+    fts3_settings = Fts3Settings(
+        endpoint="https://fts3-test.gridpp.rl.ac.uk:8446",
+        storage_endpoints={
+            "idc": Storage(url="root://idc.ac.uk:1094//"),
+            "rdc": Storage(url="root://rdc.ac.uk:1094//"),
+            "echo": S3Storage(
+                url="http://127.0.0.1:9000",
+                access_key="minioadmin",
+                secret_key="minioadmin",
+                cache_bucket="cache-bucket",
+            ),
+        },
+        x509_user_cert=__file__,
+        x509_user_key=__file__,
+    )
+    settings = Settings(fts3=fts3_settings)
+
+    mocker.patch("datastore_api.clients.fts3_client.fts3.Context")
+
+    module = "datastore_api.clients.fts3_client.fts3.get_job_status"
+    fts_status_mock = mocker.patch(module)
+    fts_status_mock.return_value = STATUSES[0]
+
+    modules = {
+        "clients.fts3_client",
+        "clients.icat_client",
+        "clients.s3_client",
+        "models.icat",
+        "main",
     }
     for module in modules:
         get_settings_mock = mocker.patch(f"datastore_api.{module}.get_settings")
@@ -275,11 +333,6 @@ def functional_icat_client(
 @pytest.fixture(scope="function")
 def s3_settings(mock_fts3_settings: Settings):
     return mock_fts3_settings.s3
-
-
-@pytest.fixture(scope="function")
-def s3_client(s3_settings: S3Settings, mocker: MockerFixture):
-    return S3Client()
 
 
 @pytest.fixture(scope="function")
@@ -657,7 +710,7 @@ def investigation_tear_down(
 
 @pytest.fixture(scope="function")
 def cache_bucket() -> Generator[str, None, None]:
-    s3_client = get_s3_client()
+    s3_client = get_s3_client(key="echo")
     cache_bucket = s3_client.resource.Bucket("cache-bucket")
     try:
         cache_bucket.create()
@@ -670,7 +723,7 @@ def cache_bucket() -> Generator[str, None, None]:
 
 @pytest.fixture(scope="function")
 def bucket_name_private() -> Generator[str, None, None]:
-    bucket_controller = BucketController()
+    bucket_controller = BucketController(storage_key="echo")
     bucket_controller.create(bucket_acl=BucketAcl.PRIVATE)
     bucket_controller.set_job_ids({SESSION_ID: JobState.finished_dirty})
     test_object = bucket_controller.bucket.Object(key="test")
@@ -681,7 +734,7 @@ def bucket_name_private() -> Generator[str, None, None]:
 
 @pytest.fixture(scope="function")
 def bucket_name_incomplete() -> Generator[str, None, None]:
-    bucket_controller = BucketController()
+    bucket_controller = BucketController(storage_key="echo")
     bucket_controller.create(bucket_acl=BucketAcl.PUBLIC_READ)
     bucket_controller.set_job_ids({SESSION_ID: JobState.active})
     yield bucket_controller.bucket.name
@@ -693,9 +746,9 @@ def bucket_name_incomplete() -> Generator[str, None, None]:
 def bucket_deletion() -> Generator[None, None, None]:
     yield None
 
-    for bucket in S3Client().list_buckets():
+    for bucket in S3Client(key="echo").list_buckets():
         if bucket != "cache-bucket":
-            bucket_controller = BucketController(name=bucket)
+            bucket_controller = BucketController(storage_key="echo", name=bucket)
             try:
                 bucket_controller.delete()
             except ClientError as e:

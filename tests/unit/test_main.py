@@ -9,7 +9,7 @@ from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest
 from datastore_api.models.dataset import DatasetStatusResponse
-from datastore_api.models.restore import RestoreRequest
+from datastore_api.models.transfer import TransferRequest
 from tests.fixtures import (
     archive_request,
     archive_request_parameters,
@@ -78,7 +78,11 @@ class TestMain:
     ):
         json_body = json.loads(archive_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
-        test_response = test_client.post("/archive", headers=headers, json=json_body)
+        test_response = test_client.post(
+            "/archive/idc",
+            headers=headers,
+            json=json_body,
+        )
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
@@ -89,7 +93,7 @@ class TestMain:
         UUID(content["job_ids"][0], version=4)
 
     def test_restore_to_rdc(self, test_client: TestClient):
-        restore_request = RestoreRequest(investigation_ids=[0])
+        restore_request = TransferRequest(investigation_ids=[0])
         json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post(
@@ -162,3 +166,13 @@ class TestMain:
 
         assert test_response.status_code == 200
         assert json.loads(test_response.content) == {"version": "0.1.0"}
+
+    def test_get_storage_info(self, test_client: TestClient):
+        test_response = test_client.get("/storage-type")
+        content = json.loads(test_response.content)
+
+        assert test_response.status_code == 200, content
+        assert content == {
+            "archive": "tape",
+            "storage": {"echo": "s3", "idc": "disk", "rdc": "disk"},
+        }
