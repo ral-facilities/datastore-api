@@ -171,5 +171,5 @@ class TestMain:
         test_response = test_client.get("/storage-type")
         content = json.loads(test_response.content)
 
-        assert test_response.status_code == 200, content
-        assert content == {"state": "CANCELED"}
+        assert test_response.status_code == 200, content        
+        assert content == {'archive': 'tape', 'storage': {'echo': 's3', 'idc': 'disk', 'rdc': 'disk'}}
