@@ -753,12 +753,7 @@ def get_storage_info():
         archive_storage_type = fts3_settings.archive_endpoint.storage_type
 
     storage_endpoint_type = {}
-    try:
-        for key, value in fts3_settings.storage_endpoints.items():
-            storage_endpoint_type[key] = value.storage_type
-    except KeyError as e:
-        storage_endpoint_type = {}
-        detail = "endpoints are empty"
-        raise HTTPException(422, detail) from e
+    for key, value in fts3_settings.storage_endpoints.items():
+        storage_endpoint_type[key] = value.storage_type
 
     return {"archive": archive_storage_type, "storage": storage_endpoint_type}
