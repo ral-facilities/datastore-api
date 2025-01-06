@@ -740,21 +740,18 @@ def version() -> VersionResponse:
     """
     return VersionResponse(version=metadata.version("datastore-api"))
 
-@app.get(
-    "/storage-type",
-    summary= "get storage types for endpoints"
-)
+
+@app.get("/storage-type", summary="get storage types for endpoints")
 def get_storage_info():
-    
+
     settings = get_settings()
 
     fts3_settings = settings.fts3
 
-    
     archive_storage_type = None
     if fts3_settings.archive_endpoint:
         archive_storage_type = fts3_settings.archive_endpoint.storage_type
-    
+
     storage_endpoint_type = {}
     try:
         for key, value in fts3_settings.storage_endpoints.items():
@@ -763,5 +760,5 @@ def get_storage_info():
         storage_endpoint_type = {}
         detail = "endpoints are empty"
         raise HTTPException(422, detail) from e
-    
-    return {"archive": archive_storage_type, "storage": storage_endpoint_type }
+
+    return {"archive": archive_storage_type, "storage": storage_endpoint_type}
