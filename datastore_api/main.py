@@ -757,3 +757,23 @@ def get_storage_info():
         storage_endpoint_type[key] = value.storage_type
 
     return {"archive": archive_storage_type, "storage": storage_endpoint_type}
+
+@app.post(
+        "/size", 
+        summary="Returns the size of the endpoints"
+)
+def size(transferRequest: TransferRequest, session_id: SessionIdDependency):
+
+    totalsize = 0
+    icatclient = IcatClient(session_id)
+
+    datafiles = icatclient.get_unique_datafiles(
+        transferRequest.investigation_ids,
+        transferRequest.dataset_ids,
+        transferRequest.datafile_ids,
+    )
+
+    for datasets in datafiles:
+        totalsize += datasets.fileSize
+
+    return totalsize

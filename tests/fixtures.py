@@ -686,6 +686,7 @@ def datafile_failed(
         location="instrument/20XX/name-visitId/type/dataset/datafile",
         dataset=dataset_failed,
         parameters=[datafile_parameter],
+        fileSize = 1000,
     )
 
     yield dataset
