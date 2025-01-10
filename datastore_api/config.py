@@ -105,6 +105,13 @@ class IcatSettings(BaseModel):
             "created without one set."
         ),
     )
+    create_parameter_types: bool = Field(
+        default=False,
+        description=(
+            "Whether to dynamically create the ParameterTypes used for archival state "
+            "if they are not set."
+        ),
+    )
     parameter_type_job_ids: str = Field(
         default="Archival ids",
         description=(

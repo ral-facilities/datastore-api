@@ -741,7 +741,9 @@ def version() -> VersionResponse:
     return VersionResponse(version=metadata.version("datastore-api"))
 
 
-@app.get("/storage-type", summary="get storage types for endpoints")
+@app.get(
+        "/storage-type", 
+        summary="Get storage types for endpoints")
 def get_storage_info():
 
     settings = get_settings()
