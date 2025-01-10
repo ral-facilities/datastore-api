@@ -1086,5 +1086,4 @@ class TestSize:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        
-        assert content == 1000 
+        assert content == 1000
