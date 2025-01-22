@@ -764,18 +764,18 @@ def get_storage_info():
         "/size", 
         summary="Returns the size of the specified entities",
 )
-def size(transferRequest: TransferRequest, session_id: SessionIdDependency):
+def size(transfer_request: TransferRequest, session_id: SessionIdDependency) -> int:
 
-    totalsize = 0
-    icatclient = IcatClient(session_id)
+    total_size = 0
+    icat_client = IcatClient(session_id)
 
-    datafiles = icatclient.get_unique_datafiles(
-        transferRequest.investigation_ids,
-        transferRequest.dataset_ids,
-        transferRequest.datafile_ids,
+    datafiles = icat_client.get_unique_datafiles(
+        transfer_request.investigation_ids,
+        transfer_request.dataset_ids,
+        transfer_request.datafile_ids,
     )
 
-    for datasets in datafiles:
-        totalsize += datasets.fileSize
+    for datafile in datafiles:
+        total_size += datafile.fileSize
 
-    return totalsize
+    return total_size
