@@ -741,7 +741,7 @@ def version() -> VersionResponse:
     return VersionResponse(version=metadata.version("datastore-api"))
 
 
-@app.get("/storage-type", summary="get storage types for endpoints")
+@app.get("/storage-type", summary="Get storage types for endpoints")
 def get_storage_info():
 
     settings = get_settings()
@@ -757,3 +757,24 @@ def get_storage_info():
         storage_endpoint_type[key] = value.storage_type
 
     return {"archive": archive_storage_type, "storage": storage_endpoint_type}
+
+
+@app.post(
+    "/size",
+    summary="Returns the size of the specified entities",
+)
+def size(transfer_request: TransferRequest, session_id: SessionIdDependency) -> int:
+
+    total_size = 0
+    icat_client = IcatClient(session_id)
+
+    datafiles = icat_client.get_unique_datafiles(
+        transfer_request.investigation_ids,
+        transfer_request.dataset_ids,
+        transfer_request.datafile_ids,
+    )
+
+    for datafile in datafiles:
+        total_size += datafile.fileSize
+
+    return total_size
