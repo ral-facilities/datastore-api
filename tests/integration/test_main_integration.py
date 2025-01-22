@@ -1040,6 +1040,7 @@ class TestBucket:
         detail = json.loads(test_response.content.decode())["detail"]
         assert "idc is disk, not S3 storage" == detail
 
+
 class TestSize:
     @pytest.mark.parametrize(
         ["restore_ids"],
