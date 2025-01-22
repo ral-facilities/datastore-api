@@ -762,7 +762,7 @@ def get_storage_info():
 
 @app.post(
         "/size", 
-        summary="Returns the size of the endpoints"
+        summary="Returns the size of the specified entities",
 )
 def size(transferRequest: TransferRequest, session_id: SessionIdDependency):
 
