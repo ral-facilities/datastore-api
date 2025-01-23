@@ -1,7 +1,8 @@
 from importlib import metadata
 import logging
-from typing import Annotated
+from typing import Annotated, Optional
 
+from datastore_api.controllers.state_counter import StateCounter
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -669,7 +670,8 @@ def status(
     fts3_client: Fts3ClientDependency,
     job_id: str,
     list_files: bool = True,
-) -> StatusResponse:
+    verbose: bool = False,
+) -> Optional[StatusResponse | DatasetStatusResponse | DatasetStatusListFilesResponse]:
     """Get details of a job previously submitted to FTS.
     \f
     Args:
@@ -681,7 +683,21 @@ def status(
         StatusResponse: Details of the requested job.
     """
     status = fts3_client.status(job_id=job_id, list_files=list_files)
-    return StatusResponse(status=status)
+
+    if verbose:  # verbose = True
+        return StatusResponse(status=status)
+    else:  # verbose = False
+        if list_files:  # list_files = True
+            file_states = {}
+            for file_status in status["files"]:
+                file_path, file_state = StateCounter.get_state(file_status=file_status)
+                file_states[file_path] = file_state
+
+            return DatasetStatusListFilesResponse(
+                state=status["job_state"], file_states=file_states
+            )
+        else:  # list_files = False
+            return DatasetStatusResponse(state=status["job_state"])
 
 
 @app.get(
