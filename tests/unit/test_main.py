@@ -136,7 +136,10 @@ class TestMain:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"status": STATUSES[0]}
+        assert content == {
+            "state": STATUSES[0]["job_state"],
+            "file_states": {"test": FILES[1]["file_state"]},
+        }
 
     def test_complete(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
