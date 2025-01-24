@@ -10,13 +10,13 @@ from datastore_api.clients.fts3_client import Fts3Client, get_fts3_client
 from datastore_api.clients.icat_client import IcatClient
 from datastore_api.config import get_settings, Storage, StorageType
 from datastore_api.controllers.bucket_controller import BucketController
-from datastore_api.controllers.state_controller import StateController
 from datastore_api.controllers.investigation_archiver import InvestigationArchiver
+from datastore_api.controllers.state_controller import StateController
+from datastore_api.controllers.state_counter import StateCounter
 from datastore_api.controllers.transfer_controller import (
     DatasetReArchiver,
     TransferController,
 )
-from datastore_api.controllers.state_counter import StateCounter
 from datastore_api.lifespan import lifespan
 from datastore_api.models.archive import ArchiveRequest, ArchiveResponse
 from datastore_api.models.dataset import (
