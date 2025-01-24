@@ -2,9 +2,10 @@ from importlib import metadata
 import logging
 from typing import Annotated, Optional
 
-from datastore_api.controllers.state_counter import StateCounter
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+
+from datastore_api.controllers.state_counter import StateCounter
 
 from datastore_api.auth import validate_session_id
 from datastore_api.clients.fts3_client import Fts3Client, get_fts3_client
@@ -692,9 +693,9 @@ def status(
             for file_status in status["files"]:
                 file_path, file_state = StateCounter.get_state(file_status=file_status)
                 file_states[file_path] = file_state
-
             return DatasetStatusListFilesResponse(
-                state=status["job_state"], file_states=file_states
+                state=status["job_state"],
+                file_states=file_states,
             )
         else:  # list_files = False
             return DatasetStatusResponse(state=status["job_state"])
