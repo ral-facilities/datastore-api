@@ -717,7 +717,7 @@ def cache_bucket() -> Generator[str, None, None]:
         cache_bucket.create()
     except ClientError:
         pass
-    cache_bucket.put_object(Key="test", Body=b"test")
+    cache_bucket.put_object(Key="test0", Body=b"test")
     yield cache_bucket.name
     cache_bucket.objects.all().delete()
 
