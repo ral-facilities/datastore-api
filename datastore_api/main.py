@@ -1,6 +1,6 @@
 from importlib import metadata
 import logging
-from typing import Annotated, Optional
+from typing import Annotated
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -670,7 +670,7 @@ def status(
     job_id: str,
     list_files: bool = True,
     verbose: bool = True,
-) -> Optional[StatusResponse | DatasetStatusResponse | DatasetStatusListFilesResponse]:
+) -> StatusResponse | DatasetStatusResponse | DatasetStatusListFilesResponse:
     """Get details of a job previously submitted to FTS.
     \f
     Args:

@@ -147,7 +147,7 @@ class StateCounter:
             file_status (dict[str, str]): Latest FTS file status for a single transfer.
 
         Returns:
-            str: FTS file state.
+            tuple[str, str]: FTS file path, file state.
         """
         source_surl = file_status["source_surl"]
         file_state = file_status["file_state"]

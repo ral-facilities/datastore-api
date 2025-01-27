@@ -52,14 +52,14 @@ FILES = [
         "file_state": "FINISHED",
         "dest_surl": "mock://test.cern.ch/ttqv/pryb/nnvw?size_post=1048576&time=2",
         "source_surl": (
-            "root://archive.ac.uk:1094//test?copy_mode=push&activity=default"
+            "root://archive.ac.uk:1094//test0?copy_mode=push&activity=default"
         ),
     },
     {
         "file_state": "FAILED",
         "dest_surl": "mock://test.cern.ch/swnx/jznu/laso?size_post=1048576&time=2",
         "source_surl": (
-            "root://archive.ac.uk:1094//test?copy_mode=push&activity=default"
+            "root://archive.ac.uk:1094//test1?copy_mode=push&activity=default"
         ),
     },
 ]

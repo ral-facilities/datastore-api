@@ -137,7 +137,7 @@ class TestMain:
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
         assert content == {
-            "status": STATUSES[0], 
+            "status": STATUSES[0],
         }
 
     def test_status_multiple(self, test_client: TestClient):
@@ -152,7 +152,10 @@ class TestMain:
         assert test_response.status_code == 200, content
         assert content == {
             "state": STATUSES[0]["job_state"],
-            "file_states": {"test0": FILES[0]["file_state"],"test1": FILES[1]["file_state"]},
+            "file_states": {
+                "test0": FILES[0]["file_state"],
+                "test1": FILES[1]["file_state"],
+            },
         }
 
     def test_status_multiple1(self, test_client: TestClient):
