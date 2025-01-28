@@ -6,7 +6,7 @@ from unittest.mock import ANY, MagicMock
 from uuid import UUID
 
 from fastapi.testclient import TestClient
-from fts3.rest.client.exceptions import ServerError, NotFound
+from fts3.rest.client.exceptions import NotFound, ServerError
 from icat.entity import Entity
 from icat.query import Query
 import pytest
