@@ -131,12 +131,26 @@ class StateCounter:
         Returns:
             tuple[str, str]: File location (excluding endpoint address), FTS file state.
         """
-        source_surl = file_status["source_surl"]
-        file_state = file_status["file_state"]
-        file_path = Url(source_surl).path.strip("/")
+        file_path, file_state = StateCounter.get_state(file_status=file_status)
         self.file_states[file_path] = file_state
         self.files_total += 1
         if file_state in COMPLETE_TRANSFER_STATES:
             self.files_complete += 1
+
+        return file_path, file_state
+
+    @staticmethod
+    def get_state(file_status: dict[str, str]) -> tuple[str, str]:
+        """Parses out the file state from the FTS status.
+
+        Args:
+            file_status (dict[str, str]): Latest FTS file status for a single transfer.
+
+        Returns:
+            tuple[str, str]: FTS file path, file state.
+        """
+        source_surl = file_status["source_surl"]
+        file_state = file_status["file_state"]
+        file_path = Url(source_surl).path.strip("/")
 
         return file_path, file_state

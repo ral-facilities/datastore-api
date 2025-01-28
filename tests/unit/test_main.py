@@ -136,7 +136,41 @@ class TestMain:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"status": STATUSES[0]}
+        assert content == {
+            "status": STATUSES[0],
+        }
+
+    def test_status_multiple(self, test_client: TestClient):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get(
+            "/job/1/status?list_files=true&verbose=false",
+            headers=headers,
+        )
+
+        content = json.loads(test_response.content)
+
+        assert test_response.status_code == 200, content
+        assert content == {
+            "state": STATUSES[0]["job_state"],
+            "file_states": {
+                "test0": FILES[0]["file_state"],
+                "test1": FILES[1]["file_state"],
+            },
+        }
+
+    def test_status_multiple1(self, test_client: TestClient):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get(
+            "/job/1/status?list_files=false&verbose=false",
+            headers=headers,
+        )
+
+        content = json.loads(test_response.content)
+
+        assert test_response.status_code == 200, content
+        assert content == {
+            "state": STATUSES[0]["job_state"],
+        }
 
     def test_complete(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
