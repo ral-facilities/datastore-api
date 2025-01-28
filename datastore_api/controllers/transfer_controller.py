@@ -3,7 +3,9 @@ from icat.entity import Entity
 
 from datastore_api.clients.fts3_client import get_fts3_client
 from datastore_api.clients.icat_client import get_icat_cache, IcatClient
-from datastore_api.config import S3Storage, TapeStorage
+from datastore_api.clients.s3_client import get_s3_client
+from datastore_api.clients.x_root_d_client import get_x_root_d_client
+from datastore_api.config import S3Storage, StorageType, TapeStorage
 from datastore_api.controllers.bucket_controller import BucketController
 from datastore_api.models.dataset import DatasetStatusListFilesResponse
 from datastore_api.models.icat import Dataset
@@ -48,6 +50,8 @@ class TransferController:
         self.archive_timeout = -1
         self.strict_copy = False
         self.total_transfers = 0
+        self.total_size = 0
+        self.source_key = source_key
         self.source_storage = self.fts3_client.get_storage(key=source_key)
         self.source_prefix = ""
         self.destination_storage = self.fts3_client.get_storage(key=destination_key)
@@ -80,9 +84,8 @@ class TransferController:
         for datafile_entity in self.datafile_entities:
             transfer = self._transfer(datafile_entity)
             self.transfers.append(transfer)
-            self._submit(minimum_transfers=1000)
 
-        self._submit()
+        self._submit_all()
 
         if self.bucket_controller is not None:
             job_states = {j: JobState.submitted for j in self.job_ids}
@@ -94,6 +97,54 @@ class TransferController:
 
         return TransferResponse(job_ids=self.job_ids)
 
+    def _check_source(self, datafile_entity: Entity) -> None:
+        """Check source storage for presence of the target file, and extract its size.
+
+        Args:
+            datafile_entity (Entity):
+                ICAT Datafile Entity. Datafile.size modified in place.
+        """
+        if self.fts3_client.fts3_settings.check_source:
+            if self.source_storage.storage_type == StorageType.S3:
+                s3_client = get_s3_client(key=self.source_key)
+                stat_info = s3_client.stat(datafile_entity.location)
+                datafile_entity.fileSize = stat_info["ContentLength"]
+            else:
+                x_root_d_client = get_x_root_d_client(url=self.source_storage.url)
+                stat_info = x_root_d_client.stat(datafile_entity.location)
+                datafile_entity.fileSize = stat_info.size
+
+    def _validate_file_size(self, file_size: int) -> None:
+        """
+        Args:
+            file_size (int): Size to check.
+
+        Raises:
+            HTTPException: If file_size exceeds the configured limit.
+        """
+        if file_size is not None:
+            self.total_size += file_size
+            size_limit = self.fts3_client.fts3_settings.file_size_limit
+            if size_limit is not None and file_size > size_limit:
+                detail = (
+                    f"Cannot accept file of size {file_size} "
+                    f"due to limit of {size_limit}"
+                )
+                raise HTTPException(status_code=400, detail=detail)
+
+    def _validate_total_size(self) -> None:
+        """
+        Raises:
+            HTTPException: If self.total_size exceeds the configured limit.
+        """
+        size_limit = self.fts3_client.fts3_settings.total_file_size_limit
+        if size_limit is not None and self.total_size > size_limit:
+            detail = (
+                f"Cannot accept transfer request of total size {self.total_size} "
+                f"due to limit of {size_limit}"
+            )
+            raise HTTPException(status_code=400, detail=detail)
+
     def _transfer(self, datafile_entity: Entity) -> dict[str, list]:
         """Returns a transfer dict moving `path` from one of the caches to tape.
 
@@ -103,6 +154,8 @@ class TransferController:
         Returns:
             dict[str, list]: Transfer dict for moving `path` to tape.
         """
+        self._check_source(datafile_entity)
+        self._validate_file_size(datafile_entity.fileSize)
         return self.fts3_client.transfer(
             datafile_entity=datafile_entity,
             source_storage=self.source_storage,
@@ -111,25 +164,27 @@ class TransferController:
             destination_prefix=self.destination_prefix,
         )
 
-    def _submit(self, minimum_transfers: int = 1) -> None:
-        """Submits any pending `self.transfers`.
+    def _submit_all(self, maximum_transfers: int = 1000) -> None:
+        """Submits all pending `self.transfers`.
 
         Args:
-            minimum_transfers (int, optional):
-                Will only submit `self.transfers` If there are at least this many
-                pending. Allows batching of transfers whilst limiting JSON length of
-                the request. Defaults to 1.
+            maximum_transfers (int, optional):
+                Will submit jobs of up to the many transfers. Allows batching of
+                transfers whilst limiting JSON length of the request. Defaults to 1.
         """
-        if len(self.transfers) >= minimum_transfers:
+        self._validate_total_size()
+        for i in range(0, len(self.transfers), maximum_transfers):
+            lower = maximum_transfers * i
+            upper = maximum_transfers * (i + 1)
+            transfer_block = self.transfers[lower:upper]
             job_id = self.fts3_client.submit(
-                transfers=self.transfers,
+                transfers=transfer_block,
                 bring_online=self.bring_online,
                 archive_timeout=self.archive_timeout,
                 strict_copy=self.strict_copy,
             )
             self.job_ids.append(job_id)
-            self.total_transfers += len(self.transfers)
-            self.transfers = []
+            self.total_transfers += len(transfer_block)
 
 
 class DatasetArchiver(TransferController):

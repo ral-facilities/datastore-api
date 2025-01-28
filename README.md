@@ -25,7 +25,7 @@ cp config.yaml.example config.yaml
 If installing on other Distros (e.g Rocky 8), pipx doesn't install as easily. So you have to install pipx seperately. [The Documentation](https://github.com/pypa/pipx?tab=readme-ov-file#on-linux) goes over the steps. You can run the @Development Tools commands normally: 
 
 ```bash
-sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-setuptools openldap-devel swig gcc openssl-devel xrootd-client
+sudo yum install "@Development Tools" python3.11-devel python3.11 python3.11-setuptools openldap-devel swig gcc openssl-devel xrootd-client cmake3 libuv-1:1.41.1 libuuid-devel
 ```
 
 

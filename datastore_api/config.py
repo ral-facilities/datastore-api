@@ -260,6 +260,28 @@ class Fts3Settings(BaseModel):
         default=[],
         description="List of possible storage endpoints FTS can transfer between.",
     )
+    check_source: bool = Field(
+        default=False,
+        description=(
+            "Check the existence of the source file before submitted to FTS. "
+            "If set and source file not found, will raise an error. "
+            "If set, will also use the returned file size for checking against limits."
+        ),
+    )
+    file_size_limit: int = Field(
+        default=None,
+        description=(
+            "If set, will raise an error if an individual file is submitted which "
+            "exceeds this size."
+        ),
+    )
+    total_file_size_limit: int = Field(
+        default=None,
+        description=(
+            "If set, will raise an error if the total size of a request exceeds this "
+            "size."
+        ),
+    )
 
     @staticmethod
     def _validate_x509_file(setting: str, x509_file: str) -> None:

@@ -20,3 +20,5 @@ logging.ini*
 util/realistic_data/data
 util/realistic_data/resources
 *.pem
+.tmp/
+*.whl

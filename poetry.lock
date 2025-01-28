@@ -2030,7 +2030,17 @@ h11 = ">=0.8"
 [package.extras]
 standard = ["colorama (>=0.4)", "httptools (>=0.5.0)", "python-dotenv (>=0.13)", "pyyaml (>=5.1)", "uvloop (>=0.14.0,!=0.15.0,!=0.15.1)", "watchfiles (>=0.13)", "websockets (>=10.4)"]
 
+[[package]]
+name = "xrootd"
+version = "5.7.1"
+description = "eXtended ROOT daemon"
+optional = false
+python-versions = "*"
+files = [
+    {file = "xrootd-5.7.1.tar.gz", hash = "sha256:dac741afefdb459b675cf3c61523324d11200c5825b532416bfa67444de5d4a2"},
+]
+
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.11"
-content-hash = "767c38c1842d6af7140b832e75eb8668f48e116fea875288d467da8c895ac97d"
+content-hash = "df0cddce50ddf270c4ffc0b1ee8d4e66a5fefdbd7c582c8d83a4c3743872e7e9"
