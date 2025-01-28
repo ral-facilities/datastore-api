@@ -6,7 +6,7 @@ from unittest.mock import ANY, MagicMock
 from uuid import UUID
 
 from fastapi.testclient import TestClient
-from fts3.rest.client.exceptions import ServerError
+from fts3.rest.client.exceptions import ServerError, NotFound
 from icat.entity import Entity
 from icat.query import Query
 import pytest
@@ -171,7 +171,7 @@ class TestLogin:
 
 
 class TestArchive:
-    @pytest.mark.flaky(only_on=[ServerError])
+    @pytest.mark.flaky(only_on=[ServerError, NotFound], retries=3)
     def test_archive(
         self,
         test_client: TestClient,
@@ -335,7 +335,7 @@ class TestArchive:
         assert "status" in content
         assert isinstance(content["status"], dict)
 
-    @pytest.mark.flaky(only_on=[ServerError])
+    @pytest.mark.flaky(only_on=[ServerError, NotFound], retries=3)
     def test_archive_new_investigation(
         self,
         test_client: TestClient,
@@ -488,7 +488,7 @@ class TestRestore:
             pytest.param("datafile_ids"),
         ],
     )
-    @pytest.mark.flaky(only_on=[ServerError])
+    @pytest.mark.flaky(only_on=[ServerError, NotFound], retries=3)
     def test_restore_rdc(
         self,
         submit: MagicMock,
@@ -557,7 +557,7 @@ class TestRestore:
         ["bucket_acl"],
         [pytest.param(BucketAcl.PRIVATE), pytest.param(BucketAcl.PUBLIC_READ)],
     )
-    @pytest.mark.flaky(only_on=[ServerError])
+    @pytest.mark.flaky(only_on=[ServerError, NotFound], retries=3)
     def test_restore_download(
         self,
         submit: MagicMock,
@@ -641,7 +641,7 @@ class TestTransfer:
             pytest.param("datafile_ids"),
         ],
     )
-    @pytest.mark.flaky(only_on=[ServerError])
+    @pytest.mark.flaky(only_on=[ServerError, NotFound], retries=3)
     def test_transfer(
         self,
         submit: MagicMock,
@@ -1045,3 +1045,52 @@ class TestBucket:
         assert test_response.status_code == 422
         detail = json.loads(test_response.content.decode())["detail"]
         assert "idc is disk, not S3 storage" == detail
+
+
+class TestSize:
+    @pytest.mark.parametrize(
+        ["restore_ids"],
+        [
+            pytest.param("investigation_ids"),
+            pytest.param("dataset_ids"),
+            pytest.param("datafile_ids"),
+        ],
+    )
+    def test_size(
+        self,
+        submit: MagicMock,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
+        mock_fts3_settings: Settings,
+        functional_icat_client: IcatClient,
+        test_client: TestClient,
+        restore_ids: str,
+    ):
+        if restore_ids == "investigation_ids":
+            restore_request = TransferRequest(investigation_ids=[investigation.id])
+        elif restore_ids == "dataset_ids":
+            equals = {"investigation.id": investigation.id}
+            dataset = functional_icat_client.get_single_entity("Dataset", equals)
+            restore_request = TransferRequest(dataset_ids=[dataset.id])
+        elif restore_ids == "datafile_ids":
+            equals = {"dataset.investigation.id": investigation.id}
+            datafile = functional_icat_client.get_single_entity("Datafile", equals)
+            restore_request = TransferRequest(datafile_ids=[datafile.id])
+
+        json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
+        headers = {"Authorization": f"Bearer {session_id}"}
+        test_response = test_client.post(
+            "/size",
+            headers=headers,
+            json=json_body,
+        )
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert content == 1000

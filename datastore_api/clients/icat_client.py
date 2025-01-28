@@ -31,19 +31,66 @@ class IcatCache:
         icat_client = IcatClient()
         icat_client.login_functional()
         equals = {"facility.name": icat_client.settings.facility_name, "units": ""}
+        facility = icat_client.get_single_entity(
+            entity="Facility",
+            equals={"name": icat_client.settings.facility_name},
+        )
+
         self.parameter_type_job_state = icat_client.get_single_entity(
             entity="ParameterType",
             equals={"name": icat_client.settings.parameter_type_job_state, **equals},
+            allow_empty=icat_client.settings.create_parameter_types,
         )
+        if self.parameter_type_job_state is None:
+            self.parameter_type_job_state = icat_client.client.new(
+                obj="ParameterType",
+                name=icat_client.settings.parameter_type_job_state,
+                units="",
+                valueType="STRING",
+                applicableToDataset=True,
+                applicableToDatafile=True,
+                facility=facility,
+            )
+            icat_entity_id = icat_client.client.create(self.parameter_type_job_state)
+            self.parameter_type_job_state.id = icat_entity_id
+
         self.parameter_type_job_ids = icat_client.get_single_entity(
             entity="ParameterType",
             equals={"name": icat_client.settings.parameter_type_job_ids, **equals},
+            allow_empty=icat_client.settings.create_parameter_types,
         )
+        if self.parameter_type_job_ids is None:
+            self.parameter_type_job_ids = icat_client.client.new(
+                obj="ParameterType",
+                name=icat_client.settings.parameter_type_job_ids,
+                units="",
+                valueType="STRING",
+                applicableToDataset=True,
+                facility=facility,
+            )
+            icat_entity_id = icat_client.client.create(self.parameter_type_job_ids)
+            self.parameter_type_job_state.id = icat_entity_id
+
         name = icat_client.settings.parameter_type_deletion_date
         self.parameter_type_deletion_date = icat_client.get_single_entity(
             entity="ParameterType",
             equals={"name": name, **equals},
+            allow_empty=icat_client.settings.create_parameter_types,
         )
+        if self.parameter_type_deletion_date is None:
+            self.parameter_type_deletion_date = icat_client.client.new(
+                obj="ParameterType",
+                name=icat_client.settings.parameter_type_deletion_date,
+                units="",
+                valueType="STRING",
+                applicableToDataset=True,
+                applicableToDatafile=True,
+                facility=facility,
+            )
+            icat_entity_id = icat_client.client.create(
+                self.parameter_type_deletion_date,
+            )
+            self.parameter_type_job_state.id = icat_entity_id
 
 
 @lru_cache

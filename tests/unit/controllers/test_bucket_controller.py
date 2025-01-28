@@ -66,7 +66,7 @@ class TestBucketController:
         assert state_counter.state == JobState.finished_dirty
         assert len(objects) == 2
         assert objects[0].key == ".job_ids"
-        assert objects[1].key == "test"
+        assert objects[1].key == "test0"
 
     def test_get_data_private(
         self,

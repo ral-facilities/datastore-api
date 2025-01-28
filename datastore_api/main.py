@@ -12,6 +12,7 @@ from datastore_api.config import get_settings, Storage, StorageType
 from datastore_api.controllers.bucket_controller import BucketController
 from datastore_api.controllers.investigation_archiver import InvestigationArchiver
 from datastore_api.controllers.state_controller import StateController
+from datastore_api.controllers.state_counter import StateCounter
 from datastore_api.controllers.transfer_controller import (
     DatasetReArchiver,
     TransferController,
@@ -37,7 +38,6 @@ from datastore_api.models.transfer import (
     TransferS3Response,
 )
 from datastore_api.models.version import VersionResponse
-
 
 LOGGER = logging.getLogger(__name__)
 
@@ -669,7 +669,8 @@ def status(
     fts3_client: Fts3ClientDependency,
     job_id: str,
     list_files: bool = True,
-) -> StatusResponse:
+    verbose: bool = True,
+) -> StatusResponse | DatasetStatusResponse | DatasetStatusListFilesResponse:
     """Get details of a job previously submitted to FTS.
     \f
     Args:
@@ -681,7 +682,21 @@ def status(
         StatusResponse: Details of the requested job.
     """
     status = fts3_client.status(job_id=job_id, list_files=list_files)
-    return StatusResponse(status=status)
+
+    if verbose:  # verbose = True
+        return StatusResponse(status=status)
+    else:  # verbose = False
+        if list_files:  # list_files = True
+            file_states = {}
+            for file_status in status["files"]:
+                file_path, file_state = StateCounter.get_state(file_status=file_status)
+                file_states[file_path] = file_state
+            return DatasetStatusListFilesResponse(
+                state=status["job_state"],
+                file_states=file_states,
+            )
+        else:  # list_files = False
+            return DatasetStatusResponse(state=status["job_state"])
 
 
 @app.get(
@@ -739,3 +754,42 @@ def version() -> VersionResponse:
         VersionResponse: Version of the API.
     """
     return VersionResponse(version=metadata.version("datastore-api"))
+
+
+@app.get("/storage-type", summary="Get storage types for endpoints")
+def get_storage_info():
+
+    settings = get_settings()
+
+    fts3_settings = settings.fts3
+
+    archive_storage_type = None
+    if fts3_settings.archive_endpoint:
+        archive_storage_type = fts3_settings.archive_endpoint.storage_type
+
+    storage_endpoint_type = {}
+    for key, value in fts3_settings.storage_endpoints.items():
+        storage_endpoint_type[key] = value.storage_type
+
+    return {"archive": archive_storage_type, "storage": storage_endpoint_type}
+
+
+@app.post(
+    "/size",
+    summary="Returns the size of the specified entities",
+)
+def size(transfer_request: TransferRequest, session_id: SessionIdDependency) -> int:
+
+    total_size = 0
+    icat_client = IcatClient(session_id)
+
+    datafiles = icat_client.get_unique_datafiles(
+        transfer_request.investigation_ids,
+        transfer_request.dataset_ids,
+        transfer_request.datafile_ids,
+    )
+
+    for datafile in datafiles:
+        total_size += datafile.fileSize
+
+    return total_size

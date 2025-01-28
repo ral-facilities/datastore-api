@@ -59,7 +59,7 @@ class TestTransferController:
         cache_bucket: str,
         mocker: MockerFixture,
     ):
-        datafile_failed.location = "test"
+        datafile_failed.location = "test0"
         transfer_controller = TransferController(
             datafile_entities=[datafile_failed],
             source_key="echo",
