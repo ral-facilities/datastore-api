@@ -53,14 +53,14 @@ FILES = [
         "file_state": "FINISHED",
         "dest_surl": "mock://test.cern.ch/ttqv/pryb/nnvw?size_post=1048576&time=2",
         "source_surl": (
-            "root://archive.ac.uk:1094//test?copy_mode=push&activity=default"
+            "root://archive.ac.uk:1094//test0?copy_mode=push&activity=default"
         ),
     },
     {
         "file_state": "FAILED",
         "dest_surl": "mock://test.cern.ch/swnx/jznu/laso?size_post=1048576&time=2",
         "source_surl": (
-            "root://archive.ac.uk:1094//test?copy_mode=push&activity=default"
+            "root://archive.ac.uk:1094//test1?copy_mode=push&activity=default"
         ),
     },
 ]
@@ -684,6 +684,7 @@ def datafile_failed(
         location="instrument/20XX/name-visitId/type/dataset/datafile",
         dataset=dataset_failed,
         parameters=[datafile_parameter],
+        fileSize=1000,
     )
 
     yield dataset
@@ -714,7 +715,7 @@ def cache_bucket() -> Generator[str, None, None]:
         cache_bucket.create()
     except ClientError:
         pass
-    cache_bucket.put_object(Key="test", Body=b"test")
+    cache_bucket.put_object(Key="test0", Body=b"test")
     yield cache_bucket.name
     cache_bucket.objects.all().delete()
 
