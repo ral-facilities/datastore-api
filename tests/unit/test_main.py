@@ -173,7 +173,7 @@ class TestMain:
         assert content == {
             "state": STATUSES[0]["job_state"],
         }
-        
+
     def test_complete(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/job/1/complete", headers=headers)
