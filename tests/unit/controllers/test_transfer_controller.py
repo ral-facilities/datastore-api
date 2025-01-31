@@ -1,3 +1,6 @@
+from datetime import datetime
+
+from dateutil.tz import tzutc
 from fastapi import HTTPException
 from icat.entity import Entity
 import pytest
@@ -66,10 +69,12 @@ class TestTransferController:
             destination_key="rdc",
         )
         transfer_controller.fts3_client.fts3_settings.check_source = True
-
         transfer_controller._check_source(transfer_controller.datafile_entities[0])
 
+        time = datetime.now(tzutc()).replace(microsecond=0)
+
         assert transfer_controller.datafile_entities[0].fileSize == 4
+        assert transfer_controller.datafile_entities[0].datafileModTime == time
 
     def test_check_source_s3_failure(
         self,
@@ -116,6 +121,7 @@ class TestTransferController:
         mocked_status.code = 0
         mocked_stat_info = mocker.MagicMock()
         mocked_stat_info.size = 4
+        mocked_stat_info.modtime = datetime.now()
         mocked_client = mocker.MagicMock()
         mocked_client.stat.return_value = [mocked_status, mocked_stat_info]
         mocked_file_system = mocker.MagicMock()
@@ -124,8 +130,10 @@ class TestTransferController:
         mocker.patch(module, mocked_file_system)
 
         transfer_controller._check_source(transfer_controller.datafile_entities[0])
+        time = mocked_stat_info.modtime
 
         assert transfer_controller.datafile_entities[0].fileSize == 4
+        assert transfer_controller.datafile_entities[0].datafileModTime == time
 
     def test_check_source_x_root_d_failure(
         self,

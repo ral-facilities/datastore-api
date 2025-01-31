@@ -8,7 +8,7 @@ from datastore_api.clients.x_root_d_client import get_x_root_d_client
 from datastore_api.config import S3Storage, StorageType, TapeStorage
 from datastore_api.controllers.bucket_controller import BucketController
 from datastore_api.models.dataset import DatasetStatusListFilesResponse
-from datastore_api.models.icat import Dataset, Datafile
+from datastore_api.models.icat import Dataset
 from datastore_api.models.job import COMPLETE_JOB_STATES, JobState, TransferState
 from datastore_api.models.transfer import (
     BucketAcl,
@@ -109,12 +109,12 @@ class TransferController:
                 s3_client = get_s3_client(key=self.source_key)
                 stat_info = s3_client.stat(datafile_entity.location)
                 datafile_entity.fileSize = stat_info["ContentLength"]
-                #datafile_entity.datafileModTime = stat_info["LastModified"]
+                datafile_entity.datafileModTime = stat_info["LastModified"]
             else:
                 x_root_d_client = get_x_root_d_client(url=self.source_storage.url)
                 stat_info = x_root_d_client.stat(datafile_entity.location)
                 datafile_entity.fileSize = stat_info.size
-                #datafile_entity.datafileModTime = stat_info.datetime.datetime.fromtimestamp()
+                datafile_entity.datafileModTime = stat_info.modtime
 
     def _validate_file_size(self, file_size: int) -> None:
         """
