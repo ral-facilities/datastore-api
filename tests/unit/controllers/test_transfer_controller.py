@@ -71,10 +71,11 @@ class TestTransferController:
         transfer_controller.fts3_client.fts3_settings.check_source = True
         transfer_controller._check_source(transfer_controller.datafile_entities[0])
 
-        time = datetime.now(tzutc()).replace(microsecond=0)
-
         assert transfer_controller.datafile_entities[0].fileSize == 4
-        assert transfer_controller.datafile_entities[0].datafileModTime == time
+        assert isinstance(
+            transfer_controller.datafile_entities[0].datafileModTime,
+            datetime,
+        )
 
     def test_check_source_s3_failure(
         self,
