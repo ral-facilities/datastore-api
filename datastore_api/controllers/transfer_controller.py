@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import HTTPException
 from icat.entity import Entity
 
@@ -114,7 +116,9 @@ class TransferController:
                 x_root_d_client = get_x_root_d_client(url=self.source_storage.url)
                 stat_info = x_root_d_client.stat(datafile_entity.location)
                 datafile_entity.fileSize = stat_info.size
-                datafile_entity.datafileModTime = stat_info.modtime
+                datafile_entity.datafileModTime = datetime.fromtimestamp(
+                    stat_info.modtime,
+                )
 
     def _validate_file_size(self, file_size: int) -> None:
         """

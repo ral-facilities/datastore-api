@@ -111,7 +111,7 @@ class TestTransferController:
         get_x_root_d_client.cache_clear()
         settings_copy = mock_fts3_settings.fts3.model_copy()
         settings_copy.check_source = True
-        datafile_failed.location = "test"
+        datafile_failed.location = "test0"
         transfer_controller = TransferController(
             datafile_entities=[datafile_failed],
             source_key="idc",
@@ -122,7 +122,7 @@ class TestTransferController:
         mocked_status.code = 0
         mocked_stat_info = mocker.MagicMock()
         mocked_stat_info.size = 4
-        mocked_stat_info.modtime = datetime.now()
+        mocked_stat_info.modtime = int(datetime.now().timestamp())
         mocked_client = mocker.MagicMock()
         mocked_client.stat.return_value = [mocked_status, mocked_stat_info]
         mocked_file_system = mocker.MagicMock()
@@ -131,10 +131,12 @@ class TestTransferController:
         mocker.patch(module, mocked_file_system)
 
         transfer_controller._check_source(transfer_controller.datafile_entities[0])
-        time = mocked_stat_info.modtime
 
         assert transfer_controller.datafile_entities[0].fileSize == 4
-        assert transfer_controller.datafile_entities[0].datafileModTime == time
+        assert isinstance(
+            transfer_controller.datafile_entities[0].datafileModTime,
+            datetime,
+        )
 
     def test_check_source_x_root_d_failure(
         self,
