@@ -99,6 +99,7 @@ services:
       done;
       /usr/bin/mc mb data/cache-bucket;
       /usr/bin/echo "test" | mc pipe data/cache-bucket/test;
+      /usr/bin/echo "test0" | mc pipe data/cache-bucket/test0;
       /usr/bin/echo "test2" | mc pipe data/cache-bucket/test2;
       /usr/bin/echo "test3" | mc pipe data/cache-bucket/test3;
       exit 0;

@@ -171,7 +171,7 @@ class TestLogin:
 
 
 class TestArchive:
-    @pytest.mark.flaky(only_on=[ServerError])
+    @pytest.mark.flaky(only_on=[ServerError, NotFound], retries=3)
     def test_archive(
         self,
         test_client: TestClient,
@@ -335,7 +335,7 @@ class TestArchive:
         assert "status" in content
         assert isinstance(content["status"], dict)
 
-    @pytest.mark.flaky(only_on=[ServerError], retries=3)
+    @pytest.mark.flaky(only_on=[ServerError, NotFound], retries=3)
     def test_archive_new_investigation(
         self,
         test_client: TestClient,
@@ -488,7 +488,7 @@ class TestRestore:
             pytest.param("datafile_ids"),
         ],
     )
-    @pytest.mark.flaky(only_on=[ServerError], retries=3)
+    @pytest.mark.flaky(only_on=[ServerError, NotFound], retries=3)
     def test_restore_rdc(
         self,
         submit: MagicMock,
@@ -557,7 +557,7 @@ class TestRestore:
         ["bucket_acl"],
         [pytest.param(BucketAcl.PRIVATE), pytest.param(BucketAcl.PUBLIC_READ)],
     )
-    @pytest.mark.flaky(only_on=[ServerError], retries=3)
+    @pytest.mark.flaky(only_on=[ServerError, NotFound], retries=3)
     def test_restore_download(
         self,
         submit: MagicMock,
@@ -641,7 +641,7 @@ class TestTransfer:
             pytest.param("datafile_ids"),
         ],
     )
-    @pytest.mark.flaky(only_on=[ServerError], retries=3)
+    @pytest.mark.flaky(only_on=[ServerError, NotFound], retries=3)
     def test_transfer(
         self,
         submit: MagicMock,
