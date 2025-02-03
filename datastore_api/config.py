@@ -12,6 +12,7 @@ from pydantic import (
     Field,
     HttpUrl,
     model_validator,
+    SecretStr,
     TypeAdapter,
     UrlConstraints,
 )
@@ -70,7 +71,7 @@ class IcatUser(BaseModel):
 
 
 class FunctionalUser(IcatUser):
-    password: str = Field(description="ICAT password.", examples=["pw"])
+    password: SecretStr = Field(description="ICAT password.", examples=["pw"])
 
 
 class IcatSettings(BaseModel):
@@ -185,8 +186,8 @@ class TapeStorage(Storage):
 
 class S3Storage(Storage):
     storage_type: Literal[StorageType.S3] = StorageType.S3
-    access_key: str = Field(description="The ID for this access key")
-    secret_key: str = Field(description="The secret key used to sign requests")
+    access_key: SecretStr = Field(description="The ID for this access key")
+    secret_key: SecretStr = Field(description="The secret key used to sign requests")
     cache_bucket: str = Field(
         description="Private bucket used to cache files before copy to download bucket",
     )
@@ -204,6 +205,10 @@ class Fts3Settings(BaseModel):
     endpoint: HttpUrlStr = Field(
         description="Url to use for the FTS server",
         examples=["https://localhost:8446"],
+    )
+    verify: bool = Field(
+        default=True,
+        description="Whether we verify the server's TLS certificate",
     )
     x509_user_proxy: str = Field(
         default=None,
@@ -262,6 +267,28 @@ class Fts3Settings(BaseModel):
         default=[],
         description="List of possible storage endpoints FTS can transfer between.",
     )
+    check_source: bool = Field(
+        default=False,
+        description=(
+            "Check the existence of the source file before submitted to FTS. "
+            "If set and source file not found, will raise an error. "
+            "If set, will also use the returned file size for checking against limits."
+        ),
+    )
+    file_size_limit: int = Field(
+        default=None,
+        description=(
+            "If set, will raise an error if an individual file is submitted which "
+            "exceeds this size."
+        ),
+    )
+    total_file_size_limit: int = Field(
+        default=None,
+        description=(
+            "If set, will raise an error if the total size of a request exceeds this "
+            "size."
+        ),
+    )
 
     @staticmethod
     def _validate_x509_file(setting: str, x509_file: str) -> None:
@@ -302,7 +329,11 @@ class Settings(BaseSettings):
     icat: IcatSettings = Field(description="Settings to connect to an ICAT instance")
     fts3: Fts3Settings = Field(description="Settings to connect to an FTS3 instance")
 
-    model_config = SettingsConfigDict(yaml_file="config.yaml")
+    model_config = SettingsConfigDict(
+        yaml_file="config.yaml",
+        env_nested_delimiter="__",
+        hide_input_in_errors=True,
+    )
 
     @classmethod
     def settings_customise_sources(

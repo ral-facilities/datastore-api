@@ -1,3 +1,5 @@
+from fts3.rest.client.exceptions import ServerError
+import pytest
 from pytest_mock import mocker, MockerFixture
 
 from datastore_api.clients.icat_client import get_icat_cache, IcatCache, IcatClient
@@ -23,6 +25,7 @@ from tests.fixtures import (
 
 
 class TestInvestigationArchiver:
+    @pytest.mark.flaky(only_on=[ServerError], retries=3)
     def test_investigation_archiver(
         self,
         mock_fts3_settings: Settings,

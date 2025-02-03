@@ -25,6 +25,7 @@ from tests.fixtures import (
 @pytest.fixture(scope="function")
 def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
     datafile = mocker.MagicMock(name="datafile")
+    datafile.fileSize = None
     dataset = mocker.MagicMock(name="dataset")
     dataset_parameter_state = mocker.MagicMock(name="dataset_parameter_state")
     dataset_parameter_state.type.name = "Archival state"
@@ -84,8 +85,8 @@ class TestMain:
             json=json_body,
         )
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert "dataset_ids" in content
         assert content["dataset_ids"] == [1]
         assert "job_ids" in content
@@ -102,8 +103,8 @@ class TestMain:
             json=json_body,
         )
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
         UUID(content["job_ids"][0], version=4)
@@ -126,19 +127,17 @@ class TestMain:
             headers=headers,
         )
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert content == {"state": "FINISHED"}
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/job/1/status", headers=headers)
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
-        assert content == {
-            "status": STATUSES[0],
-        }
+        assert content == {"status": STATUSES[0]}
 
     def test_status_multiple(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
@@ -176,23 +175,23 @@ class TestMain:
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/job/1/complete", headers=headers)
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert content == {"complete": True}
 
     def test_percentage(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/job/1/percentage", headers=headers)
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert content == {"percentage_complete": 100.0}
 
     def test_cancel(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.delete("/job/1", headers=headers)
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert content == {"state": "CANCELED"}
 
     def test_version(self, test_client: TestClient):
