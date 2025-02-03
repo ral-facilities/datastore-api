@@ -22,3 +22,4 @@ util/realistic_data/resources
 *.pem
 .tmp/
 *.whl
+pytest.ini
