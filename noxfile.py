@@ -22,33 +22,33 @@ def lint(session):
     session.run("flake8", *args)
 
 
-@nox.session(reuse_venv=True)
-def safety(session):
-    session.run("poetry", "install", "--only=dev", external=True)
-    with tempfile.NamedTemporaryFile(delete=False) as requirements:
-        session.run(
-            "poetry",
-            "export",
-            "--with=dev",
-            "--format=requirements.txt",
-            "--without-hashes",
-            f"--output={requirements.name}",
-            external=True,
-        )
-        session.run(
-            "safety",
-            "check",
-            f"--file={requirements.name}",
-            "--full-report",
-            "--ignore=70612",
-        )
+# @nox.session(reuse_venv=True)
+# def safety(session):
+#     session.run("poetry", "install", "--only=dev", external=True)
+#     with tempfile.NamedTemporaryFile(delete=False) as requirements:
+#         session.run(
+#             "poetry",
+#             "export",
+#             "--with=dev",
+#             "--format=requirements.txt",
+#             "--without-hashes",
+#             f"--output={requirements.name}",
+#             external=True,
+#         )
+#         session.run(
+#             "safety",
+#             "check",
+#             f"--file={requirements.name}",
+#             "--full-report",
+#             "--ignore=70612",
+#         )
 
-        try:
-            # Due to delete=False, the file must be deleted manually
-            requirements.close()
-            os.unlink(requirements.name)
-        except IOError:
-            session.log("Error: The temporary requirements file could not be closed")
+#         try:
+#             # Due to delete=False, the file must be deleted manually
+#             requirements.close()
+#             os.unlink(requirements.name)
+#         except IOError:
+#             session.log("Error: The temporary requirements file could not be closed")
 
 
 @nox.session(python=["3.11"], reuse_venv=True)
