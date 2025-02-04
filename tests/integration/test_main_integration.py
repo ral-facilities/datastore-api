@@ -641,7 +641,7 @@ class TestTransfer:
             pytest.param("datafile_ids"),
         ],
     )
-    @pytest.mark.flaky(only_on=[ServerError], retries=3)
+    @pytest.mark.flaky(only_on=[ServerError], retries=4)
     def test_transfer(
         self,
         submit: MagicMock,
