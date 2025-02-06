@@ -98,7 +98,7 @@ class TestMain:
         json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post(
-            "/restore/rdc",
+            "/restore/rdc?get_size=true",
             headers=headers,
             json=json_body,
         )
@@ -108,6 +108,25 @@ class TestMain:
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
         UUID(content["job_ids"][0], version=4)
+        assert "size" in content
+        assert content["size"] >= 0
+
+    def test_restore_to_rdc_with_parameters(self, test_client: TestClient):
+        restore_request = TransferRequest(investigation_ids=[0])
+        json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.post(
+            "/restore/rdc?get_size=false",
+            headers=headers,
+            json=json_body,
+        )
+
+        assert test_response.status_code == 200, test_response.content
+        content = json.loads(test_response.content)
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID(content["job_ids"][0], version=4)
+        assert "size" in content
 
     def test_get_dataset_without_update(
         self,

@@ -220,11 +220,13 @@ def archive(
         "creating an FTS transfer"
     ),
     tags=["Restore"],
+    response_model_exclude_none=True,
 )
 def restore(
     destination_key: DestinationKey,
     transfer_request: TransferS3Request | TransferRequest,
     session_id: SessionIdDependency,
+    get_size: bool = False,
 ) -> TransferS3Response | TransferResponse:
     """Submit a request to restore experimental data to the another location,
     creating an FTS transfer.
@@ -257,7 +259,9 @@ def restore(
     message = "Submitted FTS restore jobs for %s transfers with ids %s"
     LOGGER.info(message, restore_controller.total_transfers, restore_controller.job_ids)
 
-    return response
+    if not get_size:
+        return {"job_ids": response.job_ids}
+    return {"job_ids": response.job_ids, "size": response.size}
 
 
 @app.post(
