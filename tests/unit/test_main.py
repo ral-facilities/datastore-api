@@ -128,7 +128,6 @@ class TestMain:
         UUID(content["job_ids"][0], version=4)
         assert "size" not in content
 
-
     def test_get_dataset_without_update(
         self,
         test_client: TestClient,
