@@ -126,7 +126,8 @@ class TestMain:
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
         UUID(content["job_ids"][0], version=4)
-        assert "size" in content
+        assert "size" not in content
+
 
     def test_get_dataset_without_update(
         self,
