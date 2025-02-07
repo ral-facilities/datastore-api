@@ -766,8 +766,6 @@ class TestTransfer:
         assert test_response.status_code == 200, content
         assert "status" in content
         assert isinstance(content["status"], dict)
-    
-    
 
     def test_transfer_failure(
         self,
