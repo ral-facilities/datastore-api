@@ -259,9 +259,20 @@ def restore(
     message = "Submitted FTS restore jobs for %s transfers with ids %s"
     LOGGER.info(message, restore_controller.total_transfers, restore_controller.job_ids)
 
+    # if get_size:
+    #     if isinstance(response, TransferS3Response):
+    #         return {
+    #             "job_ids": response.job_ids,
+    #             "size": response.size,
+    #             "bucket_name": response.bucket_name,
+    #         }
+    #     else:
+    #         return {"job_ids": response.job_ids, "size": response.size}
+    # else:
+    #     return {"job_ids": response.job_ids}
     if not get_size:
-        return {"job_ids": response.job_ids}
-    return {"job_ids": response.job_ids, "size": response.size}
+        response.size = None
+    return response
 
 
 @app.post(

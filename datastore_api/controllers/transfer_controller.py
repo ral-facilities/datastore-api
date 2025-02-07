@@ -98,6 +98,7 @@ class TransferController:
             return TransferS3Response(
                 job_ids=self.job_ids,
                 bucket_name=self.bucket_controller.bucket.name,
+                size=self.size,
             )
 
         return TransferResponse(job_ids=self.job_ids, size=self.size)
