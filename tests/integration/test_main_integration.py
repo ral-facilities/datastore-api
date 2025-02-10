@@ -672,7 +672,7 @@ class TestTransfer:
         json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {session_id}"}
         test_response = test_client.post(
-            "/transfer/echo/rdc",
+            "/transfer/echo/rdc?get_size=false",
             headers=headers,
             json=json_body,
         )
@@ -682,6 +682,74 @@ class TestTransfer:
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
         UUID(content["job_ids"][0], version=4)
+        assert "size" not in content
+
+        s3_url = mock_fts3_settings.fts3.storage_endpoints["echo"].formatted_url
+        path = "instrument/20XX/name-visitId/type/dataset/datafile"
+        sources = [f"{s3_url}cache-bucket/{path}"]
+        destinations = [f"root://rdc.ac.uk:1094//{path}"]
+        job = fts_job(
+            sources=sources,
+            destinations=destinations,
+        )
+        submit.assert_called_once_with(context=ANY, job=job)
+
+        test_response = test_client.get(f"/job/{content['job_ids'][0]}/status")
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "status" in content
+        assert isinstance(content["status"], dict)
+
+    @pytest.mark.parametrize(
+        ["restore_ids"],
+        [
+            pytest.param("investigation_ids"),
+            pytest.param("dataset_ids"),
+            pytest.param("datafile_ids"),
+        ],
+    )
+    @pytest.mark.flaky(only_on=[ServerError], retries=3)
+    def test_transfer_param(
+        self,
+        submit: MagicMock,
+        session_id: str,
+        facility: Entity,
+        investigation_type: Entity,
+        facility_cycle: Entity,
+        instrument: Entity,
+        investigation: Entity,
+        dataset_failed: Entity,
+        datafile_failed: Entity,
+        mock_fts3_settings: Settings,
+        functional_icat_client: IcatClient,
+        test_client: TestClient,
+        restore_ids: str,
+    ):
+        if restore_ids == "investigation_ids":
+            restore_request = TransferRequest(investigation_ids=[investigation.id])
+        elif restore_ids == "dataset_ids":
+            equals = {"investigation.id": investigation.id}
+            dataset = functional_icat_client.get_single_entity("Dataset", equals)
+            restore_request = TransferRequest(dataset_ids=[dataset.id])
+        elif restore_ids == "datafile_ids":
+            equals = {"dataset.investigation.id": investigation.id}
+            datafile = functional_icat_client.get_single_entity("Datafile", equals)
+            restore_request = TransferRequest(datafile_ids=[datafile.id])
+
+        json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
+        headers = {"Authorization": f"Bearer {session_id}"}
+        test_response = test_client.post(
+            "/transfer/echo/rdc?get_size=true",
+            headers=headers,
+            json=json_body,
+        )
+
+        content = json.loads(test_response.content)
+        assert test_response.status_code == 200, content
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID(content["job_ids"][0], version=4)
+        assert "size" in content
 
         s3_url = mock_fts3_settings.fts3.storage_endpoints["echo"].formatted_url
         path = "instrument/20XX/name-visitId/type/dataset/datafile"

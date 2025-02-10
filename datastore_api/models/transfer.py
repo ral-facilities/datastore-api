@@ -1,4 +1,5 @@
 from enum import StrEnum
+from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -30,6 +31,10 @@ class TransferS3Request(TransferRequest):
 
 class TransferResponse(BaseModel):
     job_ids: list[str] = Field(examples=[["00000000-0000-0000-0000-000000000000"]])
+    size: Optional[int] = Field(
+        default=None,
+        description="The total size of the files in bytes",
+    )
 
 
 class TransferS3Response(TransferResponse):

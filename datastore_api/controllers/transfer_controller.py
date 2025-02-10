@@ -59,6 +59,7 @@ class TransferController:
         self.destination_storage = self.fts3_client.get_storage(key=destination_key)
         self.destination_prefix = ""
         self.bucket_controller = None
+        self.size = 0
 
         if isinstance(self.source_storage, S3Storage):
             self.source_prefix = f"{self.source_storage.cache_bucket}/"
@@ -86,6 +87,8 @@ class TransferController:
         for datafile_entity in self.datafile_entities:
             transfer = self._transfer(datafile_entity)
             self.transfers.append(transfer)
+            if datafile_entity.fileSize is not None:
+                self.size += datafile_entity.fileSize
 
         self._submit_all()
 
@@ -95,9 +98,10 @@ class TransferController:
             return TransferS3Response(
                 job_ids=self.job_ids,
                 bucket_name=self.bucket_controller.bucket.name,
+                size=self.size,
             )
 
-        return TransferResponse(job_ids=self.job_ids)
+        return TransferResponse(job_ids=self.job_ids, size=self.size)
 
     def _check_source(self, datafile_entity: Entity) -> None:
         """Check source storage for presence of the target file, and extract its size.
