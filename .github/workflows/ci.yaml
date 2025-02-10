@@ -182,12 +182,6 @@ jobs:
         run: nox -s safety
 
   build:
-    if: github.event_name == 'push'
-    needs:
-      - tests
-      - linting
-      - formatting
-      - safety
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
