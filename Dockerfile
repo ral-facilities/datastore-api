@@ -23,7 +23,7 @@ RUN apt-get update && apt-get install -y \
 
 
 # Copy the project files to the container and install
-COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
+COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example datastore_api/app/
 RUN if [ ${ENVIRONMENT} = "PROD" ]; then \
         echo "Installing DEVELOPMENT dependencies" && \
         poetry install --without=dev; \
