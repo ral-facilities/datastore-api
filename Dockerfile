@@ -12,17 +12,38 @@ RUN echo "ENVIRONMENT value is ${ENVIRONMENT}"
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies for building M2Crypto and install Poetry
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    libssl-dev \
-    swig \
-    cmake \
-    libuuid-devel \
-    curl \
-    && curl -sSL https://install.python-poetry.org | python3 - \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
-
+# Install system dependencies and Poetry
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        expect \
+        perl \
+        policycoreutils \
+        selinux-utils \
+        libreadline-dev \
+        libxml2-dev \
+        python3-dev \
+        libmacaroons-dev \
+        libjson-c-dev \
+        uuid-dev \
+        libssl-dev \
+        libcurl4-openssl-dev \
+        libfuse-dev \
+        fuse \
+        git \
+        cmake \
+        make \
+        gcc \
+        g++ \
+        gdb \
+        autoconf \
+        automake \
+        curl \
+        swig && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+    
+# Install Poetry
+RUN curl -sSL https://install.python-poetry.org | python3 -
 
 # Copy the project files to the container and install
 COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
