@@ -49,14 +49,14 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
 RUN if [ ${ENVIRONMENT} = "PROD" ]; then \
         echo "Installing DEVELOPMENT dependencies" && \
-        poetry install --without=dev; \
+        poetry install --without=dev --no-root; \
     elif [ ${ENVIRONMENT} = "DEV" ]; then \
         echo "Installing DEVELOPMENT dependencies" && \
         touch hostkey.pem && \
         touch hostcert.pem && \
         cp config.yaml.example config.yaml && \
         cp logging.ini.example logging.ini && \
-        poetry install --with=dev; \
+        poetry install --with=dev --no-root; \
     else \
         echo "ENVIRONMENT must be one of DEV, PROD" && \
         exit 1; \
