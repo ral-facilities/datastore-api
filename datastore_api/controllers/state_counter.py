@@ -77,7 +77,7 @@ class StateCounter:
         else:
             return 100 * self.files_complete / self.files_total
 
-    def check_state(self, state: str, job_id: str) -> bool:
+    def check_state(self, state: str, job_id: str = None) -> bool:
         """Counts a single FTS job state, and if non-terminal then records the job_id.
 
         Args:
