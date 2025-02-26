@@ -138,6 +138,25 @@ class StateCounter:
             self.files_complete += 1
 
         return file_path, file_state
+    
+    def check_datafile_state(self, file_status: str) -> str:
+        """Parses out the file location and state from the FTS status, and increments
+        the relevant file counters.
+
+        Args:
+            file_status (dict[str, str]): Latest FTS file status for a single transfer.
+
+        Returns:
+            tuple[str, str]: File location (excluding endpoint address), FTS file state.
+        """
+
+        file_state = file_status
+
+        self.files_total += 1
+        if file_state in COMPLETE_TRANSFER_STATES:
+            self.files_complete += 1
+
+        return file_state
 
     @staticmethod
     def get_state(file_status: dict[str, str]) -> tuple[str, str]:

@@ -213,7 +213,7 @@ class StateController:
         """
         equals = {
             "type.name": self.icat_client.settings.parameter_type_job_state,
-            "datafile.location": location,
+            "datafile.location": location.strip(),
         }
 
         return self.icat_client.get_single_entity(
@@ -378,16 +378,20 @@ class StateController:
             # for status in statuses:
             state_counter.check_state(
                 state=status.stringValue,
+                
 
             )
-            file_status = self.get_datafile_states(dataset_id=parameter.dataset.id)
+            datafile_status = self.get_datafile_states(dataset_id=parameter.dataset.id)[0]
+            file_status = datafile_status.stringValue
             print("file_status")
+            print(datafile_status)
             print(file_status)
             #for file_status in status["files"]:
-            file_path, file_state = state_counter.check_file(
+            file_state = state_counter.check_datafile_state(
                 file_status=file_status,
             )
-            file_state_parameter = self.get_datafile_state(location=file_path)
+
+            file_state_parameter = self.get_datafile_state(location=datafile_status.datafile.location)
 
             if file_state_parameter.stringValue != file_state:
                 file_state_parameter.stringValue = file_state
@@ -399,7 +403,7 @@ class StateController:
             #     parameter.stringValue = ",".join(state_counter.ongoing_job_ids)
             #     self.icat_client.update(bean=parameter)
 
-            state_parameter = self.get_dataset_state(dataset_id=parameter.dataset.id)
+            state_parameter = self.get_dataset_state(dataset_id=parameter.dataset.id)[0]
             if state_parameter.stringValue != state_counter.state:
                 state_parameter.stringValue = state_counter.state
                 self.icat_client.update(bean=state_parameter)
