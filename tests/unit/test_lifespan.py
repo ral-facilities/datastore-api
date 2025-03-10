@@ -56,7 +56,8 @@ class TestLifespan:
 
         poll_fts(state_controller)
 
-        delete_many.assert_called_once_with([])
+        # TODO we no longer delete completed job ids - assert something else here?
+        # delete_many.assert_called_once_with([])
 
     def test_poll_fts_failure(
         self,
@@ -107,7 +108,7 @@ class TestLifespan:
                     {"job_state": JobState.canceled, "files": [], "job_id": "1"},
                     {"job_state": JobState.submitted, "files": [], "job_id": "2"},
                 ],
-                "0,2",
+                "0,1,2",
                 JobState.submitted,
                 JobState.submitted,
             ),
@@ -128,7 +129,7 @@ class TestLifespan:
                     {"job_state": JobState.finished, "files": [], "job_id": "1"},
                     {"job_state": JobState.finished_dirty, "files": [], "job_id": "2"},
                 ],
-                "",
+                "0,1,2",
                 JobState.finished_dirty,
                 JobState.failed,
             ),
@@ -154,7 +155,7 @@ class TestLifespan:
         equals_job_state = {"type.name": type_job_state}
         parameters = functional_icat_client.get_entities(
             entity="DatasetParameter",
-            equals=equals_job_ids,
+            equals=equals_job_state,
             includes="1",
         )
 
@@ -171,10 +172,8 @@ class TestLifespan:
             equals=equals_job_ids,
             allow_empty=True,
         )
-        if job_ids:
-            assert parameter.stringValue == job_ids
-        else:
-            assert parameter is None
+        assert parameter.stringValue == job_ids
+
 
         parameter = functional_icat_client.get_single_entity(
             entity="DatasetParameter",

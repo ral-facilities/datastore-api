@@ -9,7 +9,7 @@ from datastore_api.models.dataset import (
     DatasetStatusListFilesResponse,
     DatasetStatusResponse,
 )
-from datastore_api.models.job import COMPLETE_TRANSFER_STATES
+from datastore_api.models.job import COMPLETE_JOB_STATES, COMPLETE_TRANSFER_STATES
 
 
 class StateController:
@@ -422,8 +422,8 @@ class StateController:
         Returns:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
-        parameters = self.get_dataset_job_ids(dataset_id=dataset_id)
-        if parameters:
+        parameters = self.get_dataset_state(dataset_id=dataset_id)
+        if parameters[0].stringValue not in COMPLETE_JOB_STATES:
             state_controller_functional = StateController()
             return state_controller_functional._get_update_dataset_status(
                 parameters=parameters,
