@@ -367,50 +367,44 @@ class StateController:
         Returns:
             list[StateCounter]: StateCounter for each DatasetParameter.
         """
-        beans_to_delete = []
         state_counters = []
+        # parameter returns the Icat entity
         for parameter in parameters:
             state_counter = StateCounter()
-            job_ids = parameter.stringValue.split(",")
-            #statuses = get_fts3_client().statuses(job_ids=job_ids, list_files=True)
-            status = self.get_dataset_state()[0]
-            print(status)           
-            # for status in statuses:
-            state_counter.check_state(
-                state=status.stringValue,
-                
+            # check if the ICAT state is non terminal
+            if not state_counter.check_state(state=parameter.stringValue):
+                dataset_ids = parameter.dataset.id
+                dataset_job_ids = self.get_dataset_job_ids(dataset_ids)
+                for job_id in dataset_job_ids:
+                    job_ids = job_id.stringValue.split(",")
+                    statuses = get_fts3_client().statuses(
+                        job_ids=job_ids,
+                        list_files=True,
+                    )
+                    for status in statuses:
+                        # check if the FTS state is non terminal
+                        if not state_counter.check_state(
+                            state=status["job_state"],
+                            job_id=status["job_id"],
+                        ):
+                            for file_status in status["files"]:
+                                file_path, file_state = state_counter.check_file(
+                                    file_status=file_status,
+                                )
 
-            )
-            datafile_status = self.get_datafile_states(dataset_id=parameter.dataset.id)[0]
-            file_status = datafile_status.stringValue
-            print("file_status")
-            print(datafile_status)
-            print(file_status)
-            #for file_status in status["files"]:
-            file_state = state_counter.check_datafile_state(
-                file_status=file_status,
-            )
+                                datafile_status = self.get_datafile_state(
+                                    location=file_path,
+                                )
+                                if datafile_status.stringValue != file_state:
+                                    datafile_status.stringValue = file_state
+                                    self.icat_client.update(bean=datafile_status)
 
-            file_state_parameter = self.get_datafile_state(location=datafile_status.datafile.location)
+        state_parameter = parameters[0]
+        if state_parameter.stringValue != state_counter.state:
+            state_parameter.stringValue = state_counter.state
+            self.icat_client.update(bean=state_parameter)
 
-            if file_state_parameter.stringValue != file_state:
-                file_state_parameter.stringValue = file_state
-                self.icat_client.update(bean=file_state_parameter)
-
-            # if not state_counter.ongoing_job_ids:
-            #     beans_to_delete.append(parameter)
-            # elif state_counter.ongoing_job_ids != job_ids:
-            #     parameter.stringValue = ",".join(state_counter.ongoing_job_ids)
-            #     self.icat_client.update(bean=parameter)
-
-            state_parameter = self.get_dataset_state(dataset_id=parameter.dataset.id)[0]
-            if state_parameter.stringValue != state_counter.state:
-                state_parameter.stringValue = state_counter.state
-                self.icat_client.update(bean=state_parameter)
-
-            state_counters.append(state_counter)
-
-        self.icat_client.delete_many(beans=beans_to_delete)
+        state_counters.append(state_counter)
 
         return state_counters
 
@@ -458,6 +452,7 @@ class StateController:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
         (state_counter,) = self.update_jobs(parameters)
+        print(state_counter.__dict__)
         if list_files:
             return DatasetStatusListFilesResponse(
                 state=state_counter.state,
@@ -480,7 +475,7 @@ class StateController:
         Returns:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
-        dataset_parameter = self.get_dataset_state(dataset_id=dataset_id)
+        dataset_parameter = self.get_dataset_state(dataset_id=dataset_id)[0]
         state = dataset_parameter.stringValue
         if list_files:
             datafile_parameters = self.get_datafile_states(dataset_id=dataset_id)

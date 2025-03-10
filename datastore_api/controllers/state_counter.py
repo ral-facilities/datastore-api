@@ -138,7 +138,7 @@ class StateCounter:
             self.files_complete += 1
 
         return file_path, file_state
-    
+
     def check_datafile_state(self, file_status: str) -> str:
         """Parses out the file location and state from the FTS status, and increments
         the relevant file counters.

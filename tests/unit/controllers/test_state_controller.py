@@ -103,7 +103,6 @@ class TestStateController:
             dataset_with_job_id.id,
             list_files=list_files,
         )
-
         assert response == expected_response
 
     @pytest.mark.parametrize(
