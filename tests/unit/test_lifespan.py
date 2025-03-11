@@ -45,34 +45,30 @@ class TestLifespan:
     def test_poll_fts_success(
         self,
         mock_fts3_settings: Settings,
+        facility: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_state: Entity,
+        parameter_type_deletion_date: Entity,
         mocker: MockerFixture,
     ):
+        error = mocker.patch.object(LOGGER, "error", wraps=LOGGER.error)
         state_controller = StateController()
-        delete_many = mocker.patch.object(
-            state_controller.icat_client.client,
-            "deleteMany",
-            wraps=state_controller.icat_client.client.deleteMany,
-        )
 
         poll_fts(state_controller)
 
-        # TODO we no longer delete completed job ids - assert something else here?
-        # delete_many.assert_called_once_with([])
+        error.assert_not_called()
 
     def test_poll_fts_failure(
         self,
         mock_fts3_settings: Settings,
+        facility: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_state: Entity,
+        parameter_type_deletion_date: Entity,
         mocker: MockerFixture,
     ):
         state_controller = StateController()
-        delete_many = mocker.patch.object(
-            state_controller.icat_client.client,
-            "deleteMany",
-            wraps=state_controller.icat_client.client.deleteMany,
-        )
-
         error = mocker.patch.object(LOGGER, "error", wraps=LOGGER.error)
-
         update_jobs_mock = mocker.MagicMock()
         update_jobs_mock.side_effect = URLError("test")
         mocker.patch(
@@ -82,7 +78,6 @@ class TestLifespan:
 
         poll_fts(state_controller)
 
-        delete_many.assert_not_called()
         error.assert_called_once_with(
             "Unable to poll for job statuses: %s",
             "<urlopen error test>",
