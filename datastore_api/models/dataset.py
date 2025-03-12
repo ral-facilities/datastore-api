@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from datastore_api.models.job import JobState, TransferState
+from datastore_api.models.job import TransferState
 
 
 class DatasetStatusResponse(BaseModel):

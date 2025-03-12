@@ -84,7 +84,8 @@ class StateController:
             dataset_id (int): ICAT Dataset id.
 
         Returns:
-            Entity: ICAT DatasetParameter representing FTS job state.
+            list[Entity]: ICAT DatasetParameter representing FTS job state,
+                dataset_id can be None it will return all the datasets
         """
         if dataset_id is not None:
             equals = {
@@ -372,7 +373,8 @@ class StateController:
         for parameter in parameters:
             state_counter = StateCounter()
             # check if the ICAT state is non terminal
-            if not state_counter.check_state(state=parameter.stringValue):
+            if parameter.stringValue not in COMPLETE_JOB_STATES:
+                # if not state_counter.check_state(state=parameter.stringValue):
                 dataset_ids = parameter.dataset.id
                 dataset_job_ids = self.get_dataset_job_ids(dataset_ids)
                 for job_id in dataset_job_ids:
@@ -383,28 +385,27 @@ class StateController:
                     )
                     for status in statuses:
                         # check if the FTS state is non terminal
-                        if not state_counter.check_state(
+                        state_counter.check_state(
                             state=status["job_state"],
                             job_id=status["job_id"],
-                        ):
-                            for file_status in status["files"]:
-                                file_path, file_state = state_counter.check_file(
-                                    file_status=file_status,
-                                )
+                        )
+                        for file_status in status["files"]:
+                            file_path, file_state = state_counter.check_file(
+                                file_status=file_status,
+                            )
 
-                                datafile_status = self.get_datafile_state(
-                                    location=file_path,
-                                )
-                                if datafile_status.stringValue != file_state:
-                                    datafile_status.stringValue = file_state
-                                    self.icat_client.update(bean=datafile_status)
+                            datafile_status = self.get_datafile_state(
+                                location=file_path,
+                            )
+                            if datafile_status.stringValue != file_state:
+                                datafile_status.stringValue = file_state
+                                self.icat_client.update(bean=datafile_status)
 
-        state_parameter = parameters[0]
-        if state_parameter.stringValue != state_counter.state:
-            state_parameter.stringValue = state_counter.state
-            self.icat_client.update(bean=state_parameter)
+            if parameter.stringValue != state_counter.state:
+                parameter.stringValue = state_counter.state
+                self.icat_client.update(bean=parameter)
 
-        state_counters.append(state_counter)
+            state_counters.append(state_counter)
 
         return state_counters
 
@@ -431,7 +432,7 @@ class StateController:
             )
         else:
             return self._get_dataset_status(
-                dataset_id=dataset_id,
+                dataset_parameter=parameters[0],
                 list_files=list_files,
             )
 
@@ -452,7 +453,6 @@ class StateController:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
         (state_counter,) = self.update_jobs(parameters)
-        print(state_counter.__dict__)
         if list_files:
             return DatasetStatusListFilesResponse(
                 state=state_counter.state,
@@ -463,7 +463,7 @@ class StateController:
 
     def _get_dataset_status(
         self,
-        dataset_id: int,
+        dataset_parameter: Entity,
         list_files: bool,
     ) -> DatasetStatusResponse:
         """Get the status of a Dataset with completed archival.
@@ -475,10 +475,12 @@ class StateController:
         Returns:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
-        dataset_parameter = self.get_dataset_state(dataset_id=dataset_id)[0]
+        # print(dataset_parameter)
         state = dataset_parameter.stringValue
         if list_files:
-            datafile_parameters = self.get_datafile_states(dataset_id=dataset_id)
+            datafile_parameters = self.get_datafile_states(
+                dataset_id=dataset_parameter.dataset.id,
+            )
             file_states = {}
             for parameter in datafile_parameters:
                 file_states[parameter.datafile.location] = parameter.stringValue

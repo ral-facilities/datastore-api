@@ -169,7 +169,6 @@ class TestLifespan:
         )
         assert parameter.stringValue == job_ids
 
-
         parameter = functional_icat_client.get_single_entity(
             entity="DatasetParameter",
             equals=equals_job_state,
@@ -186,7 +185,6 @@ class TestLifespan:
 
         assert len(state_counters) == 1
         assert state_counters[0].state == state
-        assert ",".join(state_counters[0].ongoing_job_ids) == job_ids
 
 
 class TestStateCounter:

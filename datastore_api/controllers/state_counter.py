@@ -13,7 +13,6 @@ class StateCounter:
 
     def __init__(self) -> None:
         """Initialises the counter with all counts at 0."""
-        self.ongoing_job_ids = []
         self.total = 0
         self.staging = 0
         self.submitted = 0
@@ -88,19 +87,14 @@ class StateCounter:
         # Active states
         if state == JobState.staging:
             self.staging += 1
-            self.ongoing_job_ids.append(job_id)
         elif state == JobState.submitted:
             self.submitted += 1
-            self.ongoing_job_ids.append(job_id)
         elif state == JobState.ready:
             self.ready += 1
-            self.ongoing_job_ids.append(job_id)
         elif state == JobState.active:
             self.active += 1
-            self.ongoing_job_ids.append(job_id)
         elif state == JobState.archiving:
             self.archiving += 1
-            self.ongoing_job_ids.append(job_id)
         # Terminal states
         elif state == JobState.canceled:
             self.canceled += 1
