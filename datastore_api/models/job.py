@@ -14,6 +14,7 @@ class JobState(StrEnum):
     failed = "FAILED"
     canceled = "CANCELED"
 
+
 ACTIVE_JOB_STATES = (
     JobState.staging,
     JobState.submitted,
@@ -43,6 +44,7 @@ class TransferState(StrEnum):
     failed = "FAILED"
     canceled = "CANCELED"
     defunct = "DEFUNCT"
+
 
 ACTIVE_TRANSFER_STATES = (
     TransferState.new,

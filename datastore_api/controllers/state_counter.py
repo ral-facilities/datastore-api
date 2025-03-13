@@ -2,7 +2,10 @@ import logging
 
 from pydantic_core import Url
 
-from datastore_api.models.job import ACTIVE_TRANSFER_STATES, COMPLETE_TRANSFER_STATES, JobState
+from datastore_api.models.job import (
+    ACTIVE_TRANSFER_STATES,
+    JobState,
+)
 
 
 LOGGER = logging.getLogger(__name__)

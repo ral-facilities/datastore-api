@@ -9,7 +9,10 @@ from datastore_api.models.dataset import (
     DatasetStatusListFilesResponse,
     DatasetStatusResponse,
 )
-from datastore_api.models.job import ACTIVE_JOB_STATES, COMPLETE_JOB_STATES, COMPLETE_TRANSFER_STATES
+from datastore_api.models.job import (
+    ACTIVE_JOB_STATES,
+    COMPLETE_TRANSFER_STATES,
+)
 
 
 class StateController:
