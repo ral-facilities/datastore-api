@@ -480,7 +480,6 @@ class StateController:
         Returns:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
-        print(dataset_parameter)
         dataset_parameter = self.get_dataset_state(dataset_id=dataset_id)
         state = dataset_parameter[0].stringValue
         if list_files:
