@@ -2,7 +2,7 @@ import logging
 
 from pydantic_core import Url
 
-from datastore_api.models.job import COMPLETE_TRANSFER_STATES, JobState
+from datastore_api.models.job import ACTIVE_TRANSFER_STATES, COMPLETE_TRANSFER_STATES, JobState
 
 
 LOGGER = logging.getLogger(__name__)
@@ -128,7 +128,7 @@ class StateCounter:
         file_path, file_state = StateCounter.get_state(file_status=file_status)
         self.file_states[file_path] = file_state
         self.files_total += 1
-        if file_state in COMPLETE_TRANSFER_STATES:
+        if file_state in ACTIVE_TRANSFER_STATES:
             self.files_complete += 1
 
         return file_path, file_state
@@ -147,7 +147,7 @@ class StateCounter:
         file_state = file_status
 
         self.files_total += 1
-        if file_state in COMPLETE_TRANSFER_STATES:
+        if file_state not in ACTIVE_TRANSFER_STATES:
             self.files_complete += 1
 
         return file_state

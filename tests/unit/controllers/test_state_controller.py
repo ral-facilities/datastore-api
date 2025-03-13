@@ -127,15 +127,9 @@ class TestStateController:
         dataset_with_job_id: Entity,
     ):
         state_controller = StateController()
-        if list_files:
-            response = state_controller._get_dataset_status(
-                dataset_with_job_id.parameters[1],
-                list_files,
-            )
-        else:
-            response = state_controller._get_dataset_status(
-                dataset_with_job_id.parameters[1],
-                list_files,
-            )
-
+        response = state_controller._get_dataset_status(
+            dataset_with_job_id.parameters,
+            dataset_with_job_id.id,
+            list_files,
+        )
         assert response == expected_response

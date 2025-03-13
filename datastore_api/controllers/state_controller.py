@@ -9,7 +9,7 @@ from datastore_api.models.dataset import (
     DatasetStatusListFilesResponse,
     DatasetStatusResponse,
 )
-from datastore_api.models.job import COMPLETE_JOB_STATES, COMPLETE_TRANSFER_STATES
+from datastore_api.models.job import ACTIVE_JOB_STATES, COMPLETE_JOB_STATES, COMPLETE_TRANSFER_STATES
 
 
 class StateController:
@@ -373,7 +373,7 @@ class StateController:
         for parameter in parameters:
             state_counter = StateCounter()
             # check if the ICAT state is non terminal
-            if parameter.stringValue not in COMPLETE_JOB_STATES:
+            if parameter.stringValue in ACTIVE_JOB_STATES:
                 # if not state_counter.check_state(state=parameter.stringValue):
                 dataset_ids = parameter.dataset.id
                 dataset_job_ids = self.get_dataset_job_ids(dataset_ids)
@@ -424,7 +424,7 @@ class StateController:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
         parameters = self.get_dataset_state(dataset_id=dataset_id)
-        if parameters[0].stringValue not in COMPLETE_JOB_STATES:
+        if parameters[0].stringValue in ACTIVE_JOB_STATES:
             state_controller_functional = StateController()
             return state_controller_functional._get_update_dataset_status(
                 parameters=parameters,
@@ -433,6 +433,7 @@ class StateController:
         else:
             return self._get_dataset_status(
                 dataset_parameter=parameters[0],
+                dataset_id=dataset_id,
                 list_files=list_files,
             )
 
@@ -464,6 +465,7 @@ class StateController:
     def _get_dataset_status(
         self,
         dataset_parameter: Entity,
+        dataset_id: int,
         list_files: bool,
     ) -> DatasetStatusResponse:
         """Get the status of a Dataset with completed archival.
@@ -475,12 +477,11 @@ class StateController:
         Returns:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
-        # print(dataset_parameter)
-        state = dataset_parameter.stringValue
+        print(dataset_parameter)
+        dataset_parameter = self.get_dataset_state(dataset_id=dataset_id)
+        state = dataset_parameter[0].stringValue
         if list_files:
-            datafile_parameters = self.get_datafile_states(
-                dataset_id=dataset_parameter.dataset.id,
-            )
+            datafile_parameters = self.get_datafile_states(dataset_id=dataset_id)
             file_states = {}
             for parameter in datafile_parameters:
                 file_states[parameter.datafile.location] = parameter.stringValue

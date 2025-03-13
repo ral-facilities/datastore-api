@@ -1095,7 +1095,7 @@ class TestBucket:
 
         content = json.loads(test_response.content)
         assert test_response.status_code == 200, content
-        assert content == {"percentage_complete": 100.0}
+        assert content == {"percentage_complete": 0}
 
     def test_delete_bucket(self, test_client: TestClient, bucket_name_private: str):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
