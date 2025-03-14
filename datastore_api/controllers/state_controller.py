@@ -377,7 +377,6 @@ class StateController:
             state_counter = StateCounter()
             # check if the ICAT state is non terminal
             if parameter.stringValue in ACTIVE_JOB_STATES:
-                # if not state_counter.check_state(state=parameter.stringValue):
                 dataset_ids = parameter.dataset.id
                 dataset_job_ids = self.get_dataset_job_ids(dataset_ids)
                 for job_id in dataset_job_ids:
