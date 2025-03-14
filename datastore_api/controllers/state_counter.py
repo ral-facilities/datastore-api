@@ -131,7 +131,7 @@ class StateCounter:
         file_path, file_state = StateCounter.get_state(file_status=file_status)
         self.file_states[file_path] = file_state
         self.files_total += 1
-        if file_state in ACTIVE_TRANSFER_STATES:
+        if file_state not in ACTIVE_TRANSFER_STATES:
             self.files_complete += 1
 
         return file_path, file_state
