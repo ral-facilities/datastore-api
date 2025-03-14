@@ -11,6 +11,7 @@ from datastore_api.models.dataset import (
 )
 from datastore_api.models.job import (
     ACTIVE_JOB_STATES,
+    ACTIVE_TRANSFER_STATES,
     COMPLETE_TRANSFER_STATES,
 )
 
@@ -49,7 +50,7 @@ class StateController:
         files_complete = 0
         if isinstance(file_statuses, dict):
             for value in file_statuses.values():
-                if value in COMPLETE_TRANSFER_STATES:
+                if value not in ACTIVE_TRANSFER_STATES:
                     files_complete += 1
         else:
             for file_status in file_statuses:
@@ -473,14 +474,15 @@ class StateController:
         """Get the status of a Dataset with completed archival.
 
         Args:
+            dataset_parameter (Entity): ICAT DatasetParameter
+                recording the archival state.
             dataset_id (int): ICAT Dataset id.
             list_files (bool): Include state of individual files.
 
         Returns:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
-        dataset_parameter = self.get_dataset_state(dataset_id=dataset_id)
-        state = dataset_parameter[0].stringValue
+        state = dataset_parameter.stringValue
         if list_files:
             datafile_parameters = self.get_datafile_states(dataset_id=dataset_id)
             file_states = {}

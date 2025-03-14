@@ -128,7 +128,7 @@ class TestStateController:
     ):
         state_controller = StateController()
         response = state_controller._get_dataset_status(
-            dataset_with_job_id.parameters,
+            dataset_with_job_id.parameters[1],
             dataset_with_job_id.id,
             list_files,
         )
