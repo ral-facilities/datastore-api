@@ -12,7 +12,6 @@ from datastore_api.models.dataset import (
 from datastore_api.models.job import (
     ACTIVE_JOB_STATES,
     ACTIVE_TRANSFER_STATES,
-    COMPLETE_TRANSFER_STATES,
 )
 
 
@@ -54,7 +53,7 @@ class StateController:
                     files_complete += 1
         else:
             for file_status in file_statuses:
-                if file_status["file_state"] in COMPLETE_TRANSFER_STATES:
+                if file_status["file_state"] not in ACTIVE_TRANSFER_STATES:
                     files_complete += 1
 
         return files_complete
