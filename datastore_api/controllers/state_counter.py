@@ -2,7 +2,10 @@ import logging
 
 from pydantic_core import Url
 
-from datastore_api.models.job import COMPLETE_TRANSFER_STATES, JobState
+from datastore_api.models.job import (
+    ACTIVE_TRANSFER_STATES,
+    JobState,
+)
 
 
 LOGGER = logging.getLogger(__name__)
@@ -13,7 +16,6 @@ class StateCounter:
 
     def __init__(self) -> None:
         """Initialises the counter with all counts at 0."""
-        self.ongoing_job_ids = []
         self.total = 0
         self.staging = 0
         self.submitted = 0
@@ -77,7 +79,7 @@ class StateCounter:
         else:
             return 100 * self.files_complete / self.files_total
 
-    def check_state(self, state: str, job_id: str) -> bool:
+    def check_state(self, state: str, job_id: str = None) -> bool:
         """Counts a single FTS job state, and if non-terminal then records the job_id.
 
         Args:
@@ -88,19 +90,14 @@ class StateCounter:
         # Active states
         if state == JobState.staging:
             self.staging += 1
-            self.ongoing_job_ids.append(job_id)
         elif state == JobState.submitted:
             self.submitted += 1
-            self.ongoing_job_ids.append(job_id)
         elif state == JobState.ready:
             self.ready += 1
-            self.ongoing_job_ids.append(job_id)
         elif state == JobState.active:
             self.active += 1
-            self.ongoing_job_ids.append(job_id)
         elif state == JobState.archiving:
             self.archiving += 1
-            self.ongoing_job_ids.append(job_id)
         # Terminal states
         elif state == JobState.canceled:
             self.canceled += 1
@@ -134,7 +131,7 @@ class StateCounter:
         file_path, file_state = StateCounter.get_state(file_status=file_status)
         self.file_states[file_path] = file_state
         self.files_total += 1
-        if file_state in COMPLETE_TRANSFER_STATES:
+        if file_state not in ACTIVE_TRANSFER_STATES:
             self.files_complete += 1
 
         return file_path, file_state

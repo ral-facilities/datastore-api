@@ -1,10 +1,10 @@
 from pydantic import BaseModel, Field
 
-from datastore_api.models.job import JobState, TransferState
+from datastore_api.models.job import TransferState
 
 
 class DatasetStatusResponse(BaseModel):
-    state: JobState = Field(description="The overall state of the Dataset archival.")
+    state: str = Field(description="The overall state of the Dataset archival.")
 
 
 class DatasetStatusListFilesResponse(DatasetStatusResponse):

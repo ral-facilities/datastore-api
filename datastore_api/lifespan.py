@@ -32,7 +32,7 @@ def poll_fts(state_controller: StateController) -> None:
     LOGGER.info("Polling ICAT/FTS for job statuses")
     state_controller.icat_client.client.refresh()
     try:
-        parameters = state_controller.get_dataset_job_ids()
+        parameters = state_controller.get_dataset_state()
         state_controller.update_jobs(parameters)
     except URLError as e:
         LOGGER.error("Unable to poll for job statuses: %s", str(e))
