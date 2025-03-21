@@ -15,6 +15,14 @@ class JobState(StrEnum):
     canceled = "CANCELED"
 
 
+ACTIVE_JOB_STATES = (
+    JobState.staging,
+    JobState.submitted,
+    JobState.ready,
+    JobState.active,
+    JobState.archiving,
+)
+
 COMPLETE_JOB_STATES = (
     JobState.finished,
     JobState.finished_dirty,
@@ -37,6 +45,17 @@ class TransferState(StrEnum):
     canceled = "CANCELED"
     defunct = "DEFUNCT"
 
+
+ACTIVE_TRANSFER_STATES = (
+    TransferState.new,
+    TransferState.staging,
+    TransferState.started,
+    TransferState.submitted,
+    TransferState.not_used,
+    TransferState.ready,
+    TransferState.active,
+    TransferState.archiving,
+)
 
 COMPLETE_TRANSFER_STATES = (
     TransferState.finished,
