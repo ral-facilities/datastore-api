@@ -108,4 +108,4 @@ COPY . /app
 EXPOSE 8000
 
 # Run FastAPI server
-CMD ["poetry","run","uvicorn", "--host=0.0.0.0", "--port=8000", "--log-config=logging.ini", "--reload", "datastore_api.main:app"]
+CMD ["fastapi","run", "/app/datastore_api/main.py"]
