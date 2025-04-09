@@ -49,6 +49,7 @@ RUN apt-get update && \
         autoconf \
         automake \
         swig && \
+        fastapi[standard] \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
