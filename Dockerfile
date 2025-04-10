@@ -11,7 +11,6 @@ WORKDIR /app
 # Install system dependencies and Poetry
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        git \
         curl &&\
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -52,14 +51,14 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Install development dependencies
+RUN poetry install --without=dev --no-root
+
 # Development stage: set up development environment
 FROM builder AS dev
 
-# Set environment variables
-ENV ENVIRONMENT="DEV"
-
 # Install development dependencies
-RUN poetry install --with=dev --no-root
+RUN poetry install --only dev --no-root
 
 # Copy the configuration files
 COPY config.yaml.example logging.ini.example /app/
@@ -79,10 +78,7 @@ CMD ["poetry","run","uvicorn", "--host=0.0.0.0", "--port=8000", "--log-config=lo
 
 
 # Production stage: set up production environment
-FROM base AS prod
-
-# Set environment variables
-ENV ENVIRONMENT="PROD"
+FROM builder AS prod
 
 COPY --from=builder /root/.local /root/.local
 
