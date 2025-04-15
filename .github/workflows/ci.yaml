@@ -89,6 +89,15 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+      
+      - name: Run tests via Docker container
+        run: |
+          docker build -t datastore-test -f ~/datastore-api/Dockerfile .
+          docker run --rm \
+          --network tests_datastore_network \
+          -v ${{ github.workspace }}:/app \
+          -w /app \
+          datastore-test
 
 
   linting:
@@ -183,11 +192,7 @@ jobs:
 
   build:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
-    needs:
-      - tests
-      - linting
-      - formatting
-      - safety
+    needs: [tests, linting, formatting, safety]
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code

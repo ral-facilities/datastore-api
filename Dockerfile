@@ -11,7 +11,6 @@ WORKDIR /app
 # Install system dependencies and Poetry
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        git \
         curl &&\
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -52,14 +51,18 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Install development dependencies
+RUN poetry install --without=dev --no-root
+
 # Development stage: set up development environment
 FROM builder AS dev
 
-# Set environment variables
-ENV ENVIRONMENT="DEV"
+
+# Copy the rest of the application code
+COPY datastore_api tests Dockerfile pytest.ini /app/
 
 # Install development dependencies
-RUN poetry install --with=dev --no-root
+RUN poetry install --with dev 
 
 # Copy the configuration files
 COPY config.yaml.example logging.ini.example /app/
@@ -68,8 +71,6 @@ RUN touch hostkey.pem && \
     cp config.yaml.example config.yaml && \
     cp logging.ini.example logging.ini
 
-# Copy the rest of the application code
-COPY . /app
 
 # Expose the port the app will run on
 EXPOSE 8000
@@ -80,22 +81,13 @@ CMD ["poetry","run","uvicorn", "--host=0.0.0.0", "--port=8000", "--log-config=lo
 # Test stage: set up testing environment
 FROM dev AS test
 
-# Set environment variables
-ENV ENVIRONMENT="TEST"
-
-WORKDIR /app
-
-# Copy the test files
-COPY test/ test/
+WORKDIR /app/
 
 # Run tests
-CMD ["pytest",  "--config-file", "test/pytest.ini", "--cov"]
+CMD [ "poetry" , "run" , "pytest", "--config-file", "pytest.ini"]
 
 # Production stage: set up production environment
-FROM base AS prod
-
-# Set environment variables
-ENV ENVIRONMENT="PROD"
+FROM builder AS prod
 
 COPY --from=builder /root/.local /root/.local
 
