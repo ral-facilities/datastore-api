@@ -92,7 +92,7 @@ jobs:
       
       - name: Run tests via Docker container
         run: |
-          docker build -t datastore-test -f ~/datastore-api/Dockerfile .
+          docker build -t datastore-test -f ~/app/Dockerfile .
           docker run --rm \
           --network tests_datastore_network \
           -v ${{ github.workspace }}:/app \
