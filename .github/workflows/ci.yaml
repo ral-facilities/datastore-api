@@ -76,19 +76,19 @@ jobs:
       - name: Log container status
         run: docker ps
 
-      - name: Run Nox tests
-        run: nox -s tests -- --cov --cov-report=xml
-        env:
-          FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY: ${{ secrets.ECHO_S3_ACCESS_KEY }}
-          FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY: ${{ secrets.ECHO_S3_SECRET_KEY }}
+      # - name: Run Nox tests
+      #   run: nox -s tests -- --cov --cov-report=xml
+      #   env:
+      #     FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY: ${{ secrets.ECHO_S3_ACCESS_KEY }}
+      #     FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY: ${{ secrets.ECHO_S3_SECRET_KEY }}
 
-      - name: Docker compose down
-        run: docker compose -f tests/docker-compose.yaml down
+      # - name: Docker compose down
+      #   run: docker compose -f tests/docker-compose.yaml down
 
-      - name: Upload code coverage report
-        uses: codecov/codecov-action@v4
-        with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+      # - name: Upload code coverage report
+      #   uses: codecov/codecov-action@v4
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
       
       - name: Run tests via Docker container
         run: |
