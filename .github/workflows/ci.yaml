@@ -89,6 +89,10 @@ jobs:
       #   uses: codecov/codecov-action@v4
       #   with:
       #     token: ${{ secrets.CODECOV_TOKEN }}
+
+      ###TESTING####
+      - name: Log container status
+        run: cat config.yaml
       
       - name: Run tests via Docker container
         run: |
