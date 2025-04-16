@@ -61,7 +61,7 @@ FROM builder AS dev
 COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
 
 # Copy the rest of the application code
-COPY datastore_api tests Dockerfile pytest.ini /app/
+COPY datastore-api tests Dockerfile pytest.ini /app/
 
 # Install development dependencies
 RUN poetry install --with dev 
