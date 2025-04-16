@@ -57,6 +57,8 @@ RUN poetry install --without=dev --no-root
 # Development stage: set up development environment
 FROM builder AS dev
 
+# Copy the project files to the container and install
+COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
 
 # Copy the rest of the application code
 COPY datastore_api tests Dockerfile pytest.ini /app/
