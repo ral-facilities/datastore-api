@@ -12,14 +12,14 @@ code_locations = "datastore_api", "tests", "noxfile.py"
 def black(session):
     args = session.posargs or code_locations
     session.run("poetry", "install", "--only=dev", external=True)
-    session.run("black", *args, external=True)
+    session.run("poetry", "run", "black", *args, external=True)
 
 
 @nox.session(reuse_venv=True)
 def lint(session):
     args = session.posargs or code_locations
     session.run("poetry", "install", "--only=dev", external=True)
-    session.run("flake8", *args)
+    session.run("poetry", "run", "flake8", *args)
 
 
 @nox.session(reuse_venv=True)
@@ -36,6 +36,8 @@ def safety(session):
             external=True,
         )
         session.run(
+            "poetry", 
+            "run",
             "safety",
             "check",
             f"--file={requirements.name}",
