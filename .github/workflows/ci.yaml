@@ -131,6 +131,9 @@ jobs:
           path: /home/runner/work/datastore-api/datastore-api/.nox/lint*
           key: nox-lint-${{ hashFiles('poetry.lock') }}
 
+      - name: Run tree
+        run: tree
+
       - name: Run Nox lint session
         run: nox -s lint
 
