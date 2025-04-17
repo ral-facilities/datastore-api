@@ -101,7 +101,7 @@ jobs:
             -w /app \
             -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
             -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
-            -it datastore-api:test
+            datastore-api:test
 
 
   linting:
