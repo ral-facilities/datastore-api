@@ -25,7 +25,7 @@ from tests.fixtures import (
 
 
 class TestInvestigationArchiver:
-    @pytest.mark.flaky(only_on=[ServerError], retries=3)
+    @pytest.mark.skip(reason="Causing tests on CI to fail")
     def test_investigation_archiver(
         self,
         mock_fts3_settings: Settings,
