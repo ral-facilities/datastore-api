@@ -557,7 +557,7 @@ class TestRestore:
         ["bucket_acl"],
         [pytest.param(BucketAcl.PRIVATE), pytest.param(BucketAcl.PUBLIC_READ)],
     )
-    @pytest.mark.flaky(only_on=[ServerError], retries=3)
+    @pytest.mark.flaky(only_on=[ServerError], retries=5)
     def test_restore_download(
         self,
         submit: MagicMock,
