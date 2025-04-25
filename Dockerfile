@@ -2,7 +2,6 @@ FROM python:3.11-slim AS base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-# Add Poetry to PATH
 ENV PATH="/root/.local/bin:$PATH"
 
 # Set the working directory in the container
@@ -25,6 +24,9 @@ COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
 
 # Builder stage: install dependencies
 FROM base AS builder
+
+ENV PATH="/root/.local/bin:$PATH"
+RUN poetry config virtualenvs.create false
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -53,61 +55,64 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-
-RUN pipx install "fastapi[standard]"
-
 # Install development dependencies
 RUN poetry install --without=dev --no-root
 
-# Development stage: set up development environment
-FROM builder AS dev
-
-# Copy the project files to the container and install
-COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
-
 # Copy the rest of the application code
-COPY pytest.ini.docker /app/pytest.ini
-
 COPY datastore_api/ /app/datastore_api/
-COPY tests/ /app/tests/
+
+
+
+# ~~~ Development stage: ~~~#
+# Set up development environment
+FROM builder AS dev
 
 # Install development dependencies
 RUN poetry install --with dev 
 
-# Copy the configuration files
+# Copy the project files to the container and install
 COPY config.yaml.example logging.ini.example /app/
+COPY pytest.ini.docker /app/pytest.ini
+COPY tests/ /app/tests/
+
 RUN touch hostkey.pem && \
     touch hostcert.pem && \
     cp config.yaml.example config.yaml && \
     cp logging.ini.example logging.ini
-
-
-# Expose the port the app will run on
-EXPOSE 8000
-
-# Run FastAPI server
-CMD ["poetry","run","uvicorn", "--host=0.0.0.0", "--port=8000", "--log-config=logging.ini", "--reload", "datastore_api.main:app"]
-
-# Test stage: set up testing environment
-FROM dev AS test
-
-WORKDIR /app/
-
-# Run tests
-CMD [ "poetry" , "run" , "pytest", "--config-file", "pytest.ini"]
-
-# Production stage: set up production environment
-FROM builder AS prod
-
-COPY --from=builder /root/.local /root/.local
-
-RUN poetry env use python
-
-# Copy the rest of the application code
-COPY . /app
 
 # Expose the port the app will run on
 EXPOSE 8000
 
 # Run FastAPI server
 CMD ["fastapi","run", "/app/datastore_api/main.py"]
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+
+# ~~~Test stage: ~~~#
+#Set up testing environment
+FROM dev AS test
+
+# Run tests
+CMD ["pytest", "--config-file", "pytest.ini"]
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
+
+
+
+# ~~~Production stage: ~~~#
+# Set up production environment
+FROM builder AS prod
+
+ENV PATH="/root/.local/bin:$PATH"
+WORKDIR /app
+
+# Copy installed Python deps and source code
+COPY --from=builder /root/.local /root/.local
+COPY --from=builder /app /app
+
+# Expose the port the app will run on
+EXPOSE 8000
+
+# Run FastAPI server
+CMD [ "fastapi","run", "/app/datastore_api/main.py"]
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
