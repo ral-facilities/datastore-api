@@ -47,7 +47,6 @@ RUN apt-get update && \
         libcurl4-openssl-dev \
         libfuse-dev \
         fuse \
-        cmake \
         make \
         gcc \
         g++ \
