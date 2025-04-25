@@ -20,13 +20,16 @@ RUN apt-get update && \
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
 # Copy the project files to the container and install
-COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
+COPY pyproject.toml poetry.lock /app/
 
 # Builder stage: install dependencies
 FROM base AS builder
 
 ENV PATH="/root/.local/bin:$PATH"
 RUN poetry config virtualenvs.create false
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends cmake 
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -55,6 +58,9 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Initialize cmake
+RUN cmake --version || true
+
 # Install development dependencies
 RUN poetry install --without=dev --no-root
 
@@ -66,6 +72,8 @@ COPY datastore_api/ /app/datastore_api/
 # ~~~ Development stage: ~~~#
 # Set up development environment
 FROM builder AS dev
+
+ENV PATH="/root/.local/bin:$PATH"
 
 # Install development dependencies
 RUN poetry install --with dev 
@@ -107,12 +115,11 @@ ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
 
 # Copy installed Python deps and source code
-COPY --from=builder /root/.local /root/.local
 COPY --from=builder /app /app
 
 # Expose the port the app will run on
 EXPOSE 8000
 
 # Run FastAPI server
-CMD [ "fastapi","run", "/app/datastore_api/main.py"]
+CMD ["fastapi","run", "/app/datastore_api/main.py"]
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
