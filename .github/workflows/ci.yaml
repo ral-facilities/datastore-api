@@ -224,7 +224,7 @@ jobs:
         with:
           context: .
           push: ${{ fromJSON(env.PUSH_DOCKER_IMAGE_TO_HARBOR) }}
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: 
           labels: ${{ steps.meta.outputs.labels }}
           target: prod
 
@@ -237,7 +237,7 @@ jobs:
             -w /app \
             -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
             -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
-            datastore-api:prod
+            ${{ steps.meta.outputs.tags }}
 
       # - name: Tag and push Docker image to Harbor
       #   uses: docker/build-push-action@v5
