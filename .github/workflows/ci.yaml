@@ -241,17 +241,13 @@ jobs:
             -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
             -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
             ${{ steps.meta.outputs.tags }}
+
+      - name: Log container status
+        run: docker ps
             
-          echo "Waiting for FastAPI server to start..."
-          for i in {1..10}; do
-            if curl -s http://localhost:8000/version; then
-            echo "FastAPI server is up!"
-            break
-            else
-              echo "Waiting for FastAPI server... ($i)"
-              sleep 3
-            fi
-          done
+      - name: Check if FastAPI server is up
+        run: | 
+          curl -s http://localhost:8000/version
 
       - name: Log container status
         run: docker ps
