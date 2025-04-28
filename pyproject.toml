@@ -47,6 +47,9 @@ pytest-asyncio = "^0.23.6"
 bump-pydantic = "^0.8.0"
 pytest-retry = "^1.6.3"
 
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"
+
 [build-system]
 requires = ["poetry-core>=1.9.0"]
 build-backend = "poetry.core.masonry.api"
