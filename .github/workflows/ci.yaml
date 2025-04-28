@@ -227,15 +227,17 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           target: prod
-          run: |
-            docker run --rm \
-              --network tests_datastore_network \
-              -v /home/runner/work/datastore-api/datastore-api/hostkey.pem:/app/hostkey.pem \
-              -v /home/runner/work/datastore-api/datastore-api/hostcert.pem:/app/hostcert.pem \
-              -w /app \
-              -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
-              -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
-              datastore-api:prod
+
+      - name: Run Docker image
+        run: |
+          docker run --rm \
+            --network tests_datastore_network \
+            -v /home/runner/work/datastore-api/datastore-api/hostkey.pem:/app/hostkey.pem \
+            -v /home/runner/work/datastore-api/datastore-api/hostcert.pem:/app/hostcert.pem \
+            -w /app \
+            -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
+            -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
+            datastore-api:prod
 
       # - name: Tag and push Docker image to Harbor
       #   uses: docker/build-push-action@v5
