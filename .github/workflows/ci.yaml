@@ -224,13 +224,16 @@ jobs:
         with:
           context: .
           push: ${{ fromJSON(env.PUSH_DOCKER_IMAGE_TO_HARBOR) }}
-          tags: 
+          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           target: prod
+          
+      - name: Prune old Docker images
+        run: sudo docker images
 
       - name: Run Docker image
         run: |
-          docker run --rm \
+          docker run -d \
             --network tests_datastore_network \
             -v /home/runner/work/datastore-api/datastore-api/hostkey.pem:/app/hostkey.pem \
             -v /home/runner/work/datastore-api/datastore-api/hostcert.pem:/app/hostcert.pem \
