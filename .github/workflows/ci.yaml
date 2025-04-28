@@ -1,6 +1,12 @@
 name: CI
 on:
   workflow_dispatch:
+      inputs:
+      push-docker-image-to-harbor:
+        description: 'Push Docker Image to Harbor'
+        type: boolean
+        default: false
+
   pull_request:
   push:
     tags:
@@ -80,7 +86,6 @@ jobs:
         run: |
           docker build -t datastore-api:test --target test -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
           docker run --rm \
-            --network tests_datastore_network \
             -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
             -v /home/runner/work/datastore-api/datastore-api//hostcert.pem:/app/hostcert.pem \
             -w /app \
@@ -188,7 +193,7 @@ jobs:
         run: nox -s safety
 
   build:
-    # if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
     needs: [tests, linting, formatting, safety]
     runs-on: ubuntu-22.04
     steps:
