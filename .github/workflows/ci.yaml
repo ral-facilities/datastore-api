@@ -86,6 +86,7 @@ jobs:
         run: |
           docker build -t datastore-api:test --target test -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
           docker run --rm \
+            --network tests_datastore_network \
             -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
             -v /home/runner/work/datastore-api/datastore-api//hostcert.pem:/app/hostcert.pem \
             -w /app \
