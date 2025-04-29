@@ -94,6 +94,9 @@ jobs:
             -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
             datastore-api:test
       
+      - name: Docker compose down
+        run: docker compose -f tests/docker-compose.yaml down
+      
       - name: Upload code coverage report
         uses: codecov/codecov-action@v4
         with:
