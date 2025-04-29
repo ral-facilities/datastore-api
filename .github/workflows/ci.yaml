@@ -244,18 +244,23 @@ jobs:
             -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
             -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
             ${{ steps.meta.outputs.tags }}
+      
+      - name: Log container status
+        run: docker ps    
 
       - name: Check if Datastore API is up
         run: |
-          if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/version)" == "200" ]; then
-            echo "Datastore API is up and running"
-          else
-            echo "Datastore API not reachable"
-            exit 1
-          fi
-
-      - name: Log container status
-        run: docker ps
+          for i in {1..10}; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/version)
+            if [ "$status" == "200" ]; then
+              echo "Datastore API is up and running"
+              exit 0
+            fi
+            echo "Waiting for Datastore API... attempt $i"
+            sleep 2
+          done
+          echo "Datastore API not reachable after multiple attempts"
+          exit 1
 
       - name: Docker compose down
         run: docker compose -f tests/docker-compose.yaml down

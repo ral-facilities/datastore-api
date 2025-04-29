@@ -29,8 +29,15 @@ RUN poetry config virtualenvs.create false
 # Copy the rest of the application code
 COPY datastore_api/ /app/datastore_api/
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends cmake 
+# # CMake manually installed to avoid issues with the default version in Debian
+# # This is needed for XRootD installation
+# RUN curl -fsSL https://github.com/Kitware/CMake/releases/download/v3.31.6/cmake-3.31.6-linux-x86_64.tar.gz \
+#     -o cmake.tar.gz && \
+#     tar -xzf cmake.tar.gz --strip-components=1 -C /usr/local && \
+#     rm cmake.tar.gz
+
+# # Initialize cmake so that XRootD can be installed
+# RUN cmake --version || true
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -57,9 +64,6 @@ RUN apt-get update && \
         swig && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-
-# Initialize cmake so that XRootD can be installed
-RUN cmake --version || true
 
 # Install development dependencies
 RUN poetry install --without=dev
