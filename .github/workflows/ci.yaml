@@ -245,19 +245,14 @@ jobs:
             -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
             ${{ steps.meta.outputs.tags }}
 
-            if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/version)" == "200" ]; then
-              echo "Datastore API is up and running"
-            else
-              echo "Datastore API not reachable"
-              exit 1
-            fi
-
-      - name: Log container status
-        run: docker ps
-            
-      - name: Check if FastAPI server is up
-        run: | 
-          curl -X GET http://localhost:8000/version
+      - name: Check if Datastore API is up
+        run: |
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/version)" == "200" ]; then
+            echo "Datastore API is up and running"
+          else
+            echo "Datastore API not reachable"
+            exit 1
+          fi
 
       - name: Log container status
         run: docker ps
