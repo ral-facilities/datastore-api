@@ -29,16 +29,6 @@ RUN poetry config virtualenvs.create false
 # Copy the rest of the application code
 COPY datastore_api/ /app/datastore_api/
 
-# # CMake manually installed to avoid issues with the default version in Debian
-# # This is needed for XRootD installation
-# RUN curl -fsSL https://github.com/Kitware/CMake/releases/download/v3.31.6/cmake-3.31.6-linux-x86_64.tar.gz \
-#     -o cmake.tar.gz && \
-#     tar -xzf cmake.tar.gz --strip-components=1 -C /usr/local && \
-#     rm cmake.tar.gz
-
-# # Initialize cmake so that XRootD can be installed
-# RUN cmake --version || true
-
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         expect \
@@ -61,6 +51,7 @@ RUN apt-get update && \
         gdb \
         autoconf \
         automake \
+        cmake \
         swig && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -109,12 +100,23 @@ CMD ["pytest", "--config-file", "pytest.ini"]
 
 # ~~~Production stage: ~~~#
 # Set up production environment
-FROM builder AS prod
-
+FROM python:3.11-slim AS prod
+ENV PYTHONUNBUFFERED=1
 ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libfuse2 \
+        libssl3 \
+        libxml2 \
+        libcurl4 \
+        curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy installed Python deps and source code
+COPY --from=builder /usr/local /usr/local
 COPY --from=builder /app /app
 
 # Expose the port the app will run on
