@@ -251,15 +251,15 @@ jobs:
       - name: Check if Datastore API is up
         run: |
           for i in {1..10}; do
-            status=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/version)
-            if [ "$status" == "200" ]; then
-              echo "Datastore API is up and running"
+            echo "Attempt $i: Checking if API is up..."
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/version | grep -q "200"; then
+              echo "Datastore API is up"
               exit 0
             fi
-            echo "Waiting for Datastore API... attempt $i"
+            echo "retrying in 2s..."
             sleep 2
           done
-          echo "Datastore API not reachable after multiple attempts"
+          echo "Datastore API not working after"
           exit 1
 
       - name: Docker compose down
