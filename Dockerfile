@@ -2,7 +2,6 @@ FROM python:3.11-slim AS base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
-# Add Poetry to PATH
 ENV PATH="/root/.local/bin:$PATH"
 
 # Set the working directory in the container
@@ -19,10 +18,16 @@ RUN apt-get update && \
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
 # Copy the project files to the container and install
-COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
+COPY pyproject.toml poetry.lock /app/
 
 # Builder stage: install dependencies
 FROM base AS builder
+
+ENV PATH="/root/.local/bin:$PATH"
+RUN poetry config virtualenvs.create false
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends cmake 
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -40,7 +45,6 @@ RUN apt-get update && \
         libcurl4-openssl-dev \
         libfuse-dev \
         fuse \
-        cmake \
         make \
         gcc \
         g++ \
@@ -51,58 +55,68 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Initialize cmake so that XRootD can be installed
+RUN cmake --version || true
+
 # Install development dependencies
 RUN poetry install --without=dev --no-root
 
-# Development stage: set up development environment
+# Copy the rest of the application code
+COPY datastore_api/ /app/datastore_api/
+
+
+
+# ~~~ Development stage: ~~~#
+# Set up development environment
 FROM builder AS dev
 
-# Copy the project files to the container and install
-COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
-
-# Copy the rest of the application code
-COPY pytest.ini.docker /app/pytest.ini
-
-COPY datastore_api/ /app/datastore_api/
-COPY tests/ /app/tests/
+ENV PATH="/root/.local/bin:$PATH"
 
 # Install development dependencies
 RUN poetry install --with dev 
 
-# Copy the configuration files
+# Copy the project files to the container and install
 COPY config.yaml.example logging.ini.example /app/
+COPY pytest.ini.docker /app/pytest.ini
+COPY tests/ /app/tests/
+
 RUN touch hostkey.pem && \
     touch hostcert.pem && \
     cp config.yaml.example config.yaml && \
     cp logging.ini.example logging.ini
 
-
 # Expose the port the app will run on
 EXPOSE 8000
 
 # Run FastAPI server
-CMD ["poetry","run","uvicorn", "--host=0.0.0.0", "--port=8000", "--log-config=logging.ini", "--reload", "datastore_api.main:app"]
+CMD ["fastapi","run", "/app/datastore_api/main.py"]
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
-# Test stage: set up testing environment
+
+
+# ~~~Test stage: ~~~#
+#Set up testing environment
 FROM dev AS test
 
-WORKDIR /app/
-
 # Run tests
-CMD [ "poetry" , "run" , "pytest", "--config-file", "pytest.ini"]
+CMD ["pytest", "--config-file", "pytest.ini"]
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
-# Production stage: set up production environment
+
+
+# ~~~Production stage: ~~~#
+# Set up production environment
 FROM builder AS prod
 
-COPY --from=builder /root/.local /root/.local
+ENV PATH="/root/.local/bin:$PATH"
+WORKDIR /app
 
-RUN poetry env use python
-
-# Copy the rest of the application code
-COPY . /app
+# Copy installed Python deps and source code
+COPY --from=builder /app /app
 
 # Expose the port the app will run on
 EXPOSE 8000
 
 # Run FastAPI server
-CMD ["poetry","run","uvicorn", "--host=0.0.0.0", "--port=8000", "--log-config=logging.ini", "--reload", "datastore_api.main:app"]
+CMD ["fastapi","run", "/app/datastore_api/main.py"]
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
