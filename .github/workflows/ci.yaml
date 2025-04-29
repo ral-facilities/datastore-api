@@ -233,7 +233,7 @@ jobs:
 
       - name: Run Docker image
         run: |
-          docker run -d \
+          docker run -d -p 8000:8000 \
             --network tests_datastore_network \
             -v /home/runner/work/datastore-api/datastore-api/hostkey.pem:/app/hostkey.pem \
             -v /home/runner/work/datastore-api/datastore-api/hostcert.pem:/app/hostcert.pem \
@@ -247,7 +247,7 @@ jobs:
             
       - name: Check if FastAPI server is up
         run: | 
-          curl -s http://localhost:8000/version
+          curl -X GET http://localhost:8000/version
 
       - name: Log container status
         run: docker ps

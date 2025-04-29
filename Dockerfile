@@ -91,7 +91,7 @@ RUN touch hostkey.pem && \
 EXPOSE 8000
 
 # Run FastAPI server
-CMD ["fastapi","run", "/app/datastore_api/main.py"]
+CMD ["fastapi","run", "/app/datastore_api/main.py", "--reload", "--host", "0.0.0.0" , "--port", "8000"]
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 
@@ -120,5 +120,5 @@ COPY --from=builder /app /app
 EXPOSE 8000
 
 # Run FastAPI server
-CMD ["fastapi","run", "/app/datastore_api/main.py"]
+CMD ["fastapi","run", "/app/datastore_api/main.py", "--reload", "--host", "0.0.0.0" , "--port", "8000"]
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
