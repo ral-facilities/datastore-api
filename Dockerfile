@@ -57,8 +57,17 @@ RUN poetry install --without=dev --no-root
 # Development stage: set up development environment
 FROM builder AS dev
 
+# Copy the project files to the container and install
+COPY pyproject.toml poetry.lock config.yaml.example logging.ini.example /app/
+
+# Copy the rest of the application code
+COPY pytest.ini.docker /app/pytest.ini
+
+COPY datastore_api/ /app/datastore_api/
+COPY tests/ /app/tests/
+
 # Install development dependencies
-RUN poetry install --only dev --no-root
+RUN poetry install --with dev 
 
 # Copy the configuration files
 COPY config.yaml.example logging.ini.example /app/
@@ -67,8 +76,6 @@ RUN touch hostkey.pem && \
     cp config.yaml.example config.yaml && \
     cp logging.ini.example logging.ini
 
-# Copy the rest of the application code
-COPY . /app
 
 # Expose the port the app will run on
 EXPOSE 8000
@@ -76,6 +83,13 @@ EXPOSE 8000
 # Run FastAPI server
 CMD ["poetry","run","uvicorn", "--host=0.0.0.0", "--port=8000", "--log-config=logging.ini", "--reload", "datastore_api.main:app"]
 
+# Test stage: set up testing environment
+FROM dev AS test
+
+WORKDIR /app/
+
+# Run tests
+CMD [ "poetry" , "run" , "pytest", "--config-file", "pytest.ini"]
 
 # Production stage: set up production environment
 FROM builder AS prod
