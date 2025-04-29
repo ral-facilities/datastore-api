@@ -11,8 +11,6 @@ WORKDIR /app
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         curl &&\
-    curl -sSf https://bootstrap.pypa.io/pip/pip.pyz -o /usr/local/bin/pip.pyz && \
-    python3 /usr/local/bin/pip.pyz install pipx && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
     
@@ -57,7 +55,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Initialize cmake
+# Initialize cmake so that XRootD can be installed
 RUN cmake --version || true
 
 # Install development dependencies
