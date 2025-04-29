@@ -248,19 +248,17 @@ jobs:
       - name: Log container status
         run: docker ps    
 
+      - name: Wait for container to initialize
+        run: sleep 10
+
       - name: Check if Datastore API is up
         run: |
-          for i in {1..10}; do
-            echo "Attempt $i: Checking if API is up..."
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/version | grep -q "200"; then
-              echo "Datastore API is up"
-              exit 0
-            fi
-            echo "retrying in 2s..."
-            sleep 2
-          done
-          echo "Datastore API not working after"
-          exit 1
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/version)" == "200" ]; then
+            echo "Datastore API is up and running"
+          else
+            echo "Datastore API not reachable"
+            exit 1
+          fi
 
       - name: Docker compose down
         run: docker compose -f tests/docker-compose.yaml down
