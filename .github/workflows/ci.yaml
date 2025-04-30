@@ -4,8 +4,8 @@ on:
       inputs:
         push-docker-image-to-harbor:
           description: 'Push Docker Image to Harbor'
-          type: boolean
-          default: false
+          required: false
+          default: 'false'
 
   pull_request:
   push:
