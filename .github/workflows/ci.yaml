@@ -195,19 +195,14 @@ jobs:
         run: nox -s safety
 
   build:
-    needs: [ linting, formatting, safety]
+    needs: [ tests, linting, formatting, safety]
     runs-on: ubuntu-22.04
     env:
       PUSH_DOCKER_IMAGE_TO_HARBOR: ${{ (github.ref == 'refs/heads/main') || (inputs.push-docker-image-to-harbor) && 'true' || 'false' }}
     steps:
-      - name: Prune old Docker images
-        run: sudo docker images
 
       - name: Checkout code
         uses: actions/checkout@v2
-
-      - name: Print push-to-Harbor decision
-        run: echo "PUSH_DOCKER_IMAGE_TO_HARBOR=${{ env.PUSH_DOCKER_IMAGE_TO_HARBOR }}"
 
       - name: Docker compose up
         run: docker compose -f tests/docker-compose.yaml up -d
@@ -260,5 +255,3 @@ jobs:
       - name: Docker compose down
         run: docker stop $(docker ps -a -q)
         
-      - name: Log container status
-        run: docker ps
