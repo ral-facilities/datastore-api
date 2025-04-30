@@ -54,8 +54,8 @@ jobs:
           path: ~/.cache/pypoetry/virtualenvs
           key: poetry-${{ hashFiles('poetry.lock') }}
 
-      - name: Install dependencies
-        run: poetry install
+      # - name: Install dependencies
+      #   run: poetry install
 
       - name: Load Poetry cache for Nox tests session
         uses: actions/cache@v4
