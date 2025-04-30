@@ -200,7 +200,7 @@ jobs:
     needs: [ linting, formatting, safety]
     runs-on: ubuntu-22.04
     env:
-      PUSH_DOCKER_IMAGE_TO_HARBOR: ${{ inputs.push-docker-image-to-harbor != null && inputs.push-docker-image-to-harbor || 'false' }}
+      PUSH_DOCKER_IMAGE_TO_HARBOR: ${{ (github.ref == 'refs/heads/main') || inputs.push-docker-image-to-harbor == 'true' || 'false' }}
     steps:
       - name: Prune old Docker images
         run: sudo docker images
