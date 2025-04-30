@@ -26,8 +26,8 @@ FROM base AS builder
 ENV PATH="/root/.local/bin:$PATH"
 RUN poetry config virtualenvs.create false
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends cmake 
+# Copy the rest of the application code
+COPY datastore_api/ /app/datastore_api/
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -51,19 +51,13 @@ RUN apt-get update && \
         gdb \
         autoconf \
         automake \
+        cmake \
         swig && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Initialize cmake so that XRootD can be installed
-RUN cmake --version || true
-
 # Install development dependencies
-RUN poetry install --without=dev --no-root
-
-# Copy the rest of the application code
-COPY datastore_api/ /app/datastore_api/
-
+RUN poetry install --without=dev
 
 
 # ~~~ Development stage: ~~~#
@@ -89,7 +83,7 @@ RUN touch hostkey.pem && \
 EXPOSE 8000
 
 # Run FastAPI server
-CMD ["fastapi","run", "/app/datastore_api/main.py"]
+CMD ["fastapi","run",  "--host=0.0.0.0", "--port=8000", "--reload" ,"/app/datastore_api/main.py"]
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
 
 
@@ -106,17 +100,28 @@ CMD ["pytest", "--config-file", "pytest.ini"]
 
 # ~~~Production stage: ~~~#
 # Set up production environment
-FROM builder AS prod
-
+FROM python:3.11-slim AS prod
+ENV PYTHONUNBUFFERED=1
 ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
 
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        libfuse2 \
+        libssl3 \
+        libxml2 \
+        libcurl4 \
+        curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Copy installed Python deps and source code
+COPY --from=builder /usr/local /usr/local
 COPY --from=builder /app /app
 
 # Expose the port the app will run on
 EXPOSE 8000
 
 # Run FastAPI server
-CMD ["fastapi","run", "/app/datastore_api/main.py"]
+CMD ["fastapi","run", "/app/datastore_api/main.py", "--reload", "--host", "0.0.0.0" , "--port", "8000"]
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
