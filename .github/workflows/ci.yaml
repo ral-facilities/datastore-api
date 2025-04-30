@@ -5,7 +5,8 @@ on:
         push-docker-image-to-harbor:
           description: 'Push Docker Image to Harbor'
           required: false
-          default: 'false'
+          type: boolean
+          default: false
 
   pull_request:
   push:
@@ -205,6 +206,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
 
+      - name: Print push-to-Harbor decision
+        run: echo "PUSH_DOCKER_IMAGE_TO_HARBOR=${{ env.PUSH_DOCKER_IMAGE_TO_HARBOR }}"
+
       - name: Docker compose up
         run: docker compose -f tests/docker-compose.yaml up -d
 
@@ -220,9 +224,6 @@ jobs:
           registry: ${{ secrets.HARBOR_URL }}
           username: ${{ secrets.HARBOR_USERNAME }}
           password: ${{ secrets.HARBOR_PASSWORD }}
-      
-      - name: Print push-to-Harbor decision
-        run: echo "PUSH_DOCKER_IMAGE_TO_HARBOR=${{ env.PUSH_DOCKER_IMAGE_TO_HARBOR }}"
       
       - name: ${{ fromJSON(env.PUSH_DOCKER_IMAGE_TO_HARBOR) && 'Build and push Docker image to Harbor' || 'Build Docker image' }}
         uses: docker/build-push-action@v5
