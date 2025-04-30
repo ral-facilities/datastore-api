@@ -57,9 +57,6 @@ jobs:
           path: ~/.cache/pypoetry/virtualenvs
           key: poetry-${{ hashFiles('poetry.lock') }}
 
-      # - name: Install dependencies
-      #   run: poetry install
-
       - name: Load Poetry cache for Nox tests session
         uses: actions/cache@v4
         with:
@@ -200,7 +197,7 @@ jobs:
     needs: [ linting, formatting, safety]
     runs-on: ubuntu-22.04
     env:
-      PUSH_DOCKER_IMAGE_TO_HARBOR: ${{ (github.ref == 'refs/heads/main') || inputs.push-docker-image-to-harbor == 'true' || 'false' }}
+      PUSH_DOCKER_IMAGE_TO_HARBOR: ${{ (github.ref == 'refs/heads/main') || (inputs.push-docker-image-to-harbor == 'true') && 'true' || 'false' }}
     steps:
       - name: Prune old Docker images
         run: sudo docker images
