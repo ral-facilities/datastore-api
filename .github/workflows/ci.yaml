@@ -86,11 +86,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: ./build-cache
+          key: ${{ runner.os }}-docker-build-cache-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-docker-build-cache-
       
       - name: Setup Docker image
         run: |
           docker buildx build -t datastore-api:test --target test  --load \
-          --cache-to=type=local,dest=~/.cache/docker \
+          --cache-from=type=local,src=./build-cache \
+          --cache-to=type=local,dest=./build-cache \
           -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
 
       - name: Check Docker save
