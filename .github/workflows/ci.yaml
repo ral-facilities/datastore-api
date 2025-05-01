@@ -87,7 +87,6 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile
           push: false
           tags: datastore-api:test
           cache-from: type=gha
