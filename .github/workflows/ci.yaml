@@ -82,6 +82,10 @@ jobs:
 
       - name: Log container status
         run: docker ps
+
+      - name: Cache docker layers
+        uses: actions/cache@v4
+        with:
       
       - name: Run tests via Docker container
         run: |
@@ -91,9 +95,11 @@ jobs:
             -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
             -v /home/runner/work/datastore-api/datastore-api//hostcert.pem:/app/hostcert.pem \
             -w /app \
-            -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
-            -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
             datastore-api:test
+        with:
+          env:
+            FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY: ${{ secrets.ECHO_S3_ACCESS_KEY }}
+            FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY: ${{ secrets.ECHO_S3_SECRET_KEY }}
       
       - name: Docker compose down
         run: docker compose -f tests/docker-compose.yaml down
