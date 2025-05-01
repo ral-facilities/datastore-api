@@ -83,27 +83,12 @@ jobs:
       - name: Log container status
         run: docker ps
 
-      - name: Cache docker layers
-        uses: actions/cache@v4
-        env:
-          cache-name: cache-docker-layers
-        with:
-          path: ~/.cache/docker
-          key: ${{ runner.os }}-docker-build-${{ hashFiles('poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-docker-build-
-        
-      - name: Build tests Docker container
-        run: |
-          docker build \
-            --cache-from=type=local,src=~/.cache/docker \
-            --cache-to=type=local,dest=~/.cache/docker,mode=max \
-            -t datastore-api:test \
-            --target test \
-            -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
       
       - name: Run tests via Docker container
         run: |
+          docker build -t datastore-api:test --target test -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
           docker run --rm \
             --network tests_datastore_network \
             -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
@@ -112,6 +97,14 @@ jobs:
             -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
             -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
             datastore-api:test
+
+      - name: Cache docker layers
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-docker-layers
+        with:
+          path: ~/.cache/docker
+          key: ${{ runner.os }}-build-${{ github.sha }}
       
       - name: Docker compose down
         run: docker compose -f tests/docker-compose.yaml down
