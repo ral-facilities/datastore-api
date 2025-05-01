@@ -93,6 +93,10 @@ jobs:
           --cache-to=type=local,dest=~/.cache/docker \
           --cache-from=type=local,src=~/.cache/docker \
           -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
+
+      - name: Check Docker save
+        run: |
+          ls -lh ~/.cache/docker
       
       - name: check images
         run: docker images
