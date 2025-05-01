@@ -90,8 +90,8 @@ jobs:
       - name: Setup Docker image
         run: |
           docker buildx build -t datastore-api:test --target test  --load \
-          --cache-to=type=local,dest=~/.cache/docker \
-          --cache-from=type=local,src=~/.cache/docker \
+          --cache-to type=gha \
+          --cache-from type=gha,mode=max \
           -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
 
       - name: Check Docker save
