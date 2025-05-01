@@ -86,18 +86,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+
       
       - name: Setup Docker image
         run: |
           docker buildx build -t datastore-api:test --target test  --load \
-          --cache-to type=gha \
-          --cache-from type=gha,mode=max \
+          --cache-to=type=local,dest=~/.cache/docker \
           -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
 
       - name: Check Docker save
         continue-on-error: true
         run: |
-          ls ~/
+          ls ~/work
       
       - name: check images
         run: docker images
