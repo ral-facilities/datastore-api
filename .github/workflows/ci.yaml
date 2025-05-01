@@ -83,18 +83,25 @@ jobs:
       - name: Log container status
         run: docker ps
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker test image
-        uses: docker/build-push-action@v5
+      - name: Cache docker layers
+        uses: actions/cache@v4
+        env:
+          cache-name: cache-docker-layers
         with:
-          context: .
-          push: false
-          tags: datastore-api:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-               
+          path: ~/.cache/docker
+          key: ${{ runner.os }}-docker-build-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-docker-build-
+        
+      - name: Build tests Docker container
+        run: |
+          docker build \
+            --cache-from=type=local,src=~/.cache/docker \
+            --cache-to=type=local,dest=~/.cache/docker,mode=max \
+            -t datastore-api:test \
+            --target test \
+            -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
+      
       - name: Run tests via Docker container
         run: |
           docker run --rm \
