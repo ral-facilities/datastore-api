@@ -84,7 +84,7 @@ jobs:
         run: docker ps
 
       - name: Build Docker test image
-        use: docker/build-push-action@v5
+        uses: docker/build-push-action@v5
         with:
           context: .
           file: Dockerfile
