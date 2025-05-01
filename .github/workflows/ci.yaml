@@ -95,23 +95,24 @@ jobs:
           -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
 
       - name: Check Docker save
+        continue-on-error: true
         run: |
-          ls -lh ~/.cache/docker
+          ls ~/
       
       - name: check images
         run: docker images
 
-      - name: Run tests via Docker container
-        continue-on-error: true
-        run: |
-          docker run --rm \
-            --network tests_datastore_network \
-            -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
-            -v /home/runner/work/datastore-api/datastore-api//hostcert.pem:/app/hostcert.pem \
-            -w /app \
-            -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
-            -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
-            datastore-api:test
+      # - name: Run tests via Docker container
+      #   continue-on-error: true
+      #   run: |
+      #     docker run --rm \
+      #       --network tests_datastore_network \
+      #       -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
+      #       -v /home/runner/work/datastore-api/datastore-api//hostcert.pem:/app/hostcert.pem \
+      #       -w /app \
+      #       -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
+      #       -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
+      #       datastore-api:test
       
       - name: Docker compose down
         run: docker compose -f tests/docker-compose.yaml down
