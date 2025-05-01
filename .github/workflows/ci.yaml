@@ -96,14 +96,10 @@ jobs:
       
       - name: Setup Docker image
         run: |
-          docker buildx build -t datastore-api:test --target test\
+          docker buildx build -t datastore-api:test --target test  --load --builder=container \
           --cache-to=type=local,dest=~/.cache/docker \
           --cache-from=type=local,src=~/.cache/docker \
           -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
-      
-      - name: Build Docker image
-        run: |
-          docker buildx build --load -t datastore-api:test --builder=container .
       
       - name: check images
         run: docker images
