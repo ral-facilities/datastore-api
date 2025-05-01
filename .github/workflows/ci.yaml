@@ -98,7 +98,6 @@ jobs:
         run: |
           docker buildx build -t datastore-api:test --target test  --load \
           --cache-to=type=local,dest=~/.cache/docker \
-          --cache-from=type=local,src=~/.cache/docker \
           -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
       
       - name: check images
