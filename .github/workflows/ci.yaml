@@ -82,10 +82,19 @@ jobs:
 
       - name: Log container status
         run: docker ps
+
+      - name: Build Docker test image
+        use: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: datastore-api:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
                
       - name: Run tests via Docker container
         run: |
-          docker build -t datastore-api:test --target test -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
           docker run --rm \
             --network tests_datastore_network \
             -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
