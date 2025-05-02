@@ -89,24 +89,30 @@ jobs:
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
-          path: ./build-cache
-          key: ${{ runner.os }}-docker-build-cache-${{ github.sha }}
+          path: ~/.cache/docker
+          key: ${{ runner.os }}-buildx-${{ github.ref_name }}-v1
           restore-keys: |
-            ${{ runner.os }}-docker-build-cache-
+            ${{ runner.os }}-buildx-main-v1
+            ${{ runner.os }}-buildx-
       
       - name: Setup Docker image
         run: |
+          mkdir -p ~/.cache/docker
           docker buildx build -t datastore-api:test --target test  --load \
           --cache-from=type=local,src=./build-cache \
           --cache-to=type=local,dest=./build-cache \
           -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
 
+      - name: Save updated cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-${{ github.ref_name }}-v1
+
       - name: Check Docker save
         continue-on-error: true
         run: |
-          ls ~/
-          ls ~/.cache
-          ls ~/.cache/docker 
+          ls ./build-cache
       
       - name: check images
         run: docker images
