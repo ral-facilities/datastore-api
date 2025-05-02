@@ -92,9 +92,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.CACHE_DIR }}
-          key: ${{ runner.os }}-buildx-${{ github.ref_name }}-v1
+          key: ${{ runner.os }}-buildx-${{ github.ref_name }}-${{ github.sha }}-v1
           restore-keys: |
-            ${{ runner.os }}-buildx-main-v1
+            ${{ runner.os }}-buildx-${{ github.ref_name }}-
             ${{ runner.os }}-buildx-
       
       - name: Touch cache dir to force update
@@ -118,7 +118,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.CACHE_DIR }}
-          key: ${{ runner.os }}-buildx-${{ github.ref_name }}-v1
+          key: ${{ runner.os }}-buildx-${{ github.ref_name }}-${{ github.sha }}-v1
       
       - name: Clean up force-upload file
         run: rm -f $CACHE_DIR/force-upload-*
