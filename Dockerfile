@@ -26,9 +26,6 @@ FROM base AS builder
 ENV PATH="/root/.local/bin:$PATH"
 RUN poetry config virtualenvs.create false
 
-# Copy the rest of the application code
-COPY datastore_api/ /app/datastore_api/
-
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         expect \
@@ -57,7 +54,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install development dependencies
-RUN poetry install --without=dev
+RUN poetry install --without=dev --no-root
+
 
 
 # ~~~ Development stage: ~~~#
@@ -69,6 +67,9 @@ ENV PATH="/root/.local/bin:$PATH"
 # Install development dependencies
 RUN poetry install --with dev 
 
+# Copy the rest of the application code
+COPY datastore_api/ /app/datastore_api/
+
 # Copy the project files to the container and install
 COPY config.yaml.example logging.ini.example /app/
 COPY pytest.ini.docker /app/pytest.ini
@@ -78,6 +79,7 @@ RUN touch hostkey.pem && \
     touch hostcert.pem && \
     cp config.yaml.example config.yaml && \
     cp logging.ini.example logging.ini
+
 
 # Expose the port the app will run on
 EXPOSE 8000
@@ -115,9 +117,11 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Copy the rest of the application code
+COPY datastore_api/ /app/datastore_api/
+
 # Copy installed Python deps and source code
 COPY --from=builder /usr/local /usr/local
-COPY --from=builder /app /app
 
 # Expose the port the app will run on
 EXPOSE 8000
