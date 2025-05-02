@@ -117,17 +117,11 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# COPY --from=builder /usr/local /usr/local
-# COPY datastore_api/ /app/datastore_api/
-# RUN poetry install --only-root
-
 # Copy installed Python deps and source code
 COPY --from=builder /usr/local /usr/local
 COPY pyproject.toml poetry.lock /app/
 COPY datastore_api/ /app/datastore_api/
 RUN python -m pip install .
-
-
 
 # Expose the port the app will run on
 EXPOSE 8000

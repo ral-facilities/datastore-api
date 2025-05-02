@@ -103,12 +103,6 @@ jobs:
             --cache-from=type=local,src="${CACHE_DIR}" \
             --cache-to=type=local,dest="${CACHE_DIR}",mode=max \
             -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
-      
-      - name: Inspect cache folder after build
-        run: |
-          du -sh $CACHE_DIR
-          echo "files:"
-          find $CACHE_DIR | head -50
 
       # - name: Save updated cache
       #   uses: actions/cache@v4
