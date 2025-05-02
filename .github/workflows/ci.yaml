@@ -110,11 +110,11 @@ jobs:
           echo "files:"
           find $CACHE_DIR | head -50
 
-      - name: Save updated cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.CACHE_DIR }}
-          key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
+      # - name: Save updated cache
+      #   uses: actions/cache@v4
+      #   with:
+      #     path: ${{ env.CACHE_DIR }}
+      #     key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
 
       # - name: Run tests via Docker container
       #   run: |
