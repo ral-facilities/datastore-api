@@ -107,12 +107,21 @@ jobs:
             --cache-from=type=local,src="${CACHE_DIR}" \
             --cache-to=type=local,dest="${CACHE_DIR}",mode=max \
             -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
+      
+      - name: Inspect cache folder after build
+        run: |
+          du -sh $CACHE_DIR
+          echo "files:"
+          find $CACHE_DIR | head -50
 
       - name: Save updated cache
         uses: actions/cache@v4
         with:
           path: ${{ env.CACHE_DIR }}
           key: ${{ runner.os }}-buildx-${{ github.ref_name }}-v1
+      
+      - name: Clean up force-upload file
+        run: rm -f $CACHE_DIR/force-upload-*
 
       - name: Run tests via Docker container
         run: |
