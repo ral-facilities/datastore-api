@@ -64,11 +64,11 @@ FROM builder AS dev
 
 ENV PATH="/root/.local/bin:$PATH"
 
-# Install development dependencies
-RUN poetry install --with dev 
-
 # Copy the rest of the application code
 COPY datastore_api/ /app/datastore_api/
+
+# Install development dependencies
+RUN poetry install --with dev 
 
 # Copy the project files to the container and install
 COPY config.yaml.example logging.ini.example /app/
