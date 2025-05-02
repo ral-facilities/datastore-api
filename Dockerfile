@@ -26,8 +26,6 @@ FROM base AS builder
 ENV PATH="/root/.local/bin:$PATH"
 RUN poetry config virtualenvs.create false
 
-# Copy the rest of the application code
-COPY datastore_api/ /app/datastore_api/
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -57,7 +55,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install development dependencies
-RUN poetry install --without=dev
+RUN poetry install --without=dev --no-root
+
 
 
 # ~~~ Development stage: ~~~#
@@ -65,6 +64,9 @@ RUN poetry install --without=dev
 FROM builder AS dev
 
 ENV PATH="/root/.local/bin:$PATH"
+
+# Copy the rest of the application code
+COPY datastore_api/ /app/datastore_api/
 
 # Install development dependencies
 RUN poetry install --with dev 
@@ -117,7 +119,9 @@ RUN apt-get update && \
 
 # Copy installed Python deps and source code
 COPY --from=builder /usr/local /usr/local
-COPY --from=builder /app /app
+COPY pyproject.toml poetry.lock /app/
+COPY datastore_api/ /app/datastore_api/
+RUN python -m pip install .
 
 # Expose the port the app will run on
 EXPOSE 8000

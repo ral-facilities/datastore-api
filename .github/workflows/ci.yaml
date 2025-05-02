@@ -23,6 +23,8 @@ jobs:
     strategy:
       fail-fast: false
     runs-on: ubuntu-22.04
+    env:
+      CACHE_DIR: $HOME/.cache/docker
 
     name: Tests
     steps:
@@ -82,10 +84,29 @@ jobs:
 
       - name: Log container status
         run: docker ps
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Cache image will only be updated if poetry.lock changes
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
       
+      - name: Build Docker image
+        run: |
+          mkdir -p "${CACHE_DIR}"
+          docker buildx build -t datastore-api:test --target test  --load \
+            --cache-from=type=local,src="${CACHE_DIR}" \
+            --cache-to=type=local,dest="${CACHE_DIR}",mode=max \
+            -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
+
       - name: Run tests via Docker container
         run: |
-          docker build -t datastore-api:test --target test -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
           docker run --rm \
             --network tests_datastore_network \
             -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
