@@ -24,7 +24,7 @@ jobs:
       fail-fast: false
     runs-on: ubuntu-22.04
     env:
-      CACHE_DIR: ${{ runner.home }}/.cache/docker
+      CACHE_DIR: $HOME/.cache/docker
 
     name: Tests
     steps:
@@ -110,7 +110,7 @@ jobs:
         with:
           path: ${{ env.CACHE_DIR }}
           key: ${{ runner.os }}-buildx-${{ github.ref_name }}-v1
-          
+
       - name: Check Docker save
         continue-on-error: true
         run: |
