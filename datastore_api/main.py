@@ -782,22 +782,22 @@ def get_storage_info():
     return {"archive": archive_storage_type, "storage": storage_endpoint_type}
 
 
-@app.post(
-    "/size",
-    summary="Returns the size of the specified entities",
-)
-def size(transfer_request: TransferRequest, session_id: SessionIdDependency) -> int:
+# @app.post(
+#     "/size",
+#     summary="Returns the size of the specified entities",
+# )
+# def size(transfer_request: TransferRequest, session_id: SessionIdDependency) -> int:
 
-    total_size = 0
-    icat_client = IcatClient(session_id)
+#     total_size = 0
+#     icat_client = IcatClient(session_id)
 
-    datafiles = icat_client.get_unique_datafiles(
-        transfer_request.investigation_ids,
-        transfer_request.dataset_ids,
-        transfer_request.datafile_ids,
-    )
+#     datafiles = icat_client.get_unique_datafiles(
+#         transfer_request.investigation_ids,
+#         transfer_request.dataset_ids,
+#         transfer_request.datafile_ids,
+#     )
 
-    for datafile in datafiles:
-        total_size += datafile.fileSize
+#     for datafile in datafiles:
+#         total_size += datafile.fileSize
 
-    return total_size
+#     return total_size
