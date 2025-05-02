@@ -96,9 +96,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
       
-      - name: Touch cache dir to force update
-        run: touch $CACHE_DIR/force-upload-$(date +%s)
-      
       - name: Setup Docker image
         run: |
           mkdir -p "${CACHE_DIR}"
@@ -118,9 +115,6 @@ jobs:
         with:
           path: ${{ env.CACHE_DIR }}
           key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
-      
-      - name: Clean up force-upload file
-        run: rm -f $CACHE_DIR/force-upload-*
 
       # - name: Run tests via Docker container
       #   run: |
