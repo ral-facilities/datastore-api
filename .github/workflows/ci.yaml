@@ -97,6 +97,9 @@ jobs:
             ${{ runner.os }}-buildx-main-v1
             ${{ runner.os }}-buildx-
       
+      - name: Touch cache dir to force update
+        run: touch $CACHE_DIR/force-upload-$(date +%s)
+      
       - name: Setup Docker image
         run: |
           mkdir -p "${CACHE_DIR}"
@@ -112,7 +115,6 @@ jobs:
           key: ${{ runner.os }}-buildx-${{ github.ref_name }}-v1
 
       - name: Run tests via Docker container
-        continue-on-error: true
         run: |
           docker run --rm \
             --network tests_datastore_network \
