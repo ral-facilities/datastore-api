@@ -85,9 +85,10 @@ jobs:
       - name: Log container status
         run: docker ps
 
-      - name: Set up Docker Buildx
+      - name: Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Cache image will only be updated if poetry.lock changes
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
@@ -96,7 +97,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
       
-      - name: Setup Docker image
+      - name: Build Docker image
         run: |
           mkdir -p "${CACHE_DIR}"
           docker buildx build -t datastore-api:test --target test  --load \
@@ -104,22 +105,22 @@ jobs:
             --cache-to=type=local,dest="${CACHE_DIR}",mode=max \
             -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
 
-      # - name: Save updated cache
-      #   uses: actions/cache@v4
-      #   with:
-      #     path: ${{ env.CACHE_DIR }}
-      #     key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
+      - name: Save updated cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
 
-      # - name: Run tests via Docker container
-      #   run: |
-      #     docker run --rm \
-      #       --network tests_datastore_network \
-      #       -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
-      #       -v /home/runner/work/datastore-api/datastore-api//hostcert.pem:/app/hostcert.pem \
-      #       -w /app \
-      #       -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
-      #       -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
-      #       datastore-api:test
+      - name: Run tests via Docker container
+        run: |
+          docker run --rm \
+            --network tests_datastore_network \
+            -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
+            -v /home/runner/work/datastore-api/datastore-api//hostcert.pem:/app/hostcert.pem \
+            -w /app \
+            -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
+            -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
+            datastore-api:test
       
       - name: Docker compose down
         run: docker compose -f tests/docker-compose.yaml down
