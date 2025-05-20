@@ -4,11 +4,13 @@ import logging
 from typing import AsyncGenerator
 from urllib.error import URLError
 
+from codecarbon.emissions_tracker import OfflineEmissionsTracker
 from fastapi import FastAPI
 
 from datastore_api.controllers.state_controller import StateController
 
 LOGGER = logging.getLogger(__name__)
+CARBON_LOGGER = logging.getLogger("code_carbon")
 
 
 async def poll_fts_thread() -> None:
@@ -19,6 +21,17 @@ async def poll_fts_thread() -> None:
     while True:
         poll_fts(state_controller)
         await asyncio.sleep(60)
+
+
+async def code_carbon_thread() -> None:
+    """Starts a thread to track power usage and estimate CO2 emissions from running the
+    API.
+    """
+    tracker = OfflineEmissionsTracker(country_iso_code="GBR", log_level="warning")
+    tracker.start()
+    while True:
+        tracker.flush()
+        await asyncio.sleep(60 * 60)
 
 
 def poll_fts(state_controller: StateController) -> None:
@@ -49,4 +62,5 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         AsyncGenerator[None, None]
     """
     asyncio.create_task(poll_fts_thread())
+    asyncio.create_task(code_carbon_thread())
     yield
