@@ -42,11 +42,18 @@ jobs:
 
       # Let CodeCarbon run in the background while we do everything else
       - name: Start CodeCarbon
-        run: nohup codecarbon monitor --no-api &
+        run: codecarbon monitor --no-api
+        timeout-minutes: 1
 
       # Do this early to minimise how long we wait for the health check later on
       - name: Docker compose up
         run: docker compose -f docker-compose.yaml --profile dependencies up -d
+
+      - name: Touch coverage.xml
+        run: touch coverage.xml
+
+      - name: Make cachedir
+        run: mkdir -p ${{ env.CACHE_DIR }}
 
       - name: Set X509 certificate
         run: |
@@ -105,6 +112,9 @@ jobs:
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
       
+      - name: list Cache
+        run: ls -l ${{ env.CACHE_DIR }}
+
       # CodeCarbon needs the keyboard interrupt signal to gracefully stop
       - name: Stop CodeCarbon
         if: success() || failure()
@@ -117,10 +127,6 @@ jobs:
             sleep 1
           done
         timeout-minutes: 1
-
-      - name: Print nohup
-        if: success() || failure()
-        run: cat nohup.out
 
       - name: Print emissions
         if: success() || failure()
@@ -160,7 +166,7 @@ jobs:
           cache-to: type=local,dest=${{ env.CACHE_DIR }},mode=max
 
       - name: Run linting
-        run: docker compose -f docker-compose.yaml lint
+        run: docker compose -f docker-compose.yaml run lint
 
 
   formatting:
@@ -196,7 +202,7 @@ jobs:
           cache-to: type=local,dest=${{ env.CACHE_DIR }},mode=max
 
       - name: Run formatting
-        run: docker compose -f docker-compose.yaml format
+        run: docker compose -f docker-compose.yaml run format
 
 
   safety:
@@ -232,7 +238,7 @@ jobs:
           cache-to: type=local,dest=${{ env.CACHE_DIR }},mode=max
 
       - name: Run safety
-        run: docker compose -f docker-compose.yaml safety
+        run: docker compose -f docker-compose.yaml run safety
 
   build:
     needs: [ tests, linting, formatting, safety]
