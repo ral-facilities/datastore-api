@@ -8,7 +8,11 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest
-from datastore_api.models.dataset import DatasetStatusResponse
+from datastore_api.models.dataset import (
+    DatasetStatusListFilesResponse,
+    DatasetStatusResponse,
+)
+from datastore_api.models.job import TransferState
 from datastore_api.models.transfer import TransferRequest
 from tests.fixtures import (
     archive_request,
@@ -136,7 +140,6 @@ class TestMain:
         response = DatasetStatusResponse(state="FINISHED")
         state_controller_mock = mocker.patch("datastore_api.main.StateController")
         state_controller = state_controller_mock.return_value
-        state_controller.get_dataset_job_ids.return_value = []
         state_controller.get_dataset_status.return_value = response
 
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
@@ -149,6 +152,30 @@ class TestMain:
         assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
         assert content == {"state": "FINISHED"}
+
+    def test_get_dataset_list_files(
+        self,
+        test_client: TestClient,
+        mocker: MockerFixture,
+    ):
+        response = DatasetStatusListFilesResponse(
+            state="FINISHED",
+            file_states={"test": TransferState.finished},
+        )
+        state_controller_mock = mocker.patch("datastore_api.main.StateController")
+        state_controller = state_controller_mock.return_value
+        state_controller.get_dataset_status.return_value = response
+
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get(
+            "/dataset/1/status",
+            params={"list_files": True},
+            headers=headers,
+        )
+
+        assert test_response.status_code == 200, test_response.content
+        content = json.loads(test_response.content)
+        assert content == {"state": "FINISHED", "file_states": {"test": "FINISHED"}}
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}

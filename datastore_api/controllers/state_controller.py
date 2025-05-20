@@ -415,7 +415,7 @@ class StateController:
         self,
         dataset_id: int,
         list_files: bool = False,
-    ) -> DatasetStatusResponse:
+    ) -> DatasetStatusListFilesResponse | DatasetStatusResponse:
         """Get the status of a Dataset that may or may not have completed archival.
 
         Args:
@@ -443,7 +443,7 @@ class StateController:
         self,
         parameters: list[Entity],
         list_files: bool,
-    ) -> DatasetStatusResponse:
+    ) -> DatasetStatusListFilesResponse | DatasetStatusResponse:
         """Get and update the status of a Dataset using the latest FTS information.
 
         Args:
@@ -469,7 +469,7 @@ class StateController:
         dataset_parameter: Entity,
         dataset_id: int,
         list_files: bool,
-    ) -> DatasetStatusResponse:
+    ) -> DatasetStatusListFilesResponse | DatasetStatusResponse:
         """Get the status of a Dataset with completed archival.
 
         Args:
