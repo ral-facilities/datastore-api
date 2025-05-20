@@ -45,33 +45,30 @@ class TestLifespan:
     def test_poll_fts_success(
         self,
         mock_fts3_settings: Settings,
+        facility: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_state: Entity,
+        parameter_type_deletion_date: Entity,
         mocker: MockerFixture,
     ):
+        error = mocker.patch.object(LOGGER, "error", wraps=LOGGER.error)
         state_controller = StateController()
-        delete_many = mocker.patch.object(
-            state_controller.icat_client.client,
-            "deleteMany",
-            wraps=state_controller.icat_client.client.deleteMany,
-        )
 
         poll_fts(state_controller)
 
-        delete_many.assert_called_once_with([])
+        error.assert_not_called()
 
     def test_poll_fts_failure(
         self,
         mock_fts3_settings: Settings,
+        facility: Entity,
+        parameter_type_job_ids: Entity,
+        parameter_type_state: Entity,
+        parameter_type_deletion_date: Entity,
         mocker: MockerFixture,
     ):
         state_controller = StateController()
-        delete_many = mocker.patch.object(
-            state_controller.icat_client.client,
-            "deleteMany",
-            wraps=state_controller.icat_client.client.deleteMany,
-        )
-
         error = mocker.patch.object(LOGGER, "error", wraps=LOGGER.error)
-
         update_jobs_mock = mocker.MagicMock()
         update_jobs_mock.side_effect = URLError("test")
         mocker.patch(
@@ -81,7 +78,6 @@ class TestLifespan:
 
         poll_fts(state_controller)
 
-        delete_many.assert_not_called()
         error.assert_called_once_with(
             "Unable to poll for job statuses: %s",
             "<urlopen error test>",
@@ -107,7 +103,7 @@ class TestLifespan:
                     {"job_state": JobState.canceled, "files": [], "job_id": "1"},
                     {"job_state": JobState.submitted, "files": [], "job_id": "2"},
                 ],
-                "0,2",
+                "0,1,2",
                 JobState.submitted,
                 JobState.submitted,
             ),
@@ -128,7 +124,7 @@ class TestLifespan:
                     {"job_state": JobState.finished, "files": [], "job_id": "1"},
                     {"job_state": JobState.finished_dirty, "files": [], "job_id": "2"},
                 ],
-                "",
+                "0,1,2",
                 JobState.finished_dirty,
                 JobState.failed,
             ),
@@ -154,7 +150,7 @@ class TestLifespan:
         equals_job_state = {"type.name": type_job_state}
         parameters = functional_icat_client.get_entities(
             entity="DatasetParameter",
-            equals=equals_job_ids,
+            equals=equals_job_state,
             includes="1",
         )
 
@@ -171,10 +167,7 @@ class TestLifespan:
             equals=equals_job_ids,
             allow_empty=True,
         )
-        if job_ids:
-            assert parameter.stringValue == job_ids
-        else:
-            assert parameter is None
+        assert parameter.stringValue == job_ids
 
         parameter = functional_icat_client.get_single_entity(
             entity="DatasetParameter",
@@ -192,7 +185,6 @@ class TestLifespan:
 
         assert len(state_counters) == 1
         assert state_counters[0].state == state
-        assert ",".join(state_counters[0].ongoing_job_ids) == job_ids
 
 
 class TestStateCounter:

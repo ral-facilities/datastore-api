@@ -58,6 +58,7 @@
         "datafiles": [
             {
                 "name": "file_0000.nxs",
+                "location": "EA1/2025/ABC123-1/scan/scan_0000/file_0000.nxs",
                 "datafileFormat": {
                     "name": "NeXus",
                     "version": "v2024.02"
@@ -70,6 +71,7 @@
             },
             {
                 "name": "file_0001.nxs",
+                "location": "EA1/2025/ABC123-1/scan/scan_0000/file_0001.nxs",
                 "datafileFormat": {
                     "name": "NeXus",
                     "version": "v2024.02"
@@ -82,6 +84,7 @@
             },
             {
                 "name": "file_0002.nxs",
+                "location": "EA1/2025/ABC123-1/scan/scan_0000/file_0002.nxs",
                 "datafileFormat": {
                     "name": "NeXus",
                     "version": "v2024.02"
@@ -94,6 +97,7 @@
             },
             {
                 "name": "file_0003.nxs",
+                "location": "EA1/2025/ABC123-1/scan/scan_0000/file_0003.nxs",
                 "datafileFormat": {
                     "name": "NeXus",
                     "version": "v2024.02"

@@ -1,15 +1,21 @@
 from enum import StrEnum
+from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
 
-class RestoreRequest(BaseModel):
+class BucketAcl(StrEnum):
+    PRIVATE = "private"
+    PUBLIC_READ = "public-read"
+
+
+class TransferRequest(BaseModel):
     investigation_ids: set[int] = set()
     dataset_ids: set[int] = set()
     datafile_ids: set[int] = set()
 
     @model_validator(mode="after")
-    def validate_ids(self) -> "RestoreRequest":
+    def validate_ids(self) -> "TransferRequest":
         investigations = len(self.investigation_ids)
         datasets = len(self.dataset_ids)
         datafiles = len(self.datafile_ids)
@@ -19,18 +25,17 @@ class RestoreRequest(BaseModel):
         return self
 
 
-class BucketAcl(StrEnum):
-    PRIVATE = "private"
-    PUBLIC_READ = "public-read"
+class TransferS3Request(TransferRequest):
+    bucket_acl: BucketAcl = BucketAcl.PRIVATE
 
 
-class RestoreS3Request(RestoreRequest):
-    bucket_acl: BucketAcl = BucketAcl.PUBLIC_READ
-
-
-class RestoreResponse(BaseModel):
+class TransferResponse(BaseModel):
     job_ids: list[str] = Field(examples=[["00000000-0000-0000-0000-000000000000"]])
+    size: Optional[int] = Field(
+        default=None,
+        description="The total size of the files in bytes",
+    )
 
 
-class DownloadResponse(RestoreResponse):
+class TransferS3Response(TransferResponse):
     bucket_name: str

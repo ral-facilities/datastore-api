@@ -8,8 +8,12 @@ from pytest_mock import mocker, MockerFixture
 from datastore_api.config import Settings
 from datastore_api.main import app
 from datastore_api.models.archive import ArchiveRequest
-from datastore_api.models.dataset import DatasetStatusResponse
-from datastore_api.models.restore import RestoreRequest
+from datastore_api.models.dataset import (
+    DatasetStatusListFilesResponse,
+    DatasetStatusResponse,
+)
+from datastore_api.models.job import TransferState
+from datastore_api.models.transfer import TransferRequest
 from tests.fixtures import (
     archive_request,
     archive_request_parameters,
@@ -25,6 +29,7 @@ from tests.fixtures import (
 @pytest.fixture(scope="function")
 def test_client(mock_fts3_settings: Settings, mocker: MockerFixture):
     datafile = mocker.MagicMock(name="datafile")
+    datafile.fileSize = None
     dataset = mocker.MagicMock(name="dataset")
     dataset_parameter_state = mocker.MagicMock(name="dataset_parameter_state")
     dataset_parameter_state.type.name = "Archival state"
@@ -78,10 +83,14 @@ class TestMain:
     ):
         json_body = json.loads(archive_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
-        test_response = test_client.post("/archive", headers=headers, json=json_body)
+        test_response = test_client.post(
+            "/archive/idc",
+            headers=headers,
+            json=json_body,
+        )
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert "dataset_ids" in content
         assert content["dataset_ids"] == [1]
         assert "job_ids" in content
@@ -89,20 +98,39 @@ class TestMain:
         UUID(content["job_ids"][0], version=4)
 
     def test_restore_to_rdc(self, test_client: TestClient):
-        restore_request = RestoreRequest(investigation_ids=[0])
+        restore_request = TransferRequest(investigation_ids=[0])
         json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.post(
-            "/restore/rdc",
+            "/restore/rdc?get_size=true",
             headers=headers,
             json=json_body,
         )
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert "job_ids" in content
         assert len(content["job_ids"]) == 1
         UUID(content["job_ids"][0], version=4)
+        assert "size" in content
+        assert content["size"] >= 0
+
+    def test_restore_to_rdc_with_parameters(self, test_client: TestClient):
+        restore_request = TransferRequest(investigation_ids=[0])
+        json_body = json.loads(restore_request.model_dump_json(exclude_none=True))
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.post(
+            "/restore/rdc?get_size=false",
+            headers=headers,
+            json=json_body,
+        )
+
+        assert test_response.status_code == 200, test_response.content
+        content = json.loads(test_response.content)
+        assert "job_ids" in content
+        assert len(content["job_ids"]) == 1
+        UUID(content["job_ids"][0], version=4)
+        assert "size" not in content
 
     def test_get_dataset_without_update(
         self,
@@ -112,7 +140,6 @@ class TestMain:
         response = DatasetStatusResponse(state="FINISHED")
         state_controller_mock = mocker.patch("datastore_api.main.StateController")
         state_controller = state_controller_mock.return_value
-        state_controller.get_dataset_job_ids.return_value = []
         state_controller.get_dataset_status.return_value = response
 
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
@@ -122,39 +149,95 @@ class TestMain:
             headers=headers,
         )
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert content == {"state": "FINISHED"}
+
+    def test_get_dataset_list_files(
+        self,
+        test_client: TestClient,
+        mocker: MockerFixture,
+    ):
+        response = DatasetStatusListFilesResponse(
+            state="FINISHED",
+            file_states={"test": TransferState.finished},
+        )
+        state_controller_mock = mocker.patch("datastore_api.main.StateController")
+        state_controller = state_controller_mock.return_value
+        state_controller.get_dataset_status.return_value = response
+
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get(
+            "/dataset/1/status",
+            params={"list_files": True},
+            headers=headers,
+        )
+
+        assert test_response.status_code == 200, test_response.content
+        content = json.loads(test_response.content)
+        assert content == {"state": "FINISHED", "file_states": {"test": "FINISHED"}}
 
     def test_status(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/job/1/status", headers=headers)
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert content == {"status": STATUSES[0]}
+
+    def test_status_multiple(self, test_client: TestClient):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get(
+            "/job/1/status?list_files=true&verbose=false",
+            headers=headers,
+        )
+
+        content = json.loads(test_response.content)
+
+        assert test_response.status_code == 200, content
+        assert content == {
+            "state": STATUSES[0]["job_state"],
+            "file_states": {
+                "test0": FILES[0]["file_state"],
+                "test1": FILES[1]["file_state"],
+            },
+        }
+
+    def test_status_multiple1(self, test_client: TestClient):
+        headers = {"Authorization": f"Bearer {SESSION_ID}"}
+        test_response = test_client.get(
+            "/job/1/status?list_files=false&verbose=false",
+            headers=headers,
+        )
+
+        content = json.loads(test_response.content)
+
+        assert test_response.status_code == 200, content
+        assert content == {
+            "state": STATUSES[0]["job_state"],
+        }
 
     def test_complete(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/job/1/complete", headers=headers)
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert content == {"complete": True}
 
     def test_percentage(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.get("/job/1/percentage", headers=headers)
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert content == {"percentage_complete": 100.0}
 
     def test_cancel(self, test_client: TestClient):
         headers = {"Authorization": f"Bearer {SESSION_ID}"}
         test_response = test_client.delete("/job/1", headers=headers)
 
+        assert test_response.status_code == 200, test_response.content
         content = json.loads(test_response.content)
-        assert test_response.status_code == 200, content
         assert content == {"state": "CANCELED"}
 
     def test_version(self, test_client: TestClient):
@@ -162,3 +245,13 @@ class TestMain:
 
         assert test_response.status_code == 200
         assert json.loads(test_response.content) == {"version": "0.1.0"}
+
+    def test_get_storage_info(self, test_client: TestClient):
+        test_response = test_client.get("/storage-type")
+        content = json.loads(test_response.content)
+
+        assert test_response.status_code == 200, content
+        assert content == {
+            "archive": "tape",
+            "storage": {"echo": "s3", "idc": "disk", "rdc": "disk"},
+        }

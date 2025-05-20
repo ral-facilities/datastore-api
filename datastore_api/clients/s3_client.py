@@ -2,7 +2,10 @@ from functools import lru_cache
 import logging
 
 import boto3
+from botocore.exceptions import ClientError
+from fastapi.exceptions import HTTPException
 from mypy_boto3_s3 import S3Client as S3ClientBoto3, S3ServiceResource
+from mypy_boto3_s3.type_defs import GetObjectAttributesOutputTypeDef
 
 from datastore_api.config import get_settings
 
@@ -12,22 +15,23 @@ LOGGER = logging.getLogger(__name__)
 class S3Client:
     """Wrapper for S3 functionality."""
 
-    def __init__(self) -> None:
+    def __init__(self, key: str) -> None:
         """Initialise the client with the cached `s3_settings`."""
         settings = get_settings()
-        self.endpoint = settings.s3.endpoint
-        self.cache_bucket = settings.s3.cache_bucket
+        storage_endpoint = settings.fts3.storage_endpoints[key]
+        self.endpoint = storage_endpoint.url
+        self.cache_bucket = storage_endpoint.cache_bucket
         self.resource: S3ServiceResource = boto3.resource(
             "s3",
-            endpoint_url=settings.s3.endpoint,
-            aws_access_key_id=settings.s3.access_key,
-            aws_secret_access_key=settings.s3.secret_key,
+            endpoint_url=storage_endpoint.url,
+            aws_access_key_id=storage_endpoint.access_key.get_secret_value(),
+            aws_secret_access_key=storage_endpoint.secret_key.get_secret_value(),
         )
         self.client: S3ClientBoto3 = boto3.client(
             "s3",
-            endpoint_url=settings.s3.endpoint,
-            aws_access_key_id=settings.s3.access_key,
-            aws_secret_access_key=settings.s3.secret_key,
+            endpoint_url=storage_endpoint.url,
+            aws_access_key_id=storage_endpoint.access_key.get_secret_value(),
+            aws_secret_access_key=storage_endpoint.secret_key.get_secret_value(),
         )
 
     def create_presigned_url(self, object_name: str, bucket_name: str, expiration=3600):
@@ -69,12 +73,30 @@ class S3Client:
             bucket_names.append(bucket["Name"])
         return bucket_names
 
+    def stat(self, location: str) -> GetObjectAttributesOutputTypeDef:
+        """Get details of an object in the cache_bucket of this S3 storage.
+
+        Args:
+            location (str): ICAT Datafile.location for a single object.
+
+        Returns:
+            GetObjectAttributesOutputTypeDef: Attributes of the requested object.
+        """
+        try:
+            return self.client.head_object(
+                Bucket=self.cache_bucket,
+                Key=location,
+            )
+        except ClientError as e:
+            detail = f"File not found at {self.cache_bucket}/{location}"
+            raise HTTPException(status_code=404, detail=detail) from e
+
 
 @lru_cache
-def get_s3_client() -> S3Client:
+def get_s3_client(key: str) -> S3Client:
     """Initialise and cache the client for making calls to S3.
 
     Returns:
         S3Client: Wrapper for calls to S3.
     """
-    return S3Client()
+    return S3Client(key=key)

@@ -1,6 +1,13 @@
 name: CI
 on:
   workflow_dispatch:
+      inputs:
+        push-docker-image-to-harbor:
+          description: 'Push Docker Image to Harbor'
+          required: false
+          type: boolean
+          default: false
+
   pull_request:
   push:
     tags:
@@ -8,11 +15,16 @@ on:
     branches:
       - main
 
+permissions:
+  contents: read
+
 jobs:
   tests:
     strategy:
       fail-fast: false
     runs-on: ubuntu-22.04
+    env:
+      CACHE_DIR: $HOME/.cache/docker
 
     name: Tests
     steps:
@@ -48,22 +60,20 @@ jobs:
           path: ~/.cache/pypoetry/virtualenvs
           key: poetry-${{ hashFiles('poetry.lock') }}
 
-      - name: Install dependencies
-        run: poetry install
-
       - name: Load Poetry cache for Nox tests session
         uses: actions/cache@v4
         with:
           path: /home/runner/work/datastore-api/datastore-api/.nox/tests*
           key: nox-tests-${{ hashFiles('poetry.lock') }}
 
-      - name: Wait for minio to contain test bucket/objects
-        id: minio_check
+      - name: Set X509 certificate
         run: |
-          until docker exec minio /usr/bin/mc ls data/cache-bucket | grep -q test3; do
-            sleep 1
-          done
-        timeout-minutes: 1
+          echo "$X509_USER_CERT" > hostcert.pem;
+          echo "$X509_USER_KEY" > hostkey.pem;
+          chmod 600 hostkey.pem;
+        env:
+          X509_USER_CERT: ${{ secrets.FTS3_HOSTCERT }}
+          X509_USER_KEY: ${{ secrets.FTS3_HOSTKEY }}
 
       - name: Wait for ICAT container to start
         run: |
@@ -75,27 +85,44 @@ jobs:
       - name: Log container status
         run: docker ps
 
-      - name: Run Nox tests
-        run: nox -s tests -- --cov --cov-report=xml
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
+      # Cache image will only be updated if poetry.lock changes
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CACHE_DIR }}
+          key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+      
+      - name: Build Docker image
+        run: |
+          mkdir -p "${CACHE_DIR}"
+          docker buildx build -t datastore-api:test --target test  --load \
+            --cache-from=type=local,src="${CACHE_DIR}" \
+            --cache-to=type=local,dest="${CACHE_DIR}",mode=max \
+            -f /home/runner/work/datastore-api/datastore-api/Dockerfile .
+
+      - name: Run tests via Docker container
+        run: |
+          docker run --rm \
+            --network tests_datastore_network \
+            -v /home/runner/work/datastore-api/datastore-api//hostkey.pem:/app/hostkey.pem \
+            -v /home/runner/work/datastore-api/datastore-api//hostcert.pem:/app/hostcert.pem \
+            -w /app \
+            -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
+            -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
+            datastore-api:test
+      
       - name: Docker compose down
         run: docker compose -f tests/docker-compose.yaml down
-
+      
       - name: Upload code coverage report
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Dump minio logs
-        if: failure() && steps.minio_check.outcome == 'failure'
-        run: |
-          docker exec minio /usr/bin/mc ls data/cache-bucket;
-          docker logs minio;
-
-      - name: Dump mc logs
-        if: failure() && steps.minio_check.outcome == 'failure'
-        run: |
-          docker logs mc;
 
 
   linting:
@@ -189,16 +216,17 @@ jobs:
         run: nox -s safety
 
   build:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/'))
-    needs:
-      - tests
-      - linting
-      - formatting
-      - safety
+    needs: [ tests, linting, formatting, safety]
     runs-on: ubuntu-22.04
+    env:
+      PUSH_DOCKER_IMAGE_TO_HARBOR: ${{ (github.ref == 'refs/heads/main') || startsWith(github.ref, 'refs/tags/') || (inputs.push-docker-image-to-harbor) && 'true' || 'false' }}
     steps:
+
       - name: Checkout code
         uses: actions/checkout@v2
+
+      - name: Docker compose up
+        run: docker compose -f tests/docker-compose.yaml up -d
 
       - name: Docker meta
         id: meta
@@ -212,11 +240,39 @@ jobs:
           registry: ${{ secrets.HARBOR_URL }}
           username: ${{ secrets.HARBOR_USERNAME }}
           password: ${{ secrets.HARBOR_PASSWORD }}
-
-      - name: Tag and push Docker image to Harbor
+      
+      - name: ${{ fromJSON(env.PUSH_DOCKER_IMAGE_TO_HARBOR) && 'Build and push Docker image to Harbor' || 'Build Docker image' }}
         uses: docker/build-push-action@v5
         with:
-          push: true
           context: .
+          push: ${{ fromJSON(env.PUSH_DOCKER_IMAGE_TO_HARBOR) }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          target: prod
+
+      - name: Run Docker image
+        run: |
+          docker run -d -p 8000:8000 \
+            --network tests_datastore_network \
+            -v /home/runner/work/datastore-api/datastore-api/hostkey.pem:/app/hostkey.pem \
+            -v /home/runner/work/datastore-api/datastore-api/hostcert.pem:/app/hostcert.pem \
+            -w /app \
+            -e FTS3__STORAGE_ENDPOINTS__ECHO__ACCESS_KEY=${{ secrets.ECHO_S3_ACCESS_KEY }} \
+            -e FTS3__STORAGE_ENDPOINTS__ECHO__SECRET_KEY=${{ secrets.ECHO_S3_SECRET_KEY }} \
+            ${{ steps.meta.outputs.tags }}
+
+      - name: Wait for Datastore API to start
+        run: sleep 5
+
+      - name: Check if Datastore API is up
+        run: |
+          if [ "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8000/version)" == "200" ]; then
+            echo "Datastore API is up and running"
+          else
+            echo "Datastore API not reachable"
+            exit 1
+          fi
+
+      - name: Docker compose down
+        run: docker stop $(docker ps -a -q)
+        

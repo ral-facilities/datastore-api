@@ -9,7 +9,10 @@ from datastore_api.models.dataset import (
     DatasetStatusListFilesResponse,
     DatasetStatusResponse,
 )
-from datastore_api.models.job import COMPLETE_TRANSFER_STATES
+from datastore_api.models.job import (
+    ACTIVE_JOB_STATES,
+    ACTIVE_TRANSFER_STATES,
+)
 
 
 class StateController:
@@ -46,11 +49,11 @@ class StateController:
         files_complete = 0
         if isinstance(file_statuses, dict):
             for value in file_statuses.values():
-                if value in COMPLETE_TRANSFER_STATES:
+                if value not in ACTIVE_TRANSFER_STATES:
                     files_complete += 1
         else:
             for file_status in file_statuses:
-                if file_status["file_state"] in COMPLETE_TRANSFER_STATES:
+                if file_status["file_state"] not in ACTIVE_TRANSFER_STATES:
                     files_complete += 1
 
         return files_complete
@@ -77,21 +80,27 @@ class StateController:
             includes="1",
         )
 
-    def get_dataset_state(self, dataset_id: int) -> Entity:
+    def get_dataset_state(self, dataset_id: int = None) -> Entity:
         """Get the ICAT DatasetParameter recording FTS state for a single Dataset.
 
         Args:
             dataset_id (int): ICAT Dataset id.
 
         Returns:
-            Entity: ICAT DatasetParameter representing FTS job state.
+            list[Entity]: ICAT DatasetParameter representing FTS job state,
+                dataset_id can be None it will return all the datasets
         """
-        equals = {
-            "type.name": self.icat_client.settings.parameter_type_job_state,
-            "dataset.id": dataset_id,
-        }
+        if dataset_id is not None:
+            equals = {
+                "type.name": self.icat_client.settings.parameter_type_job_state,
+                "dataset.id": dataset_id,
+            }
+        else:
+            equals = {
+                "type.name": self.icat_client.settings.parameter_type_job_state,
+            }
 
-        return self.icat_client.get_single_entity(
+        return self.icat_client.get_entities(
             entity="DatasetParameter",
             equals=equals,
             includes="1",
@@ -208,7 +217,7 @@ class StateController:
         """
         equals = {
             "type.name": self.icat_client.settings.parameter_type_job_state,
-            "datafile.location": location,
+            "datafile.location": location.strip(),
         }
 
         return self.icat_client.get_single_entity(
@@ -362,41 +371,43 @@ class StateController:
         Returns:
             list[StateCounter]: StateCounter for each DatasetParameter.
         """
-        beans_to_delete = []
         state_counters = []
+        # parameter returns the Icat entity
         for parameter in parameters:
             state_counter = StateCounter()
-            job_ids = parameter.stringValue.split(",")
-            statuses = get_fts3_client().statuses(job_ids=job_ids, list_files=True)
-            for status in statuses:
-                state_counter.check_state(
-                    state=status["job_state"],
-                    job_id=status["job_id"],
-                )
-                for file_status in status["files"]:
-                    file_path, file_state = state_counter.check_file(
-                        file_status=file_status,
+            # check if the ICAT state is non terminal
+            if parameter.stringValue in ACTIVE_JOB_STATES:
+                dataset_ids = parameter.dataset.id
+                dataset_job_ids = self.get_dataset_job_ids(dataset_ids)
+                for job_id in dataset_job_ids:
+                    job_ids = job_id.stringValue.split(",")
+                    statuses = get_fts3_client().statuses(
+                        job_ids=job_ids,
+                        list_files=True,
                     )
-                    file_state_parameter = self.get_datafile_state(location=file_path)
+                    for status in statuses:
+                        # check if the FTS state is non terminal
+                        state_counter.check_state(
+                            state=status["job_state"],
+                            job_id=status["job_id"],
+                        )
+                        for file_status in status["files"]:
+                            file_path, file_state = state_counter.check_file(
+                                file_status=file_status,
+                            )
 
-                    if file_state_parameter.stringValue != file_state:
-                        file_state_parameter.stringValue = file_state
-                        self.icat_client.update(bean=file_state_parameter)
+                            datafile_status = self.get_datafile_state(
+                                location=file_path,
+                            )
+                            if datafile_status.stringValue != file_state:
+                                datafile_status.stringValue = file_state
+                                self.icat_client.update(bean=datafile_status)
 
-            if not state_counter.ongoing_job_ids:
-                beans_to_delete.append(parameter)
-            elif state_counter.ongoing_job_ids != job_ids:
-                parameter.stringValue = ",".join(state_counter.ongoing_job_ids)
+            if parameter.stringValue != state_counter.state:
+                parameter.stringValue = state_counter.state
                 self.icat_client.update(bean=parameter)
 
-            state_parameter = self.get_dataset_state(dataset_id=parameter.dataset.id)
-            if state_parameter.stringValue != state_counter.state:
-                state_parameter.stringValue = state_counter.state
-                self.icat_client.update(bean=state_parameter)
-
             state_counters.append(state_counter)
-
-        self.icat_client.delete_many(beans=beans_to_delete)
 
         return state_counters
 
@@ -404,7 +415,7 @@ class StateController:
         self,
         dataset_id: int,
         list_files: bool = False,
-    ) -> DatasetStatusResponse:
+    ) -> DatasetStatusListFilesResponse | DatasetStatusResponse:
         """Get the status of a Dataset that may or may not have completed archival.
 
         Args:
@@ -414,8 +425,8 @@ class StateController:
         Returns:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
-        parameters = self.get_dataset_job_ids(dataset_id=dataset_id)
-        if parameters:
+        parameters = self.get_dataset_state(dataset_id=dataset_id)
+        if parameters[0].stringValue in ACTIVE_JOB_STATES:
             state_controller_functional = StateController()
             return state_controller_functional._get_update_dataset_status(
                 parameters=parameters,
@@ -423,6 +434,7 @@ class StateController:
             )
         else:
             return self._get_dataset_status(
+                dataset_parameter=parameters[0],
                 dataset_id=dataset_id,
                 list_files=list_files,
             )
@@ -431,7 +443,7 @@ class StateController:
         self,
         parameters: list[Entity],
         list_files: bool,
-    ) -> DatasetStatusResponse:
+    ) -> DatasetStatusListFilesResponse | DatasetStatusResponse:
         """Get and update the status of a Dataset using the latest FTS information.
 
         Args:
@@ -454,19 +466,21 @@ class StateController:
 
     def _get_dataset_status(
         self,
+        dataset_parameter: Entity,
         dataset_id: int,
         list_files: bool,
-    ) -> DatasetStatusResponse:
+    ) -> DatasetStatusListFilesResponse | DatasetStatusResponse:
         """Get the status of a Dataset with completed archival.
 
         Args:
+            dataset_parameter (Entity): ICAT DatasetParameter
+                recording the archival state.
             dataset_id (int): ICAT Dataset id.
             list_files (bool): Include state of individual files.
 
         Returns:
             DatasetStatusResponse: State of the Dataset (and Datafiles if relevant).
         """
-        dataset_parameter = self.get_dataset_state(dataset_id=dataset_id)
         state = dataset_parameter.stringValue
         if list_files:
             datafile_parameters = self.get_datafile_states(dataset_id=dataset_id)
