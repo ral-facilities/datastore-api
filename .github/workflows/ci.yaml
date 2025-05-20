@@ -31,6 +31,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Load Pip cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ hashFiles('.github/requirements.txt') }}
+
+      - name: Install Poetry & Nox
+        run: pip install -r .github/requirements.txt
+
+      # Let CodeCarbon run in the background while we do everything else
+      - name: Start CodeCarbon
+        run: codecarbon monitor &
+
       # Do this early to minimise how long we wait for the health check later on
       - name: Docker compose up
         run: docker compose -f tests/docker-compose.yaml up -d
@@ -44,15 +57,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Load Pip cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ hashFiles('.github/requirements.txt') }}
-
-      - name: Install Poetry & Nox
-        run: pip install -r .github/requirements.txt
 
       - name: Load Poetry cache
         uses: actions/cache@v4
@@ -123,6 +127,13 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+      
+      # CodeCarbon needs the keyboard interrupt signal to gracefully stop
+      - name: Stop CodeCarbon
+        run: pkill -2 codecarbon
+
+      - name: Print emissions
+        run: cat emissions.csv
 
 
   linting:

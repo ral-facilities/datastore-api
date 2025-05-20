@@ -404,14 +404,14 @@ colorama = {version = "*", markers = "platform_system == \"Windows\""}
 
 [[package]]
 name = "codecarbon"
-version = "2.7.4"
+version = "3.0.1"
 description = ""
 optional = false
 python-versions = ">=3.7"
 groups = ["main"]
 files = [
-    {file = "codecarbon-2.7.4-py3-none-any.whl", hash = "sha256:c79cd3735f45c6aec047c96711012ccab7450ee9f9f9f1131e5c3d98cfc96903"},
-    {file = "codecarbon-2.7.4.tar.gz", hash = "sha256:29ff9472b6c2c46af1acb3b777aa0bb9d206cd2a0410d42f785897b4f0fc7a89"},
+    {file = "codecarbon-3.0.1-py3-none-any.whl", hash = "sha256:0635bdffa9b8c84afb14b02ef8dbeed68693f5be81ac06c87870af4ac738c2c0"},
+    {file = "codecarbon-3.0.1.tar.gz", hash = "sha256:e1bef1a0ade0a6cb0e52593bdbca1d3713f307c3ad6dfaa16e2ce169f141ede9"},
 ]
 
 [package.dependencies]
@@ -420,8 +420,9 @@ click = "*"
 fief-client = {version = "*", extras = ["cli"]}
 pandas = "*"
 prometheus-client = "*"
-psutil = "*"
+psutil = ">=6.0.0"
 py-cpuinfo = "*"
+pydantic = "*"
 pynvml = "*"
 questionary = "*"
 rapidfuzz = "*"
@@ -3145,4 +3146,4 @@ termcolor = ">=2.2.0,<2.4.0"
 [metadata]
 lock-version = "2.1"
 python-versions = "~3.11"
-content-hash = "7be2baaf129320934371bd8ff83098a83b4c4829bd0f1403c3fafe75e3d93899"
+content-hash = "95d07e1dffce011cef490cd370ffec1b071959adf7a110b9033c85c6683823ff"
