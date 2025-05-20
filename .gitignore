@@ -8,7 +8,6 @@ venv/
 config.yaml
 !config.yaml.example
 .vscode/
-.nox/
 .python-version
 .coverage
 coverage.xml
