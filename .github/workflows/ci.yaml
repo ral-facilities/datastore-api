@@ -23,8 +23,6 @@ jobs:
     strategy:
       fail-fast: false
     runs-on: ubuntu-22.04
-    env:
-      CACHE_DIR: $HOME/.cache/docker
 
     name: Tests
     steps:
@@ -42,8 +40,7 @@ jobs:
 
       # Let CodeCarbon run in the background while we do everything else
       - name: Start CodeCarbon
-        run: codecarbon monitor --no-api
-        timeout-minutes: 1
+        run: codecarbon monitor --no-api & sleep 1
 
       # Do this early to minimise how long we wait for the health check later on
       - name: Docker compose up
@@ -51,9 +48,6 @@ jobs:
 
       - name: Touch coverage.xml
         run: touch coverage.xml
-
-      - name: Make cachedir
-        run: mkdir -p ${{ env.CACHE_DIR }}
 
       - name: Set X509 certificate
         run: |
@@ -81,7 +75,7 @@ jobs:
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
-          path: ${{ env.CACHE_DIR }}
+          path: ${{ runner.temp }}/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-buildx-
@@ -94,8 +88,8 @@ jobs:
           tags: datastore-api:dev
           target: dev
           load: true
-          cache-from: type=local,src=${{ env.CACHE_DIR }}
-          cache-to: type=local,dest=${{ env.CACHE_DIR }},mode=max
+          cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
+          cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
 
       - name: Run tests
         run: |
@@ -111,9 +105,6 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-      
-      - name: list Cache
-        run: ls -l ${{ env.CACHE_DIR }}
 
       # CodeCarbon needs the keyboard interrupt signal to gracefully stop
       - name: Stop CodeCarbon
@@ -132,11 +123,15 @@ jobs:
         if: success() || failure()
         run: cat emissions.csv
 
+      - name: Move Cache
+        run: |
+          rm -rf ${{ runner.temp }}/.buildx-cache
+          mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
+          ls -l ${{ runner.temp }}/.buildx-cache
+
 
   linting:
     runs-on: ubuntu-22.04
-    env:
-      CACHE_DIR: $HOME/.cache/docker
     name: Code Linting
     steps:
       - name: Checkout
@@ -149,7 +144,7 @@ jobs:
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
-          path: ${{ env.CACHE_DIR }}
+          path: ${{ runner.temp }}/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-buildx-
@@ -162,17 +157,21 @@ jobs:
           tags: datastore-api:dev
           target: dev
           load: true
-          cache-from: type=local,src=${{ env.CACHE_DIR }}
-          cache-to: type=local,dest=${{ env.CACHE_DIR }},mode=max
+          cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
+          cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
 
       - name: Run linting
         run: docker compose -f docker-compose.yaml run lint
 
+      - name: Move Cache
+        run: |
+          rm -rf ${{ runner.temp }}/.buildx-cache
+          mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
+          ls -l ${{ runner.temp }}/.buildx-cache
+
 
   formatting:
     runs-on: ubuntu-22.04
-    env:
-      CACHE_DIR: $HOME/.cache/docker
     name: Code Formatting
     steps:
       - name: Checkout
@@ -185,7 +184,7 @@ jobs:
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
-          path: ${{ env.CACHE_DIR }}
+          path: ${{ runner.temp }}/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-buildx-
@@ -198,17 +197,21 @@ jobs:
           tags: datastore-api:dev
           target: dev
           load: true
-          cache-from: type=local,src=${{ env.CACHE_DIR }}
-          cache-to: type=local,dest=${{ env.CACHE_DIR }},mode=max
+          cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
+          cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
 
       - name: Run formatting
         run: docker compose -f docker-compose.yaml run format
 
+      - name: Move Cache
+        run: |
+          rm -rf ${{ runner.temp }}/.buildx-cache
+          mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
+          ls -l ${{ runner.temp }}/.buildx-cache
+
 
   safety:
     runs-on: ubuntu-22.04
-    env:
-      CACHE_DIR: $HOME/.cache/docker
     name: Dependency Safety
     steps:
       - name: Checkout
@@ -221,7 +224,7 @@ jobs:
       - name: Cache Docker layers
         uses: actions/cache@v4
         with:
-          path: ${{ env.CACHE_DIR }}
+          path: ${{ runner.temp }}/.buildx-cache
           key: ${{ runner.os }}-buildx-${{ hashFiles('poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-buildx-
@@ -234,11 +237,17 @@ jobs:
           tags: datastore-api:dev
           target: dev
           load: true
-          cache-from: type=local,src=${{ env.CACHE_DIR }}
-          cache-to: type=local,dest=${{ env.CACHE_DIR }},mode=max
+          cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
+          cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
 
       - name: Run safety
         run: docker compose -f docker-compose.yaml run safety
+
+      - name: Move Cache
+        run: |
+          rm -rf ${{ runner.temp }}/.buildx-cache
+          mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
+          ls -l ${{ runner.temp }}/.buildx-cache
 
   build:
     needs: [ tests, linting, formatting, safety]
