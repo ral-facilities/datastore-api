@@ -40,7 +40,7 @@ jobs:
 
       # Let CodeCarbon run in the background while we do everything else
       - name: Start CodeCarbon
-        run: codecarbon monitor --no-api & sleep 15
+        run: codecarbon monitor --no-api > emissions.out 2>&1 &
 
       # Do this early to minimise how long we wait for the health check later on
       - name: Docker compose up
@@ -91,6 +91,11 @@ jobs:
           cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
           cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
 
+      - name: Move Cache
+        run: |
+          rm -rf ${{ runner.temp }}/.buildx-cache
+          mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
+
       - name: Run tests
         run: |
           docker compose -f docker-compose.yaml --profile tests run \
@@ -123,13 +128,7 @@ jobs:
 
       - name: Print emissions
         if: success() || failure()
-        run: cat emissions.csv
-
-      - name: Move Cache
-        run: |
-          rm -rf ${{ runner.temp }}/.buildx-cache
-          mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
-          ls -l ${{ runner.temp }}/.buildx-cache
+        run: cat emissions.out
 
 
   linting:
@@ -162,14 +161,13 @@ jobs:
           cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
           cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
 
-      - name: Run linting
-        run: docker compose -f docker-compose.yaml run lint
-
       - name: Move Cache
         run: |
           rm -rf ${{ runner.temp }}/.buildx-cache
           mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
-          ls -l ${{ runner.temp }}/.buildx-cache
+
+      - name: Run linting
+        run: docker compose -f docker-compose.yaml run lint
 
 
   formatting:
@@ -202,14 +200,13 @@ jobs:
           cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
           cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
 
-      - name: Run formatting
-        run: docker compose -f docker-compose.yaml run format
-
       - name: Move Cache
         run: |
           rm -rf ${{ runner.temp }}/.buildx-cache
           mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
-          ls -l ${{ runner.temp }}/.buildx-cache
+
+      - name: Run formatting
+        run: docker compose -f docker-compose.yaml run format
 
 
   safety:
@@ -242,14 +239,14 @@ jobs:
           cache-from: type=local,src=${{ runner.temp }}/.buildx-cache
           cache-to: type=local,dest=${{ runner.temp }}/.buildx-cache-new,mode=max
 
-      - name: Run safety
-        run: docker compose -f docker-compose.yaml run safety
-
       - name: Move Cache
         run: |
           rm -rf ${{ runner.temp }}/.buildx-cache
           mv ${{ runner.temp }}/.buildx-cache-new ${{ runner.temp }}/.buildx-cache
-          ls -l ${{ runner.temp }}/.buildx-cache
+
+      - name: Run safety
+        run: docker compose -f docker-compose.yaml run safety
+
 
   build:
     needs: [ tests, linting, formatting, safety]
