@@ -40,7 +40,7 @@ jobs:
 
       # Let CodeCarbon run in the background while we do everything else
       - name: Start CodeCarbon
-        run: codecarbon monitor --no-api & sleep 1
+        run: codecarbon monitor --no-api & sleep 15
 
       # Do this early to minimise how long we wait for the health check later on
       - name: Docker compose up
@@ -109,7 +109,9 @@ jobs:
       # CodeCarbon needs the keyboard interrupt signal to gracefully stop
       - name: Stop CodeCarbon
         if: success() || failure()
-        run: pkill -2 codecarbon
+        run: |
+          pgrep codecarbon
+          pkill -2 codecarbon
 
       - name: Wait for flush
         if: success() || failure()
