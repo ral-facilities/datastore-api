@@ -132,7 +132,7 @@ services:
     build:
       context: .
       target: dev
-    command: safety check --full-report --ignore=75180
+    command: safety check --full-report
     profiles: [safety, checks]
 
   tests:

@@ -1,4 +1,4 @@
-FROM python:3.11-slim AS base
+FROM python:3.13-slim AS base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -93,7 +93,7 @@ CMD ["fastapi","run",  "--host=0.0.0.0", "--port=8000", "--reload" ,"/app/datast
 
 # ~~~Production stage: ~~~#
 # Set up production environment
-FROM python:3.11-slim AS prod
+FROM python:3.13-slim AS prod
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
