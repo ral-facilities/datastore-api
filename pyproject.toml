@@ -1,19 +1,20 @@
-[tool.poetry]
+[project]
 name = "datastore-api"
-packages = [
-    {include = "datastore_api", from = "."},
-]
 version = "0.1.0"
 description = "The Datastore API accepts requests for the archival or retrieval of experimental data. These trigger subsequent requests to create corresponding metadata in ICAT, and schedules the transfer of the data using FTS3"
 authors = [
-    "Patrick Austin <patrick.austin@stfc.ac.uk>",
-    "Kacper Roemer <kacper.roemer@stfc.ac.uk>",
-    "Muhammad Mohsin <muhammad.mohsin@stfc.ac.uk>",
+    {name = "Patrick Austin", email = "patrick.austin@stfc.ac.uk"},
+    {name = "Kacper Roemer", email= "kacper.roemer@stfc.ac.uk"},
+    {name = "Muhammad Mohsin", email= "muhammad.mohsin@stfc.ac.uk"},
+]
+requires-python = ">=3.11, <=3.13"
+
+[tool.poetry]
+packages = [
+    {include = "datastore_api", from = "."},
 ]
 
-
 [tool.poetry.dependencies]
-python = "~3.11"
 fastapi = "^0.115.0"
 fastapi-cli = "^0.0.7"
 pydantic = "^2.8.2"
@@ -36,7 +37,7 @@ flake8-black = "^0.3.6"
 flake8-broken-line = "1.0.0"
 flake8-bugbear = "^24.2.6"
 flake8-builtins = "^2.2.0"
-flake8-commas = "^2.1.0"
+flake8-commas = "^4.0.0"
 flake8-comprehensions = "^3.14.0"
 flake8-import-order = "^0.18.2"
 flake8-logging-format = "^0.9.0"

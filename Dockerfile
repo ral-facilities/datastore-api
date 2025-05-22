@@ -1,4 +1,4 @@
-FROM python:3.11-slim AS base
+FROM python:3.13-slim AS base
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
@@ -74,6 +74,7 @@ RUN poetry install --with dev
 # Copy the project files to the container and install
 COPY config.yaml.example logging.ini.example /app/
 COPY pytest.ini.docker /app/pytest.ini
+COPY .flake8 /app/.flake8
 COPY tests/ /app/tests/
 
 RUN touch hostkey.pem && \
@@ -90,19 +91,9 @@ CMD ["fastapi","run",  "--host=0.0.0.0", "--port=8000", "--reload" ,"/app/datast
 
 
 
-# ~~~Test stage: ~~~#
-#Set up testing environment
-FROM dev AS test
-
-# Run tests
-CMD ["pytest", "--config-file", "pytest.ini"]
-# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ #
-
-
-
 # ~~~Production stage: ~~~#
 # Set up production environment
-FROM python:3.11-slim AS prod
+FROM python:3.13-slim AS prod
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/root/.local/bin:$PATH"
 WORKDIR /app
@@ -115,13 +106,17 @@ RUN apt-get update && \
         libcurl4 \
         curl && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* \
+    addgroup -g 500 -S datastore; \
+    adduser -S -D -G datastore -H -u 500 -h /app datastore
 
 # Copy installed Python deps and source code
 COPY --from=builder /usr/local /usr/local
 COPY pyproject.toml poetry.lock /app/
 COPY datastore_api/ /app/datastore_api/
 RUN python -m pip install .
+
+USER datastore
 
 # Expose the port the app will run on
 EXPOSE 8000

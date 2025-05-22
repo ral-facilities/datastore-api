@@ -24,6 +24,7 @@ services:
       retries: 10
     networks:
       - datastore_network
+    profiles: [dependencies, tests, full]
 
   # The ICAT server, available at https://localhost:18181/icat/version
   icat_payara:
@@ -39,7 +40,7 @@ services:
       - "18080:8080" # http port
     volumes:
       - type: bind
-        source: ./post-boot-commands.asadmin
+        source: tests/post-boot-commands.asadmin
         target: /config/post-boot-commands.asadmin
     environment:
       - POSTBOOT_COMMANDS=/config/post-boot-commands.asadmin
@@ -50,6 +51,7 @@ services:
       retries: 10
     networks:
       - datastore_network
+    profiles: [dependencies, tests, full]
 
   # The Auth service needed by ICAT, available at https://localhost:28181/authn.simple/version/
   auth_payara:
@@ -61,6 +63,7 @@ services:
       - "28181:8181"
     networks:
       - datastore_network
+    profiles: [dependencies, tests, full]
 
   # The minio instance that simulates s3 buckets for download functionality
   # UI available at http://localhost:9000
@@ -108,11 +111,59 @@ services:
       - datastore_network
     profiles: [minio]
 
-  datastore-api:
+  format:
+    container_name: datastore_api_format
     build:
-      context: ../.
-      args:
-        - ENVIRONMENT=DEV
+      context: .
+      target: dev
+    command: black datastore_api tests
+    profiles: [format, checks]
+
+  lint:
+    container_name: datastore_api_lint
+    build:
+      context: .
+      target: dev
+    command: flake8 datastore_api tests
+    profiles: [lint, checks]
+
+  safety:
+    container_name: datastore_api_safety
+    build:
+      context: .
+      target: dev
+    command: safety check --full-report
+    profiles: [safety, checks]
+
+  tests:
+    container_name: datastore_api_tests
+    build:
+      context: .
+      target: dev
+    depends_on:
+      icat_payara:
+        condition: service_healthy
+      auth_payara:
+        condition: service_started
+    volumes:
+      - type: bind
+        source: ./coverage.xml
+        target: /app/coverage.xml
+      - type: bind
+        source: ./hostkey.pem
+        target: /app/hostkey.pem
+      - type: bind
+        source: ./hostcert.pem
+        target: /app/hostcert.pem
+    command: pytest tests --cov --cov-report=term-missing --cov-report=xml
+    networks:
+      - datastore_network
+    profiles: [tests]
+
+  datastore-api:
+    container_name: datastore_api
+    build:
+      context: .
     ports:
       - "8000:8000"
     depends_on:
@@ -135,9 +186,5 @@ services:
 volumes:
   minio_data:
 
-# beware: the actual network name created by Docker will be
-# <project_name>_doi_test_network, where <project_name> is
-# derived from the directory name. In this case test_doi_test_network.
-# docker run --network=tests_doi_test_network doi-mint-api pytest -c tests/pytest.ini
 networks:
   datastore_network:

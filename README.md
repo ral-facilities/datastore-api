@@ -93,16 +93,25 @@ Start Docker Daemon
 sudo systemctl start docker
 ```
 
-To run Docker, `cd` to the _tests_ directory containing the compose file and run:
+To start the services on which the API depends:
 
 ```bash
-sudo docker compose up
+sudo docker compose --profile=dependencies up
 ```
 
-To include optional components in the stack (such as MinIO, as an alternative to Echo) use the appropriate profile such as:
-
+To run the API:
 ```bash
-sudo docker compose --profile=minio up
+sudo docker compose run datastore-api
+```
+
+To run all code checks (note that these do not require the dependency containers to be running):
+```bash
+sudo docker compose --profile=checks up
+```
+
+To run the tests:
+```bash
+sudo docker compose run tests -v /path/to/config.yaml:/app/config.yaml
 ```
 
 ### ICAT Setup

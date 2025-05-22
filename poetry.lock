@@ -771,18 +771,18 @@ test = ["pytest"]
 
 [[package]]
 name = "flake8-commas"
-version = "2.1.0"
+version = "4.0.0"
 description = "Flake8 lint for trailing commas."
 optional = false
-python-versions = "*"
+python-versions = ">=3.8"
 groups = ["dev"]
 files = [
-    {file = "flake8-commas-2.1.0.tar.gz", hash = "sha256:940441ab8ee544df564ae3b3f49f20462d75d5c7cac2463e0b27436e2050f263"},
-    {file = "flake8_commas-2.1.0-py2.py3-none-any.whl", hash = "sha256:ebb96c31e01d0ef1d0685a21f3f0e2f8153a0381430e748bf0bbbb5d5b453d54"},
+    {file = "flake8_commas-4.0.0-py3-none-any.whl", hash = "sha256:cad476d71ba72e8b941a8508d5b9ffb6b03e50f7102982474f085ad0d674b685"},
+    {file = "flake8_commas-4.0.0.tar.gz", hash = "sha256:a68834b42a9a31c94ca790efe557a932c0eae21a3479c6b9a23c4dc077e3ea96"},
 ]
 
 [package.dependencies]
-flake8 = ">=2"
+flake8 = ">=5"
 
 [[package]]
 name = "flake8-comprehensions"
@@ -1585,7 +1585,10 @@ files = [
 ]
 
 [package.dependencies]
-numpy = {version = ">=1.23.2", markers = "python_version == \"3.11\""}
+numpy = [
+    {version = ">=1.26.0", markers = "python_version >= \"3.12\""},
+    {version = ">=1.23.2", markers = "python_version == \"3.11\""},
+]
 python-dateutil = ">=2.8.2"
 pytz = ">=2020.1"
 tzdata = ">=2022.7"
@@ -1788,7 +1791,10 @@ files = [
 [package.dependencies]
 annotated-types = ">=0.6.0"
 pydantic-core = "2.23.4"
-typing-extensions = {version = ">=4.6.1", markers = "python_version < \"3.13\""}
+typing-extensions = [
+    {version = ">=4.12.2", markers = "python_version >= \"3.13\""},
+    {version = ">=4.6.1", markers = "python_version < \"3.13\""},
+]
 
 [package.extras]
 email = ["email-validator (>=2.0.0)"]
@@ -2504,7 +2510,7 @@ description = "C version of reader, parser and emitter for ruamel.yaml derived f
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
-markers = "platform_python_implementation == \"CPython\""
+markers = "platform_python_implementation == \"CPython\" and python_version < \"3.13\""
 files = [
     {file = "ruamel.yaml.clib-0.2.12-cp310-cp310-macosx_13_0_arm64.whl", hash = "sha256:11f891336688faf5156a36293a9c362bdc7c88f03a8a027c2c1d8e0bcde998e5"},
     {file = "ruamel.yaml.clib-0.2.12-cp310-cp310-manylinux2014_aarch64.whl", hash = "sha256:a606ef75a60ecf3d924613892cc603b154178ee25abb3055db5062da811fd969"},
@@ -3145,5 +3151,5 @@ termcolor = ">=2.2.0,<2.4.0"
 
 [metadata]
 lock-version = "2.1"
-python-versions = "~3.11"
-content-hash = "95d07e1dffce011cef490cd370ffec1b071959adf7a110b9033c85c6683823ff"
+python-versions = ">=3.11, <=3.13"
+content-hash = "0085164855324ae706b80cbd1164848b7fed14f29f8dae9c45695b4a663760e7"
