@@ -125,9 +125,9 @@ class IcatSettings(BaseModel):
             "ICAT ParameterType.name to identify how to record FTS archival state."
         ),
     )
-    parameter_type_fts_endpoints: str = Field(
-        default="FTS endpoints",
-        description=("ICAT ParameterType.name to record FTS endpoints URL."),
+    parameter_type_fts_endpoint: str = Field(
+        default="FTS endpoint",
+        description="ICAT ParameterType.name to record FTS endpoint URL.",
     )
     parameter_type_deletion_date: str = Field(
         default="Deletion date",

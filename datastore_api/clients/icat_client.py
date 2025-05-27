@@ -1,5 +1,6 @@
 from functools import lru_cache
 import logging
+from typing import Literal
 
 from fastapi import HTTPException
 from icat import Client, ICATSessionError
@@ -30,67 +31,74 @@ class IcatCache:
         """Initialises a cache of static ICAT information."""
         icat_client = IcatClient()
         icat_client.login_functional()
-        equals = {"facility.name": icat_client.settings.facility_name, "units": ""}
         facility = icat_client.get_single_entity(
             entity="Facility",
             equals={"name": icat_client.settings.facility_name},
         )
 
-        self.parameter_type_job_state = icat_client.get_single_entity(
+        self.parameter_type_job_state = self._init_parameter_type(
+            icat_client=icat_client,
+            facility=facility,
+            name=icat_client.settings.parameter_type_job_state,
+        )
+        self.parameter_type_job_ids = self._init_parameter_type(
+            icat_client=icat_client,
+            facility=facility,
+            name=icat_client.settings.parameter_type_job_ids,
+        )
+        self.parameter_type_fts_endpoint = self._init_parameter_type(
+            icat_client=icat_client,
+            facility=facility,
+            name=icat_client.settings.parameter_type_fts_endpoint,
+        )
+        self.parameter_type_deletion_date = self._init_parameter_type(
+            icat_client=icat_client,
+            facility=facility,
+            name=icat_client.settings.parameter_type_deletion_date,
+            value_type="DATE_AND_TIME",
+        )
+
+    def _init_parameter_type(
+        self,
+        icat_client: "IcatClient",
+        facility: Entity,
+        name: str,
+        value_type: Literal["STRING", "DATE_AND_TIME", "NUMERIC"] = "STRING",
+    ) -> Entity:
+        """Either gets the ParameterType with `name`, or if it does not exist optionally
+        create it.
+
+        Args:
+            icat_client (IcatClient):
+                IcatClient to get or create the named ParameterType Entity.
+            facility (Entity): ICAT Facility Entity to which the ParameterType belongs.
+            name (str): ParameterType.name value.
+            value_type (Literal["STRING", "DATE_AND_TIME", "NUMERIC"], optional):
+                Type of value supported by this ParameterType. Defaults to "STRING".
+
+        Returns:
+            Entity: The ICAT ParameterType Entity.
+        """
+        equals = {"facility.name": facility.name, "units": "", "name": name}
+        parameter_type = icat_client.get_single_entity(
             entity="ParameterType",
-            equals={"name": icat_client.settings.parameter_type_job_state, **equals},
+            equals=equals,
             allow_empty=icat_client.settings.create_parameter_types,
         )
-        if self.parameter_type_job_state is None:
-            self.parameter_type_job_state = icat_client.client.new(
+        if parameter_type is None:
+            parameter_type = icat_client.client.new(
                 obj="ParameterType",
-                name=icat_client.settings.parameter_type_job_state,
+                name=name,
                 units="",
-                valueType="STRING",
+                valueType=value_type,
                 applicableToDataset=True,
                 applicableToDatafile=True,
                 facility=facility,
             )
-            icat_entity_id = icat_client.client.create(self.parameter_type_job_state)
-            self.parameter_type_job_state.id = icat_entity_id
+            icat_entity_id = icat_client.client.create(parameter_type)
+            parameter_type.id = icat_entity_id
 
-        self.parameter_type_job_ids = icat_client.get_single_entity(
-            entity="ParameterType",
-            equals={"name": icat_client.settings.parameter_type_job_ids, **equals},
-            allow_empty=icat_client.settings.create_parameter_types,
-        )
-        if self.parameter_type_job_ids is None:
-            self.parameter_type_job_ids = icat_client.client.new(
-                obj="ParameterType",
-                name=icat_client.settings.parameter_type_job_ids,
-                units="",
-                valueType="STRING",
-                applicableToDataset=True,
-                facility=facility,
-            )
-            icat_entity_id = icat_client.client.create(self.parameter_type_job_ids)
-            self.parameter_type_job_state.id = icat_entity_id
-
-        name = icat_client.settings.parameter_type_deletion_date
-        self.parameter_type_deletion_date = icat_client.get_single_entity(
-            entity="ParameterType",
-            equals={"name": name, **equals},
-            allow_empty=icat_client.settings.create_parameter_types,
-        )
-        if self.parameter_type_deletion_date is None:
-            self.parameter_type_deletion_date = icat_client.client.new(
-                obj="ParameterType",
-                name=icat_client.settings.parameter_type_deletion_date,
-                units="",
-                valueType="STRING",
-                applicableToDataset=True,
-                applicableToDatafile=True,
-                facility=facility,
-            )
-            icat_entity_id = icat_client.client.create(
-                self.parameter_type_deletion_date,
-            )
-            self.parameter_type_job_state.id = icat_entity_id
+        return parameter_type
 
 
 @lru_cache
@@ -381,8 +389,14 @@ class IcatClient:
             type=icat_cache.parameter_type_job_ids,
             stringValue="",
         )
+        dataset_parameter_entity_fts_endpoint = self.client.new(
+            "DatasetParameter",
+            type=icat_cache.parameter_type_fts_endpoint,
+            stringValue="",
+        )
         parameters.append(dataset_parameter_entity_state)
         parameters.append(dataset_parameter_entity_jobs)
+        parameters.append(dataset_parameter_entity_fts_endpoint)
 
         dataset_dict["datasetTechniques"] = self._extract_techniques(
             techniques=dataset.datasetTechniques,

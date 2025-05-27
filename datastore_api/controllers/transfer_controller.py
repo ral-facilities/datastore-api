@@ -236,11 +236,13 @@ class DatasetArchiver(TransferController):
         """
         super().create_fts_jobs()
         type_job_ids = self.icat_client.settings.parameter_type_job_ids
+        type_fts_endpoint = self.icat_client.settings.parameter_type_fts_endpoint
         joined_job_ids = ",".join(self.job_ids)
         for parameter in self.dataset_entity.parameters:
             if parameter.type.name == type_job_ids:
                 parameter.stringValue = joined_job_ids
-                return
+            elif parameter.type.name == type_fts_endpoint:
+                parameter.stringValue = self.fts3_client.fts3_settings.endpoint
 
 
 class DatasetReArchiver(TransferController):
